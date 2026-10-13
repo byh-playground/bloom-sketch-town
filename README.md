@@ -83,3 +83,7 @@ GameKit [PR46](https://github.com/byh-playground/bloom-gamekit/pull/46)의 `Pres
 [공식 사용 계약과 예제](https://github.com/byh-playground/bloom-gamekit/tree/main/modules/interpolation#권장-진입점-한-표시-프레임): 중간 반사점, 부착 관계, 모양은 게임이 소유합니다. 한 tick 안에 생성·제거되어 스냅샷에 나타나지 않는 객체는 모듈이 추론하지 않습니다. 이 게임의 경로는 현재 시뮬레이션이 계산한 tick 끝점을 보존합니다.
 
 고정 manifest SHA-256: `842c6faa2723538ce6ee2817c9c0188c3596c2d03140c8dd90e156ac58141576`.
+
+
+[0.13.0 실제 Edge E2E](docs/e2e-v0.13.0.json): 44 PASS, 미실행 0, 27초.
+[GPU·2인 RTC 전후 계측](docs/presentation-v0.13.0.json): 참가자 초기 위치 유지 약 67→16.7ms(다음 한 프레임), 잔상/본체 간격 p95 약 31→0, 렌더 CPU p99 2.7→2.5ms. 표시 지연은 유지하며, 생성 후 첫 표시 시점은 약 4~7→50~55ms입니다. 미래 위치를 먼저 보이고 정지시키는 대신 표시 시간이 도달하면 첫 구간부터 움직입니다. 같은 PC의 짧은 정상 네트워크 측정이며 사용자 인터넷·장시간·모바일 GPU 성능을 보증하지 않습니다.
