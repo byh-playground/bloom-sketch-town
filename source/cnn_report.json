@@ -1,0 +1,272 @@
+{
+  "version": "0.6.2",
+  "seed": 629102026,
+  "training_method": "all 11 CNN classes gradient fine-tune + realistic circle/square/lightning augmentation",
+  "augmentation_only_during_training": true,
+  "classes": [
+    "normal",
+    "line",
+    "circle",
+    "triangle",
+    "square",
+    "flame",
+    "water",
+    "lightning",
+    "star",
+    "shuriken",
+    "starcircle"
+  ],
+  "train_count": 6160,
+  "validation_count": 1430,
+  "validation_accuracy": 0.9671328663825989,
+  "class_accuracy": {
+    "normal": 0.9846153855323792,
+    "line": 0.9846153855323792,
+    "circle": 0.9615384340286255,
+    "triangle": 1.0,
+    "square": 0.9461538195610046,
+    "flame": 0.9769230484962463,
+    "water": 0.9846153855323792,
+    "lightning": 1.0,
+    "star": 0.9076923131942749,
+    "shuriken": 1.0,
+    "starcircle": 0.892307698726654
+  },
+  "validation_confusion_matrix": [
+    [
+      128,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      2,
+      0
+    ],
+    [
+      0,
+      128,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      2,
+      0
+    ],
+    [
+      2,
+      0,
+      125,
+      0,
+      3,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      130,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      2,
+      0,
+      5,
+      0,
+      123,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      0,
+      1,
+      127,
+      0,
+      0,
+      0,
+      0,
+      2
+    ],
+    [
+      1,
+      0,
+      0,
+      0,
+      1,
+      0,
+      128,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      130,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      0,
+      0,
+      11,
+      0,
+      0,
+      118,
+      1,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      130,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      0,
+      0,
+      13,
+      0,
+      0,
+      1,
+      0,
+      116
+    ]
+  ],
+  "selected_epoch": 73,
+  "baseline_validation_accuracy": 0.9328671097755432,
+  "baseline_class_accuracy": {
+    "normal": 0.9846153855323792,
+    "line": 0.9846153855323792,
+    "circle": 0.9615384340286255,
+    "triangle": 1.0,
+    "square": 0.8153846263885498,
+    "flame": 0.9692307710647583,
+    "water": 0.9846153855323792,
+    "lightning": 0.9692307710647583,
+    "star": 0.8769230842590332,
+    "shuriken": 0.8230769038200378,
+    "starcircle": 0.892307698726654
+  },
+  "user_original_results": [
+    {
+      "kind": "flame",
+      "id": 1,
+      "expected": "flame",
+      "predicted": "flame",
+      "train_source": true
+    },
+    {
+      "kind": "flame",
+      "id": 2,
+      "expected": "flame",
+      "predicted": "flame",
+      "train_source": true
+    },
+    {
+      "kind": "flame",
+      "id": 3,
+      "expected": "flame",
+      "predicted": "flame",
+      "train_source": true
+    },
+    {
+      "kind": "flame",
+      "id": 4,
+      "expected": "flame",
+      "predicted": "flame",
+      "train_source": true
+    },
+    {
+      "kind": "flame",
+      "id": 5,
+      "expected": "flame",
+      "predicted": "flame",
+      "train_source": true
+    },
+    {
+      "kind": "flame",
+      "id": 6,
+      "expected": "flame",
+      "predicted": "flame",
+      "train_source": true
+    },
+    {
+      "kind": "flame",
+      "id": 7,
+      "expected": "flame",
+      "predicted": "flame",
+      "train_source": true
+    },
+    {
+      "kind": "flame",
+      "id": 8,
+      "expected": "flame",
+      "predicted": "flame",
+      "train_source": false
+    },
+    {
+      "kind": "flame",
+      "id": 9,
+      "expected": "flame",
+      "predicted": "flame",
+      "train_source": false
+    },
+    {
+      "kind": "lightning",
+      "id": "user-image-20261012",
+      "expected": "lightning",
+      "predicted": "lightning",
+      "train_source": "template-derived"
+    }
+  ],
+  "real_flame_heldout_ids": [
+    8,
+    9
+  ],
+  "source_limitation": "Only flame 9 original user strokes and one user-provided lightning image exist. Circle/square holdouts are independently seeded procedural human-like strokes, NOT actual new human drawings. Lightning photo shape seeds the trained reference and therefore is NOT independent test data."
+}

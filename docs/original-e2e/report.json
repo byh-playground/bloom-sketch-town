@@ -1,0 +1,91 @@
+{
+  "suite": "Sketch Town real Chromium E2E (single entrypoint)",
+  "html_sha256": "ca119c16ca1bbfd2c2d33d6aa7cab4a67ac5c9aeeeac29cd5a75cad294466072",
+  "headless": false,
+  "live_p2p_requested": false,
+  "chromium": "/usr/bin/chromium",
+  "elapsed_seconds": 64.8,
+  "status": "PASS",
+  "checks": [
+    {
+      "name": "real desktop WebGL renders game geometry",
+      "status": "PASS"
+    },
+    {
+      "name": "15 TPS simulation / 60 FPS rendering targets",
+      "status": "PASS"
+    },
+    {
+      "name": "GameKit interpolation has live entities",
+      "status": "PASS"
+    },
+    {
+      "name": "the actual simulation advances independently from render",
+      "status": "PASS"
+    },
+    {
+      "name": "idle WASD key actually executes offline rollVector",
+      "status": "PASS"
+    },
+    {
+      "name": "W moves up with a brief tap",
+      "status": "PASS"
+    },
+    {
+      "name": "S moves down with a brief tap",
+      "status": "PASS"
+    },
+    {
+      "name": "real one-stroke gesture → CNN → spell → real boss damage",
+      "status": "PASS"
+    },
+    {
+      "name": "WASD after drawing triggers actual charge roll",
+      "status": "PASS"
+    },
+    {
+      "name": "roll range is 3 player diameters",
+      "status": "PASS"
+    },
+    {
+      "name": "editor imports exactly one original stroke",
+      "status": "PASS"
+    },
+    {
+      "name": "PNG metadata retains original only, no augmented tiles",
+      "status": "PASS"
+    },
+    {
+      "name": "canonical rollback save/load is byte-for-byte identical",
+      "status": "PASS"
+    },
+    {
+      "name": "no game JavaScript exception",
+      "status": "PASS",
+      "detail": []
+    },
+    {
+      "name": "WebGL rendering resumes after input and rollback verification",
+      "status": "PASS"
+    },
+    {
+      "name": "real mobile touch begins a charged roll",
+      "status": "PASS"
+    },
+    {
+      "name": "mobile moves no farther than 96 world units",
+      "status": "PASS"
+    },
+    {
+      "name": "mobile WebGL/JS stays operational",
+      "status": "PASS",
+      "detail": []
+    },
+    {
+      "name": "public internet WebRTC connection",
+      "status": "NOT_RUN",
+      "reason": "not requested; rerun with --live-p2p (same single E2E)"
+    }
+  ],
+  "errors": []
+}
