@@ -1,6 +1,6 @@
 # Sketch Town
 
-그림을 그려 마법을 만들고 WASD·터치로 구르는 BLOOM 기반 액션 게임입니다. 현재 버전은 **0.12.0**입니다. 최신 ChatGPT 원본 0.9.2를 이관하고 GameKit protocol 3와 즉시 입력 처리를 적용했습니다.
+그림을 그려 마법을 만들고 WASD·모바일 스틱으로 걷고 선택적으로 구르는 BLOOM 기반 액션 게임입니다. 현재 버전은 **0.12.0**입니다. 최신 ChatGPT 원본 0.9.2를 이관하고 GameKit protocol 3와 즉시 입력 처리를 적용했습니다.
 
 [게임 실행](https://byh-playground.github.io/bloom-sketch-town/)
 
@@ -37,13 +37,13 @@ python source/e2e.py --live-p2p
 
 입력 이벤트는 `observeInput` → 공식 `submitInput`으로 즉시 송신합니다. 입력 60Hz, 시뮬레이션 30TPS, 렌더 최대 60FPS는 독립 실행되며 게임 설정입니다. Command는 한 번만 제출하고 최초 예약 T를 바꾸지 않습니다. `MP_PROFILE`의 network scheduling, safety margin 8ms, jitter multiplier 2로 정상 입력에 도착 여유를 주며 늦은 입력만 공식 rollback으로 보정합니다. `reconciled`에서 표시 상태를 다시 게시합니다.
 
-로컬 구르기 예측은 공식 `LocalInputPreview`와 `PresentationRuntime`을 사용하고 실제 게임과 같은 구르기·충돌 함수를 호출합니다. 마법은 준비 자세만 예측하고 피해는 확정 명령에서 처리합니다. held 입력 전환이나 별도 게임 동기화 계층은 추가하지 않습니다.
+로컬 걷기·구르기 예측은 공식 `LocalInputPreview`와 `PresentationRuntime`을 사용하고 실제 게임과 같은 이동·충돌 함수를 호출합니다. 마법은 준비 자세만 예측하고 피해는 확정 명령에서 처리합니다. 걷기는 두 바이트 방향 지속 입력, 구르기·공격은 단발 Command로 처리합니다. 별도 게임 동기화 계층은 추가하지 않습니다.
 
 ## 검증·배포
 
 기존 단일 `source/e2e.py --live-p2p`에서 실제 Edge의 기본 게임, 모바일 터치, CNN 마법, 공개 Nostr + 2인 WebRTC, 이벤트 내 즉시 송신·예측 게시, 지연·중복 RTC 패킷의 예약 T와 확정 해시를 검증합니다. 소프트웨어 WebGL 환경의 관측 프레임 시간은 물리 디스플레이 지연 보장이 아닙니다. 다중 기기·장거리 인터넷의 모든 지터 조합은 검증하지 않습니다.
 
-[실제 Edge 검증 기록](docs/e2e-v0.11.0.json): 33 PASS, 0 NOT RUN, 28.8초. [30TPS 표시·CPU 계측](docs/performance-v0.11.0.json).
+[실제 Edge 검증 기록](docs/e2e-v0.12.0.json): 40 PASS, 0 NOT RUN, 35.05초. [0.11.0의 30TPS 표시·CPU 계측](docs/performance-v0.11.0.json).
 
 PR CI는 번들 해시 확인과 빌드 재현성을 검사합니다. main 병합 시 동일 빌드의 `index.html`을 GitHub Actions Pages로 배포합니다.
 
