@@ -89,10 +89,10 @@
     if(world.rollTarget)visit(world.rollTarget,'rollTarget');
   }
   // BLOOM GameKit local input preview: an isolated, small actor fork, NOT a second live simulation.
-  // Roll physics/collision share startActorRoll + stepActorRoll with the canonical RPG update.
+  // Walking and roll physics/collision share startActorRoll + stepActorMovement with the canonical RPG update.
   // A cast publishes only its anticipation pose; actual projectile/damage are confirmed input commands.
   function snapshotLocalActor(){return {actor:{...player,dash:{...player.dash}},mode:world.mode,castMs:0};}
-  function writeLocalPose(source,actor,castMs=0){source.x=actor.x;source.y=actor.y;source.roll=actor.dash.elapsedMs;source.leftMs=actor.dash.leftMs;source.durationMs=actor.dash.durationMs;source.dirX=actor.dash.dirX;source.dirY=actor.dash.dirY;source.charges=actor.dash.charges;source.castMs=castMs;}
+  function writeLocalPose(source,actor,castMs=0){source.x=actor.x;source.y=actor.y;source.roll=actor.dash.elapsedMs;source.leftMs=actor.dash.leftMs;source.durationMs=actor.dash.durationMs;source.dirX=actor.dash.dirX;source.dirY=actor.dash.dirY;source.charges=actor.dash.charges;source.castMs=castMs;source.moveX=actor.moveX;source.moveY=actor.moveY;source.faceX=actor.faceX;source.faceY=actor.faceY;}
   function disposeInputPreview(){
     mp.inputPreview?.dispose();mp.inputPreview=null;mp.localPresentation=null;
     mp.localPoseSource=null;mp.localPoseType=null;mp.previewNeedsReset=true;
@@ -101,8 +101,8 @@
     disposeInputPreview();
     // The real published GameKit modules own all prediction scheduling, replay and presentation corrections.
     class LocalWizardPose extends interpolation.RenderObject {
-      constructor(){super();this.x=0;this.y=0;this.roll=0;this.leftMs=0;this.durationMs=0;this.dirX=1;this.dirY=0;this.charges=2;this.castMs=0;}
-      static renderSchema={x:this.POSITION_X,y:this.POSITION_Y,roll:this.LINEAR,leftMs:this.LINEAR,durationMs:this.STEP,dirX:this.STEP,dirY:this.STEP,charges:this.STEP,castMs:this.LINEAR};
+      constructor(){super();this.x=0;this.y=0;this.roll=0;this.leftMs=0;this.durationMs=0;this.dirX=1;this.dirY=0;this.charges=2;this.castMs=0;this.moveX=0;this.moveY=0;this.faceX=1;this.faceY=0;}
+      static renderSchema={x:this.POSITION_X,y:this.POSITION_Y,roll:this.LINEAR,leftMs:this.LINEAR,durationMs:this.STEP,dirX:this.STEP,dirY:this.STEP,charges:this.STEP,castMs:this.LINEAR,moveX:this.STEP,moveY:this.STEP,faceX:this.STEP,faceY:this.STEP};
       render(){} // The RPG draws the returned model in the existing shared WebGL renderer.
     }
     mp.localPoseType=LocalWizardPose;
@@ -209,6 +209,7 @@
       if(mp.connected&&object===(mp.role==='join'?guestPlayer:hostPlayer)&&mp.localPresentation&&mp.localPoseSource){
         const predicted=mp.localPresentation.modelFor(mp.localPoseSource,paintFrameNow);
         if(predicted){view.x=predicted.x;view.y=predicted.y;view.roll=predicted.roll;
+          view.moveX=predicted.moveX;view.moveY=predicted.moveY;view.faceX=predicted.faceX;view.faceY=predicted.faceY;
           view.castPreviewMs=predicted.castMs;view.dash.leftMs=predicted.leftMs;
           view.dash.durationMs=predicted.durationMs;view.dash.dirX=predicted.dirX;
           view.dash.dirY=predicted.dirY;view.dash.charges=predicted.charges;

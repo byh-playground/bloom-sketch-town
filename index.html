@@ -1916,7 +1916,7 @@ if(e.hp<=0){e.dead=true;world.kills++;burst(e.x,e.y,enemyDefs[e.kind].color,9,10
     if(e.type==='down'&&movementStick.pointer===null){movementStick.pointer=e.pointerId;focusGameplay();}
     if(e.pointerId!==movementStick.pointer)return;
     if(e.type==='up'||e.type==='cancel')resetMovementStick();
-    else{const size=$('moveStick').clientWidth,dx=e.x-size/2,dy=e.y-size/2,length=hypot(dx,dy),radius=size*.34;
+    else{const size=$('moveStick').getBoundingClientRect().width,dx=e.x-size/2,dy=e.y-size/2,length=hypot(dx,dy),radius=size*.34;
       movementStick.x=length>size*.12?dx/length:0;movementStick.y=length>size*.12?dy/length:0;
       const scale=Math.min(1,radius/Math.max(1,length));$('moveKnob').style.transform=`translate(${dx*scale}px,${dy*scale}px)`;}
     wakeInputPreview();
@@ -2103,10 +2103,10 @@ if(e.hp<=0){e.dead=true;world.kills++;burst(e.x,e.y,enemyDefs[e.kind].color,9,10
     if(world.rollTarget)visit(world.rollTarget,'rollTarget');
   }
   // BLOOM GameKit local input preview: an isolated, small actor fork, NOT a second live simulation.
-  // Roll physics/collision share startActorRoll + stepActorRoll with the canonical RPG update.
+  // Walking and roll physics/collision share startActorRoll + stepActorMovement with the canonical RPG update.
   // A cast publishes only its anticipation pose; actual projectile/damage are confirmed input commands.
   function snapshotLocalActor(){return {actor:{...player,dash:{...player.dash}},mode:world.mode,castMs:0};}
-  function writeLocalPose(source,actor,castMs=0){source.x=actor.x;source.y=actor.y;source.roll=actor.dash.elapsedMs;source.leftMs=actor.dash.leftMs;source.durationMs=actor.dash.durationMs;source.dirX=actor.dash.dirX;source.dirY=actor.dash.dirY;source.charges=actor.dash.charges;source.castMs=castMs;}
+  function writeLocalPose(source,actor,castMs=0){source.x=actor.x;source.y=actor.y;source.roll=actor.dash.elapsedMs;source.leftMs=actor.dash.leftMs;source.durationMs=actor.dash.durationMs;source.dirX=actor.dash.dirX;source.dirY=actor.dash.dirY;source.charges=actor.dash.charges;source.castMs=castMs;source.moveX=actor.moveX;source.moveY=actor.moveY;source.faceX=actor.faceX;source.faceY=actor.faceY;}
   function disposeInputPreview(){
     mp.inputPreview?.dispose();mp.inputPreview=null;mp.localPresentation=null;
     mp.localPoseSource=null;mp.localPoseType=null;mp.previewNeedsReset=true;
@@ -2115,8 +2115,8 @@ if(e.hp<=0){e.dead=true;world.kills++;burst(e.x,e.y,enemyDefs[e.kind].color,9,10
     disposeInputPreview();
     // The real published GameKit modules own all prediction scheduling, replay and presentation corrections.
     class LocalWizardPose extends interpolation.RenderObject {
-      constructor(){super();this.x=0;this.y=0;this.roll=0;this.leftMs=0;this.durationMs=0;this.dirX=1;this.dirY=0;this.charges=2;this.castMs=0;}
-      static renderSchema={x:this.POSITION_X,y:this.POSITION_Y,roll:this.LINEAR,leftMs:this.LINEAR,durationMs:this.STEP,dirX:this.STEP,dirY:this.STEP,charges:this.STEP,castMs:this.LINEAR};
+      constructor(){super();this.x=0;this.y=0;this.roll=0;this.leftMs=0;this.durationMs=0;this.dirX=1;this.dirY=0;this.charges=2;this.castMs=0;this.moveX=0;this.moveY=0;this.faceX=1;this.faceY=0;}
+      static renderSchema={x:this.POSITION_X,y:this.POSITION_Y,roll:this.LINEAR,leftMs:this.LINEAR,durationMs:this.STEP,dirX:this.STEP,dirY:this.STEP,charges:this.STEP,castMs:this.LINEAR,moveX:this.STEP,moveY:this.STEP,faceX:this.STEP,faceY:this.STEP};
       render(){} // The RPG draws the returned model in the existing shared WebGL renderer.
     }
     mp.localPoseType=LocalWizardPose;
@@ -2223,6 +2223,7 @@ if(e.hp<=0){e.dead=true;world.kills++;burst(e.x,e.y,enemyDefs[e.kind].color,9,10
       if(mp.connected&&object===(mp.role==='join'?guestPlayer:hostPlayer)&&mp.localPresentation&&mp.localPoseSource){
         const predicted=mp.localPresentation.modelFor(mp.localPoseSource,paintFrameNow);
         if(predicted){view.x=predicted.x;view.y=predicted.y;view.roll=predicted.roll;
+          view.moveX=predicted.moveX;view.moveY=predicted.moveY;view.faceX=predicted.faceX;view.faceY=predicted.faceY;
           view.castPreviewMs=predicted.castMs;view.dash.leftMs=predicted.leftMs;
           view.dash.durationMs=predicted.durationMs;view.dash.dirX=predicted.dirX;
           view.dash.dirY=predicted.dirY;view.dash.charges=predicted.charges;
@@ -2591,7 +2592,7 @@ if(e.hp<=0){e.dead=true;world.kills++;burst(e.x,e.y,enemyDefs[e.kind].color,9,10
       sessionMode:mp.session?.profile.mode||null,tickRate:mp.session?.profile.tickRate||30,previewEnabled:!!mp.inputPreview,
       tick:mp.session?.tick??gameSession.tick,confirmedTick:mp.session?.confirmedTick??null,
       players:mp.session?.players.length||1,shared:mp.shared,network:mp.session?.metrics||null,stats:{...mp.stats},
-      host:{x:hostPlayer.x,y:hostPlayer.y,hp:hostPlayer.hp},guest:{x:guestPlayer.x,y:guestPlayer.y,hp:guestPlayer.hp}};},
+      host:{x:hostPlayer.x,y:hostPlayer.y,hp:hostPlayer.hp,moveX:hostPlayer.moveX,moveY:hostPlayer.moveY},guest:{x:guestPlayer.x,y:guestPlayer.y,hp:guestPlayer.hp}};},
     inputAudit(){return structuredClone(inputAudit);},
     stateHash(tick){return mp.session?.getStateHash(tick);},
     canonicalBytes(){return encodeState().length;},

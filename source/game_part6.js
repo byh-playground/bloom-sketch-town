@@ -218,7 +218,7 @@
       sessionMode:mp.session?.profile.mode||null,tickRate:mp.session?.profile.tickRate||30,previewEnabled:!!mp.inputPreview,
       tick:mp.session?.tick??gameSession.tick,confirmedTick:mp.session?.confirmedTick??null,
       players:mp.session?.players.length||1,shared:mp.shared,network:mp.session?.metrics||null,stats:{...mp.stats},
-      host:{x:hostPlayer.x,y:hostPlayer.y,hp:hostPlayer.hp},guest:{x:guestPlayer.x,y:guestPlayer.y,hp:guestPlayer.hp}};},
+      host:{x:hostPlayer.x,y:hostPlayer.y,hp:hostPlayer.hp,moveX:hostPlayer.moveX,moveY:hostPlayer.moveY},guest:{x:guestPlayer.x,y:guestPlayer.y,hp:guestPlayer.hp}};},
     inputAudit(){return structuredClone(inputAudit);},
     stateHash(tick){return mp.session?.getStateHash(tick);},
     canonicalBytes(){return encodeState().length;},

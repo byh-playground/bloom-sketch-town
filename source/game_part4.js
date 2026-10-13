@@ -27,7 +27,7 @@
     if(e.type==='down'&&movementStick.pointer===null){movementStick.pointer=e.pointerId;focusGameplay();}
     if(e.pointerId!==movementStick.pointer)return;
     if(e.type==='up'||e.type==='cancel')resetMovementStick();
-    else{const size=$('moveStick').clientWidth,dx=e.x-size/2,dy=e.y-size/2,length=hypot(dx,dy),radius=size*.34;
+    else{const size=$('moveStick').getBoundingClientRect().width,dx=e.x-size/2,dy=e.y-size/2,length=hypot(dx,dy),radius=size*.34;
       movementStick.x=length>size*.12?dx/length:0;movementStick.y=length>size*.12?dy/length:0;
       const scale=Math.min(1,radius/Math.max(1,length));$('moveKnob').style.transform=`translate(${dx*scale}px,${dy*scale}px)`;}
     wakeInputPreview();
