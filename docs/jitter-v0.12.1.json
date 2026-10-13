@@ -1,0 +1,749 @@
+{
+  "version": "0.12.1",
+  "previousVersion": "0.12.0",
+  "gamekitSource": "ffbbe81dfdeb08066b92433bc883bfa09003cc72",
+  "gamekitDist": "e7a1782275b6414f2bcf2cd29de173f49b849004",
+  "manifestSHA256": "c600950f3c2969d019f2952871566eb9879ad4a80d27a03f1e4cd1f046eb30f7",
+  "scenario": "Actual GPU Edge 800x600, held walk/release/diagonal/roll-walk; actual public Nostr+WebRTC, existing combatFixture puts one boss far away to exclude knockback",
+  "limits": "CPU times exclude GPU execution. Short representative samples, not physical mobile or all jitter conditions. Release phases include direction transitions; roll-walk camera settling is intentional. Genuine delayed solo catch-up was retained.",
+  "runs": [
+    {
+      "version": "before",
+      "online": false,
+      "peer": 0,
+      "gpu": "ANGLE (NVIDIA, NVIDIA GeForce GTX 1660 Ti (0x00002191) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+      "renderCPU": {
+        "p50": 1.7,
+        "p95": 2.3,
+        "p99": 2.6
+      },
+      "interval": {
+        "p50": 16.7,
+        "p95": 16.8,
+        "p99": 16.9
+      },
+      "pulseCPU": {
+        "p50": 0.1,
+        "p95": 0.2,
+        "p99": 0.3
+      },
+      "ticksPerPulse": {
+        "4": 1,
+        "1": 117
+      },
+      "phases": [
+        {
+          "phase": "hold",
+          "actor": "a",
+          "n": 50,
+          "deltaWorld": {
+            "p50": 2.338,
+            "p95": 2.5585,
+            "p99": 2.5858
+          },
+          "worldMin": 1.8741175636597518,
+          "worldMax": 2.585827997318006,
+          "screenDelta": {
+            "p50": 0.0106,
+            "p95": 0.1453,
+            "p99": 0.1648
+          },
+          "screenMin": -0.4025186867897723,
+          "screenMax": 0.16475843974004434,
+          "flatWorld": 0,
+          "reverseWorld": 0,
+          "reverseScreen": 9,
+          "clockReverse": 0,
+          "bigClockJump": 20.7333333094914
+        },
+        {
+          "phase": "diagonal",
+          "actor": "a",
+          "n": 31,
+          "deltaWorld": {
+            "p50": 2.338,
+            "p95": 2.5703,
+            "p99": 2.6228
+          },
+          "worldMin": 1.9740750980269914,
+          "worldMax": 2.6228385070052394,
+          "screenDelta": {
+            "p50": 0.0244,
+            "p95": 0.1731,
+            "p99": 0.177
+          },
+          "screenMin": -0.35257464093499513,
+          "screenMax": 0.17703353264257593,
+          "flatWorld": 0,
+          "reverseWorld": 0,
+          "reverseScreen": 6,
+          "clockReverse": 0,
+          "bigClockJump": 20.833333333333485
+        },
+        {
+          "phase": "roll-walk",
+          "actor": "a",
+          "n": 38,
+          "deltaWorld": {
+            "p50": 2.338,
+            "p95": 2.5437,
+            "p99": 2.6154
+          },
+          "worldMin": 1.8940693344615056,
+          "worldMax": 2.6154240001735616,
+          "screenDelta": {
+            "p50": -0.0175,
+            "p95": 0.1277,
+            "p99": 0.1515
+          },
+          "screenMin": -0.7725422504638111,
+          "screenMax": 0.1514741417554788,
+          "flatWorld": 0,
+          "reverseWorld": 0,
+          "reverseScreen": 14,
+          "clockReverse": 0,
+          "bigClockJump": 20.5333333214121
+        },
+        {
+          "phase": "release",
+          "actor": "a",
+          "n": 62,
+          "deltaWorld": {
+            "p50": 0.0,
+            "p95": 0.0111,
+            "p99": 1.0756
+          },
+          "worldMin": -1.808617925229214,
+          "worldMax": 2.3960440026102106,
+          "screenDelta": {
+            "p50": -0.0627,
+            "p95": 0.6462,
+            "p99": 0.9288
+          },
+          "screenMin": -1.4366701613201984,
+          "screenMax": 0.9944607317991814,
+          "flatWorld": 56,
+          "reverseWorld": 2,
+          "reverseScreen": 33,
+          "clockReverse": 0,
+          "bigClockJump": 21.633333345254414
+        }
+      ]
+    },
+    {
+      "version": "before",
+      "online": true,
+      "peer": 0,
+      "gpu": "ANGLE (NVIDIA, NVIDIA GeForce GTX 1660 Ti (0x00002191) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+      "renderCPU": {
+        "p50": 1.7,
+        "p95": 2.5,
+        "p99": 3.1
+      },
+      "interval": {
+        "p50": 16.7,
+        "p95": 16.8,
+        "p99": 17.1
+      },
+      "pulseCPU": {
+        "p50": 0.4,
+        "p95": 0.6,
+        "p99": 0.8
+      },
+      "ticksPerPulse": {
+        "1": 109,
+        "0": 5,
+        "2": 5
+      },
+      "phases": [
+        {
+          "phase": "hold",
+          "actor": "b",
+          "n": 51,
+          "deltaWorld": {
+            "p50": 2.338,
+            "p95": 2.5895,
+            "p99": 2.5999
+          },
+          "worldMin": 1.7844729005896625,
+          "worldMax": 2.599856000652494,
+          "screenDelta": {
+            "p50": 2.0574,
+            "p95": 2.2788,
+            "p99": 2.2879
+          },
+          "screenMin": 1.5703361525189052,
+          "screenMax": 2.287873280574189,
+          "flatWorld": 0,
+          "reverseWorld": 0,
+          "reverseScreen": 0,
+          "clockReverse": 0,
+          "bigClockJump": 20.63333334525396
+        },
+        {
+          "phase": "diagonal",
+          "actor": "b",
+          "n": 33,
+          "deltaWorld": {
+            "p50": 2.338,
+            "p95": 2.6452,
+            "p99": 4.5644
+          },
+          "worldMin": -0.0,
+          "worldMax": 4.564447995006435,
+          "screenDelta": {
+            "p50": 2.0574,
+            "p95": 2.3278,
+            "p99": 4.0167
+          },
+          "screenMin": -0.0,
+          "screenMax": 4.01671423560566,
+          "flatWorld": 1,
+          "reverseWorld": 0,
+          "reverseScreen": 0,
+          "clockReverse": 0,
+          "bigClockJump": 39.033333381017655
+        },
+        {
+          "phase": "roll-walk",
+          "actor": "b",
+          "n": 38,
+          "deltaWorld": {
+            "p50": 2.3608,
+            "p95": 2.6519,
+            "p99": 4.655
+          },
+          "worldMin": 0.0,
+          "worldMax": 4.6549579958409595,
+          "screenDelta": {
+            "p50": 2.0775,
+            "p95": 2.3337,
+            "p99": 4.0964
+          },
+          "screenMin": 0.0,
+          "screenMax": 4.096363036340051,
+          "flatWorld": 1,
+          "reverseWorld": 0,
+          "reverseScreen": 0,
+          "clockReverse": 0,
+          "bigClockJump": 38.63333334525487
+        },
+        {
+          "phase": "release",
+          "actor": "b",
+          "n": 62,
+          "deltaWorld": {
+            "p50": 0.0,
+            "p95": 1.7197,
+            "p99": 2.4312
+          },
+          "worldMin": -1.6532156591345029,
+          "worldMax": 2.6052040029105683,
+          "screenDelta": {
+            "p50": 0.0,
+            "p95": 1.5134,
+            "p99": 2.1394
+          },
+          "screenMin": -1.4548297800383665,
+          "screenMax": 2.2925795225613115,
+          "flatWorld": 51,
+          "reverseWorld": 4,
+          "reverseScreen": 4,
+          "clockReverse": 0,
+          "bigClockJump": 38.83333333333303
+        }
+      ]
+    },
+    {
+      "version": "before",
+      "online": true,
+      "peer": 1,
+      "gpu": "ANGLE (NVIDIA, NVIDIA GeForce GTX 1660 Ti (0x00002191) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+      "renderCPU": {
+        "p50": 1.9,
+        "p95": 2.7,
+        "p99": 3.5
+      },
+      "interval": {
+        "p50": 16.7,
+        "p95": 16.8,
+        "p99": 16.9
+      },
+      "pulseCPU": {
+        "p50": 0.4,
+        "p95": 0.9,
+        "p99": 1.1
+      },
+      "ticksPerPulse": {
+        "1": 93,
+        "0": 15,
+        "2": 15
+      },
+      "phases": [
+        {
+          "phase": "hold",
+          "actor": "b",
+          "n": 51,
+          "deltaWorld": {
+            "p50": 2.3592,
+            "p95": 4.5095,
+            "p99": 5.868
+          },
+          "worldMin": 0.0,
+          "worldMax": 5.868039920538308,
+          "screenDelta": {
+            "p50": -0.1472,
+            "p95": 1.6654,
+            "p99": 2.7643
+          },
+          "screenMin": -1.7483255400936928,
+          "screenMax": 2.764255696005457,
+          "flatWorld": 2,
+          "reverseWorld": 0,
+          "reverseScreen": 28,
+          "clockReverse": 0,
+          "bigClockJump": 45.56666670242885
+        },
+        {
+          "phase": "diagonal",
+          "actor": "b",
+          "n": 33,
+          "deltaWorld": {
+            "p50": 2.1037,
+            "p95": 4.4213,
+            "p99": 4.6901
+          },
+          "worldMin": -0.0,
+          "worldMax": 4.690112671862086,
+          "screenDelta": {
+            "p50": -0.2295,
+            "p95": 1.7022,
+            "p99": 2.0141
+          },
+          "screenMin": -1.765779866461048,
+          "screenMax": 2.0141256850048634,
+          "flatWorld": 2,
+          "reverseWorld": 0,
+          "reverseScreen": 18,
+          "clockReverse": 0,
+          "bigClockJump": 44.76666669050974
+        },
+        {
+          "phase": "roll-walk",
+          "actor": "b",
+          "n": 40,
+          "deltaWorld": {
+            "p50": 2.3521,
+            "p95": 4.69,
+            "p99": 5.6693
+          },
+          "worldMin": 0.0,
+          "worldMax": 5.6692839746036725,
+          "screenDelta": {
+            "p50": -0.4669,
+            "p95": 1.7096,
+            "p99": 2.5783
+          },
+          "screenMin": -1.9734558853168265,
+          "screenMax": 2.578282171113907,
+          "flatWorld": 4,
+          "reverseWorld": 0,
+          "reverseScreen": 22,
+          "clockReverse": 0,
+          "bigClockJump": 45.76666669050974
+        },
+        {
+          "phase": "release",
+          "actor": "b",
+          "n": 71,
+          "deltaWorld": {
+            "p50": 0.0,
+            "p95": 0.0,
+            "p99": 0.0
+          },
+          "worldMin": -1.7391689687816552,
+          "worldMax": 0.0,
+          "screenDelta": {
+            "p50": -0.0237,
+            "p95": 0.4221,
+            "p99": 0.8295
+          },
+          "screenMin": -2.6156628349515545,
+          "screenMax": 1.0182497092027551,
+          "flatWorld": 69,
+          "reverseWorld": 1,
+          "reverseScreen": 28,
+          "clockReverse": 0,
+          "bigClockJump": 47.96666667858699
+        }
+      ]
+    },
+    {
+      "version": "after",
+      "online": false,
+      "peer": 0,
+      "gpu": "ANGLE (NVIDIA, NVIDIA GeForce GTX 1660 Ti (0x00002191) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+      "renderCPU": {
+        "p50": 1.4,
+        "p95": 2.2,
+        "p99": 2.5
+      },
+      "interval": {
+        "p50": 16.7,
+        "p95": 16.8,
+        "p99": 16.9
+      },
+      "pulseCPU": {
+        "p50": 0.1,
+        "p95": 0.3,
+        "p99": 0.4
+      },
+      "ticksPerPulse": {
+        "1": 119,
+        "3": 1
+      },
+      "phases": [
+        {
+          "phase": "hold",
+          "actor": "a",
+          "n": 51,
+          "deltaWorld": {
+            "p50": 2.338,
+            "p95": 2.352,
+            "p99": 2.366
+          },
+          "worldMin": 2.29599999666209,
+          "worldMax": 2.366000005006754,
+          "screenDelta": {
+            "p50": 0.0007,
+            "p95": 0.0106,
+            "p99": 0.0159
+          },
+          "screenMin": -0.0027738486931774275,
+          "screenMax": 0.015932740572697668,
+          "flatWorld": 0,
+          "reverseWorld": 0,
+          "reverseScreen": 0,
+          "clockReverse": 0,
+          "bigClockJump": 17.733333249886755
+        },
+        {
+          "phase": "diagonal",
+          "actor": "a",
+          "n": 33,
+          "deltaWorld": {
+            "p50": 2.338,
+            "p95": 2.352,
+            "p99": 2.366
+          },
+          "worldMin": 2.3099999999998886,
+          "worldMax": 2.36600000500678,
+          "screenDelta": {
+            "p50": 0.0033,
+            "p95": 0.054,
+            "p99": 0.0886
+          },
+          "screenMin": -0.001560372048879744,
+          "screenMax": 0.08857122026210179,
+          "flatWorld": 0,
+          "reverseWorld": 0,
+          "reverseScreen": 0,
+          "clockReverse": 0,
+          "bigClockJump": 17.733333309491627
+        },
+        {
+          "phase": "roll-walk",
+          "actor": "a",
+          "n": 39,
+          "deltaWorld": {
+            "p50": 2.338,
+            "p95": 2.366,
+            "p99": 2.366
+          },
+          "worldMin": 2.29599999666209,
+          "worldMax": 2.366000005006754,
+          "screenDelta": {
+            "p50": -0.021,
+            "p95": 0.0001,
+            "p99": 0.0017
+          },
+          "screenMin": -1.4634413209576813,
+          "screenMax": 0.0016834672989727295,
+          "flatWorld": 0,
+          "reverseWorld": 0,
+          "reverseScreen": 16,
+          "clockReverse": 0,
+          "bigClockJump": 18.13333334525396
+        },
+        {
+          "phase": "release",
+          "actor": "a",
+          "n": 61,
+          "deltaWorld": {
+            "p50": 0.0,
+            "p95": 0.0,
+            "p99": 2.3193
+          },
+          "worldMin": -1.6466159923031682,
+          "worldMax": 2.352000001668898,
+          "screenDelta": {
+            "p50": -0.056,
+            "p95": 0.5911,
+            "p99": 0.916
+          },
+          "screenMin": -1.641391552351715,
+          "screenMax": 1.1524942206484408,
+          "flatWorld": 57,
+          "reverseWorld": 1,
+          "reverseScreen": 32,
+          "clockReverse": 0,
+          "bigClockJump": 23.5333333214121
+        }
+      ]
+    },
+    {
+      "version": "after",
+      "online": true,
+      "peer": 0,
+      "gpu": "ANGLE (NVIDIA, NVIDIA GeForce GTX 1660 Ti (0x00002191) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+      "renderCPU": {
+        "p50": 1.6,
+        "p95": 2.2,
+        "p99": 5
+      },
+      "interval": {
+        "p50": 16.7,
+        "p95": 16.9,
+        "p99": 17.4
+      },
+      "pulseCPU": {
+        "p50": 0.4,
+        "p95": 0.7,
+        "p99": 1.2
+      },
+      "ticksPerPulse": {
+        "1": 120
+      },
+      "phases": [
+        {
+          "phase": "hold",
+          "actor": "b",
+          "n": 50,
+          "deltaWorld": {
+            "p50": 2.338,
+            "p95": 2.366,
+            "p99": 2.408
+          },
+          "worldMin": 2.22599999666204,
+          "worldMax": 2.4080000066758203,
+          "screenDelta": {
+            "p50": 2.0574,
+            "p95": 2.0821,
+            "p99": 2.119
+          },
+          "screenMin": 1.9588799970625956,
+          "screenMax": 2.119040005874723,
+          "flatWorld": 0,
+          "reverseWorld": 0,
+          "reverseScreen": 0,
+          "clockReverse": 0,
+          "bigClockJump": 20.833333392937675
+        },
+        {
+          "phase": "diagonal",
+          "actor": "b",
+          "n": 34,
+          "deltaWorld": {
+            "p50": 2.338,
+            "p95": 2.352,
+            "p99": 2.366
+          },
+          "worldMin": 2.3099999999998886,
+          "worldMax": 2.36600000500678,
+          "screenDelta": {
+            "p50": 2.0574,
+            "p95": 2.0698,
+            "p99": 2.0821
+          },
+          "screenMin": 2.032799999999911,
+          "screenMax": 2.0820800044059515,
+          "flatWorld": 0,
+          "reverseWorld": 0,
+          "reverseScreen": 0,
+          "clockReverse": 0,
+          "bigClockJump": 21.03333332141301
+        },
+        {
+          "phase": "roll-walk",
+          "actor": "b",
+          "n": 40,
+          "deltaWorld": {
+            "p50": 2.338,
+            "p95": 2.366,
+            "p99": 2.394
+          },
+          "worldMin": 2.282000001668848,
+          "worldMax": 2.394000003337851,
+          "screenDelta": {
+            "p50": 2.0574,
+            "p95": 2.0821,
+            "p99": 2.1067
+          },
+          "screenMin": 2.008160001468582,
+          "screenMax": 2.1067200029373225,
+          "flatWorld": 0,
+          "reverseWorld": 0,
+          "reverseScreen": 0,
+          "clockReverse": 0,
+          "bigClockJump": 20.933333357175798
+        },
+        {
+          "phase": "release",
+          "actor": "b",
+          "n": 62,
+          "deltaWorld": {
+            "p50": 0.0,
+            "p95": 2.338,
+            "p99": 2.352
+          },
+          "worldMin": -1.6532156591346165,
+          "worldMax": 2.393999994992896,
+          "screenDelta": {
+            "p50": 0.0,
+            "p95": 2.0574,
+            "p99": 2.0698
+          },
+          "screenMin": -1.4548297800384518,
+          "screenMax": 2.1067199955937213,
+          "flatWorld": 43,
+          "reverseWorld": 6,
+          "reverseScreen": 6,
+          "clockReverse": 0,
+          "bigClockJump": 21.0333333214121
+        }
+      ]
+    },
+    {
+      "version": "after",
+      "online": true,
+      "peer": 1,
+      "gpu": "ANGLE (NVIDIA, NVIDIA GeForce GTX 1660 Ti (0x00002191) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+      "renderCPU": {
+        "p50": 1.6,
+        "p95": 2.8,
+        "p99": 4.9
+      },
+      "interval": {
+        "p50": 16.7,
+        "p95": 16.9,
+        "p99": 19.0
+      },
+      "pulseCPU": {
+        "p50": 0.5,
+        "p95": 0.8,
+        "p99": 2
+      },
+      "ticksPerPulse": {
+        "1": 125
+      },
+      "phases": [
+        {
+          "phase": "hold",
+          "actor": "b",
+          "n": 50,
+          "deltaWorld": {
+            "p50": 2.2441,
+            "p95": 2.8271,
+            "p99": 2.8633
+          },
+          "worldMin": 1.9731615555833741,
+          "worldMax": 2.863260197908403,
+          "screenDelta": {
+            "p50": -0.0251,
+            "p95": 0.3731,
+            "p99": 0.3915
+          },
+          "screenMin": -0.30388913750057256,
+          "screenMax": 0.39151676752982834,
+          "flatWorld": 0,
+          "reverseWorld": 0,
+          "reverseScreen": 21,
+          "clockReverse": 0,
+          "bigClockJump": 21.233333369095817
+        },
+        {
+          "phase": "diagonal",
+          "actor": "b",
+          "n": 33,
+          "deltaWorld": {
+            "p50": 2.1822,
+            "p95": 2.7628,
+            "p99": 2.785
+          },
+          "worldMin": 1.9648897664170315,
+          "worldMax": 2.785024619716272,
+          "screenDelta": {
+            "p50": -0.0652,
+            "p95": 0.3731,
+            "p99": 0.5145
+          },
+          "screenMin": -0.30233450147576146,
+          "screenMax": 0.5145022012972014,
+          "flatWorld": 0,
+          "reverseWorld": 0,
+          "reverseScreen": 19,
+          "clockReverse": 0,
+          "bigClockJump": 21.83333333333394
+        },
+        {
+          "phase": "roll-walk",
+          "actor": "b",
+          "n": 39,
+          "deltaWorld": {
+            "p50": 2.3266,
+            "p95": 2.8367,
+            "p99": 3.2263
+          },
+          "worldMin": 2.1651955235457763,
+          "worldMax": 3.2262567125540045,
+          "screenDelta": {
+            "p50": -0.05,
+            "p95": 0.0525,
+            "p99": 0.2766
+          },
+          "screenMin": -1.0444288554684498,
+          "screenMax": 0.2765550908900867,
+          "flatWorld": 0,
+          "reverseWorld": 0,
+          "reverseScreen": 19,
+          "clockReverse": 0,
+          "bigClockJump": 21.233333369096727
+        },
+        {
+          "phase": "release",
+          "actor": "b",
+          "n": 73,
+          "deltaWorld": {
+            "p50": 0.0,
+            "p95": 2.2189,
+            "p99": 2.4352
+          },
+          "worldMin": -1.761074289685439,
+          "worldMax": 2.6255254103429024,
+          "screenDelta": {
+            "p50": -0.0487,
+            "p95": 0.4869,
+            "p99": 0.7729
+          },
+          "screenMin": -1.4367510119633424,
+          "screenMax": 0.9686340262126492,
+          "flatWorld": 61,
+          "reverseWorld": 3,
+          "reverseScreen": 36,
+          "clockReverse": 0,
+          "bigClockJump": 21.83333333333394
+        }
+      ]
+    }
+  ]
+}
