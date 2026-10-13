@@ -176,36 +176,40 @@ async def run_desktop(browser, suite: E2E, html: str):
         # heavy input simulation; the actual GameKit timer continues at 30TPS.
         await page.evaluate("window.__sketchRpgDebug.pausePainting()")
 
-        # Regression for the original defect: input was captured by ActionState, but
-        # the solo executor discarded the `rollVector` command. Check real movement,
-        # not the presence of a keydown or a queued command alone.
-        idle = await page.evaluate("window.__sketchRpgDebug.snapshot()")
         await page.locator('#field').focus()
-        await page.keyboard.press('d')
-        await page.wait_for_function("""x => window.__sketchRpgDebug.snapshot().player.x > x + 5""",
-                                     arg=idle['player']['x'], timeout=7000)
+        idle = await page.evaluate("window.__sketchRpgDebug.snapshot()")
+        await page.keyboard.down('d')
+        await page.wait_for_timeout(400)
         moved = await page.evaluate("window.__sketchRpgDebug.snapshot()")
-        suite.check('idle WASD key actually executes offline rollVector',
-                    idle['player']['x'] + 5 < moved['player']['x'] <= idle['player']['x'] + 96.5)
-        await page.wait_for_timeout(800)
-        # W/S use the same tap-edge direction contract as A/D; do not test the
-        # keyboard event alone. Observe real authoritative vertical displacement.
-        before_w = await page.evaluate("window.__sketchRpgDebug.snapshot()")
-        await page.keyboard.press('w')
-        await page.wait_for_function("""y => window.__sketchRpgDebug.snapshot().player.y < y - 5""",
-                                     arg=before_w['player']['y'], timeout=7000)
-        after_w = await page.evaluate("window.__sketchRpgDebug.snapshot()")
-        suite.check('W moves up with a brief tap',
-                    before_w['player']['y'] - 96.5 <= after_w['player']['y'] < before_w['player']['y'] - 5)
-        await page.wait_for_timeout(800)
-        before_s = await page.evaluate("window.__sketchRpgDebug.snapshot()")
-        await page.keyboard.press('s')
-        await page.wait_for_function("""y => window.__sketchRpgDebug.snapshot().player.y > y + 5""",
-                                     arg=before_s['player']['y'], timeout=7000)
-        after_s = await page.evaluate("window.__sketchRpgDebug.snapshot()")
-        suite.check('S moves down with a brief tap',
-                    before_s['player']['y'] + 5 < after_s['player']['y'] <= before_s['player']['y'] + 96.5)
-        await page.wait_for_timeout(800)
+        distance = moved['player']['x'] - idle['player']['x']
+        expected = (moved['tick']-idle['tick'])*140/30
+        suite.check('held WASD walks at 140 world units/s without consuming roll',
+                    distance > 20 and abs(distance-expected)<6 and moved['roll']['charges']==2, {'distance':distance,'expected':expected})
+        await page.keyboard.up('d')
+        await page.wait_for_timeout(100)
+        stopped = await page.evaluate("window.__sketchRpgDebug.snapshot().player")
+        await page.wait_for_timeout(150)
+        suite.check('key release stops walking', stopped == await page.evaluate("window.__sketchRpgDebug.snapshot().player"))
+        await page.keyboard.down('w')
+        await page.keyboard.down('a')
+        await page.wait_for_timeout(250)
+        direction = await page.evaluate("window.__sketchRpgDebug.movementState()")
+        suite.check('diagonal walking is normalized', abs(direction['x']**2+direction['y']**2-1)<.001 and direction['x']<0 and direction['y']<0)
+        await page.keyboard.up('w')
+        await page.keyboard.up('a')
+        await page.keyboard.down('d')
+        await page.keyboard.press('Space')
+        await page.wait_for_timeout(220)
+        rolled = await page.evaluate("window.__sketchRpgDebug.snapshot()")
+        await page.wait_for_timeout(180)
+        resumed = await page.evaluate("window.__sketchRpgDebug.snapshot()")
+        suite.check('Space rolls once and held direction resumes immediately', rolled['roll']['activeMs']==0 and rolled['roll']['charges']==1 and resumed['player']['x']>rolled['player']['x']+10)
+        await page.keyboard.up('d')
+        await page.keyboard.down('a')
+        await page.evaluate("window.dispatchEvent(new Event('blur'))")
+        await page.wait_for_timeout(100)
+        suite.check('focus loss releases held movement', await page.evaluate("window.__sketchRpgDebug.movementState().x===0"))
+        await page.keyboard.up('a')
 
         # Deterministic fixture only arranges the battlefield; actual attack is a real gesture.
         await page.evaluate("window.__sketchRpgDebug.combatFixture('boss', 650, 730)")
@@ -220,7 +224,7 @@ async def run_desktop(browser, suite: E2E, html: str):
 
         before = await page.evaluate("window.__sketchRpgDebug.snapshot()")
         # Avoid a second spell: keyboard input immediately after painting must still move.
-        await page.keyboard.press("a")
+        await page.keyboard.down("a")
         try:
             await page.wait_for_function("""x => {
               const p=window.__sketchRpgDebug.snapshot().player;
@@ -235,8 +239,8 @@ async def run_desktop(browser, suite: E2E, html: str):
             print('WASD_AFTER_DRAW_DIAGNOSTIC',json.dumps(diagnostic,ensure_ascii=False),flush=True)
             raise
         after = await page.evaluate("window.__sketchRpgDebug.snapshot()")
-        suite.check("WASD after drawing triggers actual charge roll", after["player"]["x"] < before["player"]["x"] - 5)
-        suite.check("roll range is 3 player diameters", after["player"]["x"] >= before["player"]["x"] - 96.5)
+        await page.keyboard.up("a")
+        suite.check("WASD after drawing still walks", after["player"]["x"] < before["player"]["x"] - 5)
 
         # One real browser UI workflow, including an actual downloaded PNG.
         await page.locator("#trainingButton").click()
@@ -289,6 +293,37 @@ async def run_mobile(browser, suite: E2E, html: str):
         suite.check("real mobile touch begins a charged roll", True)
         changed = await page.evaluate("window.__sketchRpgDebug.snapshot()")
         suite.check("mobile moves no farther than 96 world units", 0 < abs(changed["player"]["x"] - state["player"]["x"]) <= 96.5 or 0 < abs(changed["player"]["y"] - state["player"]["y"]) <= 96.5)
+        await page.wait_for_timeout(750)
+        await page.evaluate("window.__sketchRpgDebug.pausePainting()")
+        stick=await page.locator('#moveStick').bounding_box()
+        pad=await page.locator('#draw').bounding_box()
+        button=await page.locator('#rollButton').bounding_box()
+        suite.check('mobile stick, roll and drawing controls do not overlap', stick['x']+stick['width']<=button['x'] and button['x']+button['width']<=pad['x'])
+        cdp=await context.new_cdp_session(page)
+        left={'x':stick['x']+stick['width']*.82,'y':stick['y']+stick['height']/2,'id':1}
+        right={'x':pad['x']+pad['width']*.3,'y':pad['y']+pad['height']*.45,'id':2}
+        start=await page.evaluate("window.__sketchRpgDebug.snapshot()")
+        await cdp.send('Input.dispatchTouchEvent', {'type':'touchStart','touchPoints':[left]})
+        await cdp.send('Input.dispatchTouchEvent', {'type':'touchStart','touchPoints':[left,right]})
+        right['x']+=50
+        await cdp.send('Input.dispatchTouchEvent', {'type':'touchMove','touchPoints':[left,right]})
+        await page.wait_for_timeout(220)
+        during=await page.evaluate("window.__sketchRpgDebug.snapshot()")
+        suite.check('independent fingers walk and draw together', during['drawPhase']=='drawing' and during['player']['x']>start['player']['x']+10)
+        await cdp.send('Input.dispatchTouchEvent', {'type':'touchEnd','touchPoints':[left]})
+        await page.wait_for_timeout(120)
+        suite.check('drawing release keeps stick held', await page.evaluate("window.__sketchRpgDebug.movementState().x>0 && window.__sketchRpgDebug.snapshot().drawPhase==='idle'"))
+        roll={'x':button['x']+button['width']/2,'y':button['y']+button['height']/2,'id':3}
+        await cdp.send('Input.dispatchTouchEvent', {'type':'touchStart','touchPoints':[left,roll]})
+        await cdp.send('Input.dispatchTouchEvent', {'type':'touchEnd','touchPoints':[left]})
+        await page.wait_for_timeout(240)
+        suite.check('mobile roll button consumes one charge and resumes walking', await page.evaluate("window.__sketchRpgDebug.rollState().charges===1 && window.__sketchRpgDebug.rollState().leftMs===0 && window.__sketchRpgDebug.movementState().x>0"))
+        await cdp.send('Input.dispatchTouchEvent', {'type':'touchCancel','touchPoints':[]})
+        await page.wait_for_timeout(100)
+        stopped=await page.evaluate("window.__sketchRpgDebug.snapshot().player")
+        await page.wait_for_timeout(100)
+        suite.check('touch cancellation stops movement', stopped==await page.evaluate("window.__sketchRpgDebug.snapshot().player"))
+        await page.evaluate("window.__sketchRpgDebug.resumePainting()")
         suite.check("mobile WebGL/JS stays operational", not issues, issues[:5])
         await page.screenshot(path=str(ARTIFACTS / "mobile.png"))
     finally:
@@ -371,7 +406,8 @@ async def run_real_p2p(browser, suite: E2E):
               });
             }""")
             before = await guest.evaluate("window.__sketchRpgDebug.multiplayerState().guest.x")
-            await guest.keyboard.press("d")
+            host_before = await host.evaluate("window.__sketchRpgDebug.multiplayerState().host.x")
+            await guest.keyboard.down("d")
             await guest.wait_for_function("""x => window.__sketchRpgDebug.multiplayerState().guest.x > x+5""", arg=before, timeout=7000)
             await host.wait_for_function("""x => window.__sketchRpgDebug.multiplayerState().guest.x > x+5""", arg=before, timeout=14000)
             suite.check("actual guest input replicates through P2P rollback", True)
@@ -379,10 +415,15 @@ async def run_real_p2p(browser, suite: E2E):
             timing=await guest.evaluate("window.inputTiming")
             suite.check("DOM input sends before next simulation tick", timing['sendAt']-timing['eventAt']<1000/30, timing)
             suite.check("local preview responds without waiting for authority", timing['immediatePreview'] and timing['sameAuthorityTick'], timing)
+            await guest.keyboard.up("d")
             await guest.wait_for_timeout(800)
+            suite.check("guest walking leaves host in place", host_before == await host.evaluate("window.__sketchRpgDebug.multiplayerState().host.x"))
             rolls=await host.evaluate("window.__sketchRpgDebug.multiplayerState().stats.rollbacks||0")
             await guest.evaluate("window.delayInputUntil=performance.now()+300")
-            await guest.keyboard.press("a")
+            await guest.keyboard.down("a")
+            await guest.keyboard.press("Space")
+            await guest.wait_for_timeout(180)
+            await guest.keyboard.up("a")
             await host.wait_for_function("n => (window.__sketchRpgDebug.multiplayerState().stats.rollbacks||0)>n", arg=rolls, timeout=8000)
             await host.wait_for_function("window.__sketchRpgDebug.multiplayerState().stats.reconciled>0", timeout=5000)
             await guest.wait_for_timeout(650)

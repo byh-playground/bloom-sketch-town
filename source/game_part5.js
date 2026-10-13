@@ -33,27 +33,27 @@
   }
   // One 30TPS simulation scheduler, separated from RAF presentation at the display refresh rate.
   // GameKit InterpolationTimeline owns both solo and multiplayer presentation. Online RoomSession owns rollback.
-  const SOLO_INPUT=new Uint8Array(1),sampleDash={},sampleInteract={},sampleDirections={up:{},down:{},left:{},right:{}};
+  const SOLO_INPUT=new Uint8Array(2),localMovementInput=new Uint8Array(2),sampleDash={},sampleInteract={},sampleDirections={up:{},down:{},left:{},right:{}};
   function gatherLocalCommands(){
     const dash=actions.sampleInto('dash',sampleDash),interact=actions.sampleInto('interact',sampleInteract);
-    let pressedDirection=false,dx=0,dy=0;
+    let dx=movementStick.x,dy=movementStick.y;
     for(const [name,slot] of Object.entries(sampleDirections)){
-      actions.sampleInto(name,slot);if(slot.pressed)pressedDirection=true;
-      if(slot.held||slot.pressed){if(name==='right')dx++;else if(name==='left')dx--;else if(name==='down')dy++;else if(name==='up')dy--;}
+      actions.sampleInto(name,slot);
+      if(slot.held){if(name==='right')dx++;else if(name==='left')dx--;else if(name==='down')dy++;else if(name==='up')dy--;}
     }
+    if(ui.modal||document.hidden){dx=0;dy=0;}
+    const length=hypot(dx,dy);if(length>1){dx/=length;dy/=length;}
+    localMovementInput[0]=Math.round(dx*127)&255;localMovementInput[1]=Math.round(dy*127)&255;
     if(!ui.modal){
-      if(pressedDirection||dash.pressed){
-        const len=hypot(dx,dy);if(len>.1){dx/=len;dy/=len;}else{dx=player.faceX;dy=player.faceY;}
-        world.commands.push({type:'rollVector',dx,dy,distance:rollMaxDistance()});
-      }
+      if(dash.pressed)world.commands.push({type:'rollVector',dx:length>.1?dx:player.faceX,dy:length>.1?dy:player.faceY,distance:rollMaxDistance()});
       if(interact.pressed)world.commands.push({type:'interact'});
     }
     actions.consume();
   }
   function createSoloSession(){return {
-    tick:0,inputSize:1,pace:1,profile:{tickRate:30,maxCatchupSteps:CFG.maxCatchup},closed:false,resimulating:false,
+    tick:0,inputSize:2,pace:1,profile:{tickRate:30,maxCatchupSteps:CFG.maxCatchup},closed:false,resimulating:false,
     poll(){},releaseInput(){fieldInput.releaseAll('gamekit-blur');paintInput.releaseAll('gamekit-blur');trainingInput.releaseAll('gamekit-blur');},
-    advance(){gatherLocalCommands();tick(CFG.tickMs);this.tick++;return {status:'advanced',tick:this.tick};}
+    advance(){gatherLocalCommands();readMovementInput(player,localMovementInput);tick(CFG.tickMs);this.tick++;return {status:'advanced',tick:this.tick};}
   };}
   let gameSession=createSoloSession(),loop=null,deadlinePump=null,inputPump=null,paintRAF=0,paintRunning=false;
   let renderFrames=0,frameStarted=0,renderFPS=0,advancedTicks=0,tickStarted=0,measuredTPS=0;
@@ -113,13 +113,14 @@
       const fork={actor:{...snapshot.actor,dash:{...snapshot.actor.dash}},mode:snapshot.mode,castMs:snapshot.castMs||0,pose:new LocalWizardPose(),
         restore(value){this.actor={...value.actor,dash:{...value.actor.dash}};this.mode=value.mode;this.castMs=value.castMs||0;writeLocalPose(this.pose,this.actor,this.castMs);},
         step(input,context){
+          readMovementInput(this.actor,input);
           for(const entry of context.commands||[]){let cmd;
             try{cmd=JSON.parse(MP_READER.decode(entry.payload));}catch{continue;}
             if(cmd?.type==='roll')startActorRoll(this.actor,cmd.dx,cmd.dy,cmd.distance,this.mode);
             else if(cmd?.type==='cast'&&this.mode==='playing')this.castMs=240;
           }
           if(this.actor.koMs>0)this.actor.koMs=Math.max(0,this.actor.koMs-CFG.tickMs);
-          else stepActorRoll(this.actor,CFG.tickMs);
+          else stepActorMovement(this.actor,CFG.tickMs);
           this.castMs=Math.max(0,this.castMs-CFG.tickMs);
           writeLocalPose(this.pose,this.actor,this.castMs);
         }};
@@ -238,7 +239,7 @@
       const payload=encodeLocalCommand(command);
       if(payload){commands.push({payload});mp.stats.commands++;}
     }
-    return {input:SOLO_INPUT,commands,predict:commands.length>0};
+    return {input:localMovementInput,commands,predict:commands.length>0||localMovementInput.some(value=>value!==0)};
   }
   const onSimulationAdvance=({status})=>{
     if(status!=='advanced')return;
@@ -299,7 +300,7 @@
         renderFrames++;if(!frameStarted)frameStarted=now;
         if(now-frameStarted>=1000){renderFPS=Math.round(renderFrames*1000/(now-frameStarted));frameStarted=now;renderFrames=0;}
       },
-      onInputRelease(){dropDraw();releaseTrain();},
+      onInputRelease(){fieldInput.releaseAll('loop');stickInput.releaseAll('loop');rollButtonInput.releaseAll('loop');paintInput.releaseAll('loop');localMovementInput.fill(0);dropDraw();releaseTrain();},
       onError(error){pauseGameLoops();console.error(error);const el=$('error');el.style.display='block';el.textContent=`게임 실행 오류: ${error.stack||error.message||error}`;}
     });
     resetPresentation();capturePresentation();
@@ -331,7 +332,7 @@
     rollTo(x,y){queueRollTo(x,y);},
     renderedActors(){return [hostPlayer,guestPlayer].map(actor=>{const view=renderViewCache.get(actor);return {id:view?.actorId,x:view?.x,y:view?.y,castActive:!!view?.castActive,nextCastAtMs:actor.nextCastAtMs,screenX:view?(view.x-camera.x)*camera.zoom:null};});},
     previewInfo(){const now=performance.now(),model=mp.localPresentation&&mp.localPoseSource?mp.localPresentation.modelFor(mp.localPoseSource,now):null;return {enabled:!!mp.inputPreview,ready:mp.inputPreview?.ready??false,pending:mp.inputPreview?.pendingCount??0,metrics:mp.inputPreview?.metrics||null,x:model?.x??null,y:model?.y??null,castMs:model?.castMs??null,actorX:player.x,actorY:player.y,revision:mp.poseRevision};},
-    rollState(){return {...player.dash};},slowState(){return {ratio:world.slowRatio,drawing:drawInput.pointer!==null,hitstopMs:world.hitstopMs};},
+    movementState(){return {x:player.moveX,y:player.moveY,speed:CFG.player.walkSpeed};},rollState(){return {...player.dash};},slowState(){return {ratio:world.slowRatio,drawing:drawInput.pointer!==null,hitstopMs:world.hitstopMs};},
     advanceSession(){const result=gameSession.advance(SOLO_INPUT);if(result.status==='advanced')capturePresentation();return result;},pauseRendering(){pauseGameLoops();},resumeRendering(){resumeGameLoops();},pausePainting(){stopPainting();},resumePainting(){startPainting();},renderFrame(){loop.render();},selectGlyph(kind){selectGlyph(kind);},
     renderNow(){renderInterpolated();},
     combatFixture(kind='boss',x=680,y=730){world.enemies.length=0;world.projectiles.length=0;world.casts.length=0;world.castQueue.length=0;world.hazards.length=0;world.fields.length=0;world.spawnMs=1e8;return spawnEnemy(kind,x,y).id;},

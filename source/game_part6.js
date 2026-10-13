@@ -3,13 +3,13 @@
   // Signaling uses public Nostr relays; RTC carries only GameKit's framed inputs,
   // membership control and validated join/recovery checkpoints. No live world broadcast.
   const GAMEKIT_SHA='7cf67c33451848d1af4a7b003cbe1b81ffef8b53';
-  const MP_NAMESPACE='sketch-town-coop-0110';
+  const MP_NAMESPACE='sketch-town-coop-0120';
   const MP_SIMULATION_VERSION='sketch-town-'+CFG.version+'-'+GAMEKIT_SHA;
   const MP_ROLLBACK_URL=GAMEKIT_URLS.rollback;
   const MP_TRANSPORT_URL=GAMEKIT_URLS.transport;
   const MP_SIMLOOP_URL=GAMEKIT_URLS.simloop;
   const MP_INTERPOLATION_URL=GAMEKIT_URLS.interpolation;
-  const MP_SEED=0x31415,MP_INPUT_SIZE=1;
+  const MP_SEED=0x31415,MP_INPUT_SIZE=2;
   const MP_PROFILE={mode:'rollback',tickRate:30,baseInputDelayTicks:1,rollbackWindowTicks:16,
     stateHistorySize:64,maxCatchupSteps:8,checksumInterval:30,maxSnapshotBytes:2*1024*1024,
     maxHistoryBytes:16*1024*1024,maxCommandBytes:2048,maxPendingCommands:64,
@@ -110,6 +110,7 @@
       const old=resimulatingGame;resimulatingGame=Boolean(context.resimulating||context.recovering||context.replaying||context.synctesting);
       try{
         for(const frame of context.inputs){const actor=frame.playerId===mp.ownerId?hostPlayer:guestPlayer;
+          readMovementInput(actor,frame.input);
           for(const command of frame.commands){
             inputAudit.executed.push({playerId:frame.playerId,sequence:command.sequence,tick:context.tick,executeTick:command.executeTick,replay:resimulatingGame});
             if(inputAudit.executed.length>128)inputAudit.executed.shift();
