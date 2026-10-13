@@ -418,13 +418,14 @@ async def run_real_p2p(browser, suite: E2E):
             await guest.wait_for_timeout(800)
             suite.check("guest walking does not apply movement input to host", await host.evaluate("window.__sketchRpgDebug.multiplayerState().host.moveX===0 && window.__sketchRpgDebug.multiplayerState().host.moveY===0"))
             rolls=await host.evaluate("window.__sketchRpgDebug.multiplayerState().stats.rollbacks||0")
-            await guest.evaluate("window.delayInputUntil=performance.now()+300")
+            await guest.evaluate("window.delayInputUntil=performance.now()+2000")
             await guest.keyboard.down("a")
             await guest.keyboard.press("Space")
             await guest.wait_for_timeout(180)
             await guest.keyboard.up("a")
             await host.wait_for_function("n => (window.__sketchRpgDebug.multiplayerState().stats.rollbacks||0)>n", arg=rolls, timeout=8000)
             await host.wait_for_function("window.__sketchRpgDebug.multiplayerState().stats.reconciled>0", timeout=5000)
+            await guest.evaluate("window.delayInputUntil=0")
             await guest.wait_for_timeout(650)
             states=await asyncio.gather(*(p.evaluate("window.__sketchRpgDebug.multiplayerState()") for p in (host,guest)))
             audits=await asyncio.gather(*(p.evaluate("window.__sketchRpgDebug.inputAudit()") for p in (host,guest)))
@@ -437,7 +438,7 @@ async def run_real_p2p(browser, suite: E2E):
             boundary=min(s['confirmedTick'] for s in states)
             hashes=await asyncio.gather(*(p.evaluate("t=>window.__sketchRpgDebug.stateHash(t)",boundary) for p in (host,guest)))
             suite.check("late duplicated RTC input reconciles to equal confirmed hash",hashes[0] is not None and hashes[0]==hashes[1],{'tick':boundary,'hashes':hashes,'rollbacks':[s['stats'].get('rollbacks',0) for s in states]})
-            suite.check("both peers use pinned protocol 3 bundle",all(s['gamekitSHA']=='7cf67c33451848d1af4a7b003cbe1b81ffef8b53' and s['inputScheduling']=='network' and s['inputHz']==60 for s in states))
+            suite.check("both peers use pinned protocol 3 bundle",all(s['gamekitSHA']=='e7a1782275b6414f2bcf2cd29de173f49b849004' and s['inputScheduling']=='network' and s['inputHz']==60 for s in states))
             for sender,actor in ((host,'a'),(guest,'b')):
                 for page in (host,guest):
                     await page.evaluate("""() => {window.castFrames=[];const end=performance.now()+1400;
