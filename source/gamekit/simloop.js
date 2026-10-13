@@ -31,12 +31,11 @@ function createLoop({
   }
   if (backlogPolicy !== "drop" && backlogPolicy !== "retain") throw new RangeError("backlogPolicy");
   if (!Number.isInteger(maxBacklogTicks) || maxBacklogTicks < 1 || maxBacklogTicks > 8192) throw new RangeError("maxBacklogTicks");
-  const hasSubmission = typeof session.submitInput === "function";
   const quantum = 1e3 / session.profile.tickRate;
   const maxBacklogMs = quantum * maxBacklogTicks;
   let running = false, handle, last, accumulator = 0, generation = 0, timingGeneration = 0;
   if (inputPreview && typeof inputPreview.observe !== "function") throw new TypeError("inputPreview observation capability");
-  let inputSequence = 0, commandObservation = 0, observedAt = -Infinity, cached = null, captureEpoch = "", captureSequence = -1;
+  let inputSequence = 0, commandObservation = 0, observedAt = -Infinity, cached = null, captureKey = "";
   const observedCommands = [];
   const observeInput = (timestamp) => {
     if (!Number.isFinite(timestamp)) throw new TypeError("input observation timestamp");
@@ -45,6 +44,7 @@ function createLoop({
       inputPreview?.clear?.();
       return null;
     }
+    if (timestamp === observedAt && cached) return cached;
     const sampled = getInput(), packet = sampled && typeof sampled === "object" && !ArrayBuffer.isView(sampled) && Object.hasOwn(sampled, "input");
     const input = packet ? sampled.input : sampled, commands = packet ? sampled.commands ?? [] : [];
     if (!Array.isArray(commands)) throw new TypeError("input packet commands");
@@ -54,15 +54,9 @@ function createLoop({
       if (!command || command.payload === void 0) throw new TypeError("command payload required");
       held.push({ observationId: ++commandObservation, sequence: null, payload: command.payload.slice?.() ?? structuredClone(command.payload) });
     }
-    cached = { input: input.slice?.() ?? structuredClone(input), commands: held, predict: !packet || sampled.predict !== false || held.length > 0 || inputPreview?.active === true, continuationKey: packet ? sampled.continuationKey : void 0, sequence: ++inputSequence };
+    cached = { input: input.slice?.() ?? structuredClone(input), commands: held, predict: !packet || sampled.predict !== false || held.length > 0, continuationKey: packet ? sampled.continuationKey : void 0, sequence: ++inputSequence };
     observedAt = timestamp;
-    if (hasSubmission) {
-      const pending = held.filter((command) => command.sequence === null);
-      const submission = session.submitInput(cached.input, { commands: pending.map((command) => command.payload) });
-      if (submission.commandSequences.length !== pending.length) throw new Error("input submission command receipt");
-      for (let i = 0; i < pending.length; i++) pending[i].sequence = submission.commandSequences[i];
-    }
-    if (inputPreview && packet && sampled.predict === false && !held.length && !inputPreview.active) inputPreview.cancelObservation?.(Math.max(timestamp, performance.now()));
+    if (inputPreview && packet && sampled.predict === false && !held.length) inputPreview.cancelObservation?.(Math.max(timestamp, performance.now()));
     else if (inputPreview?.enabled !== false && inputPreview) try {
       inputPreview.observe(cached.input, {
         sequence: cached.sequence,
@@ -116,7 +110,7 @@ function createLoop({
     globalThis.document?.removeEventListener("visibilitychange", hidden);
   };
   const renderFrame = () => render({ session, alpha: Math.min(1, accumulator / quantum), resimulating: session.resimulating });
-  const pulse = (timestamp, { render: shouldRender = true, input: shouldSampleInput = true } = {}) => {
+  const pulse = (timestamp, { render: shouldRender = true } = {}) => {
     const current = generation;
     try {
       if (!Number.isFinite(timestamp)) throw new TypeError("frame timestamp");
@@ -139,7 +133,7 @@ function createLoop({
       if (!Number.isFinite(accumulator) || accumulator > Number.MAX_SAFE_INTEGER) throw new RangeError("loop backlog exceeds safe milliseconds");
       session.poll();
       if (current !== generation || timing !== timingGeneration) return;
-      if (shouldSampleInput && (inputPreview || hasSubmission) && (!cached || timestamp - observedAt >= quantum)) observeInput(timestamp);
+      if (inputPreview && (!cached || timestamp - observedAt >= quantum)) observeInput(timestamp);
       let work = 0;
       while (!session.closed && !session.resimulating && work < session.profile.maxCatchupSteps) {
         const pace = session.pace ?? session.metrics.pace;
@@ -150,7 +144,7 @@ function createLoop({
           if (backlogPolicy === "drop") accumulator = Math.min(accumulator, quantum);
           break;
         }
-        const sampled = inputPreview || hasSubmission || !shouldSampleInput ? cached ?? (shouldSampleInput ? observeInput(timestamp) : null) : getInput();
+        const sampled = inputPreview ? cached ?? observeInput(timestamp) : getInput();
         if (!sampled) break;
         if (current !== generation || timing !== timingGeneration) return;
         const packet = sampled && typeof sampled === "object" && !ArrayBuffer.isView(sampled) && !(sampled instanceof ArrayBuffer) && Object.hasOwn(sampled, "input");
@@ -163,30 +157,25 @@ function createLoop({
           for (const command of commands) {
             if (!command || command.payload === void 0) throw new TypeError("input command payload required");
             const payload = ArrayBuffer.isView(command.payload) ? new command.payload.constructor(command.payload) : command.payload;
-            if ((inputPreview || hasSubmission || !shouldSampleInput) && command.sequence !== null && command.sequence !== void 0) continue;
+            if (inputPreview && command.sequence !== null && command.sequence !== void 0) continue;
             const sequence = session.queueCommand(payload);
             if (!Number.isSafeInteger(sequence) || sequence < 0) throw new TypeError("session command sequence");
-            if (inputPreview || hasSubmission || !shouldSampleInput) command.sequence = sequence;
+            if (inputPreview) command.sequence = sequence;
           }
         }
-        if (!inputPreview && !hasSubmission && !shouldSampleInput) observedCommands.length = 0;
+        const previousTick = session.tick;
         const result = session.advance(input);
         work++;
         let submission;
-        if (inputPreview || hasSubmission) {
-          const metadata = session.localInputState;
-          const epoch = metadata ? metadata.epoch + ":" + metadata.baseTick : "";
-          if (epoch !== captureEpoch) {
-            captureEpoch = epoch;
-            captureSequence = -1;
-          }
-          for (const capture of metadata?.captures ?? (metadata?.capture ? [metadata.capture] : [])) {
-            if (capture.sequence <= captureSequence) continue;
-            captureSequence = capture.sequence;
+        if (inputPreview) {
+          const metadata = session.localInputState, capture = metadata?.capture;
+          const key = capture ? `${metadata.epoch}:${metadata.baseTick}:${capture.sequence}` : "";
+          if (capture && key !== captureKey) {
+            captureKey = key;
             submission = { ...capture, predict: cached?.predict !== false, boundaryTick: metadata.tick, epoch: metadata.epoch, timeMs: Math.max(timestamp, performance.now()) };
             submission.commands = capture.commands.map((command) => ({ ...command, observationId: cached?.commands.find((c) => c.sequence === command.sequence)?.observationId }));
             try {
-              inputPreview?.commit(submission, submission.timeMs);
+              inputPreview.commit(submission, submission.timeMs);
             } catch (error) {
               inputPreview.clear?.();
               onPreviewError(error);
@@ -217,7 +206,7 @@ function createLoop({
     const current = ++generation;
     const frame = (timestamp) => {
       if (!running || current !== generation) return;
-      if (inputPreview || hasSubmission) observeInput(timestamp);
+      if (inputPreview) observeInput(timestamp);
       pulse(timestamp);
       if (running && current === generation) handle = requestFrame(frame);
     };
@@ -225,13 +214,11 @@ function createLoop({
     globalThis.document?.addEventListener("visibilitychange", hidden);
     handle = requestFrame(frame);
   };
-  const flushInput = (timestamp) => observeInput(timestamp);
-  const pollInput = (timestamp) => {
-    const sample = observeInput(timestamp);
-    session.poll();
-    return sample;
+  const flushInput = (timestamp) => {
+    accumulator = Math.max(accumulator, quantum * (session.pace ?? 1));
+    pulse(timestamp);
   };
-  return { start, stop, pulse, render: renderFrame, observeInput, flushInput, pollInput, releaseInput: release, resetTiming, get running() {
+  return { start, stop, pulse, render: renderFrame, observeInput, flushInput, releaseInput: release, resetTiming, get running() {
     return running;
   } };
 }
@@ -292,7 +279,6 @@ function byteLength(value, seen = /* @__PURE__ */ new Set()) {
   return size;
 }
 var LocalInputPreview = class {
-  #isActive;
   #forkFactory;
   #cloneSnapshot;
   #captureSnapshot;
@@ -371,14 +357,13 @@ var LocalInputPreview = class {
     rejectedAge: 0,
     rejectedCapacity: 0
   };
-  /** @param {{createFork:(snapshot:unknown)=>{step:(input:unknown,context:object)=>void},cloneSnapshot?:(snapshot:unknown)=>unknown,captureSnapshot?:()=>unknown,isActive?:(fork:unknown)=>boolean,readEntities:(fork:unknown)=>Array, presentation?:{selectPreview:(ids:Array)=>void,capturePreview:(packet:object,nowMs:number)=>boolean,clearPreview?:()=>void},maxPendingInputs?:number,maxFutureTicks?:number,maxAgeMs?:number}} options */
+  /** @param {{createFork:(snapshot:unknown)=>{step:(input:unknown,context:object)=>void},cloneSnapshot?:(snapshot:unknown)=>unknown,captureSnapshot?:()=>unknown,readEntities:(fork:unknown)=>Array, presentation?:{selectPreview:(ids:Array)=>void,capturePreview:(packet:object,nowMs:number)=>boolean,clearPreview?:()=>void},maxPendingInputs?:number,maxFutureTicks?:number,maxAgeMs?:number}} options */
   constructor({
     createFork,
     cloneSnapshot = (value) => structuredClone(value),
     captureSnapshot,
     readEntities,
     presentation,
-    isActive,
     maxPendingInputs = 8,
     maxFutureTicks = 8,
     maxAgeMs = 250,
@@ -399,14 +384,8 @@ var LocalInputPreview = class {
     this.#maxFutureTicks = maxFutureTicks;
     this.#maxAgeMs = maxAgeMs;
     this.#stepMs = stepMs;
-    if (isActive !== void 0 && typeof isActive !== "function") throw new TypeError("isActive");
-    this.#isActive = isActive;
     if (typeof cloneSnapshot !== "function") throw new TypeError("cloneSnapshot");
     if (captureSnapshot !== void 0 && typeof captureSnapshot !== "function") throw new TypeError("captureSnapshot");
-  }
-  /** Ongoing detached action intent, independent of newly observed device commands. */
-  get active() {
-    return this.ready && !!this.#isActive && (this.#isActive(this.#fork) || this.#pending.some((frame) => frame.commands?.length) || !!this.#observed?.commands.length);
   }
   get pendingCount() {
     return this.#pending.length;

@@ -1,6 +1,6 @@
 # Sketch Town
 
-그림을 그려 마법을 만들고 WASD·모바일 스틱으로 걷고 선택적으로 구르는 BLOOM 기반 액션 게임입니다. 현재 버전은 **0.12.0**입니다. 최신 ChatGPT 원본 0.9.2를 이관하고 GameKit protocol 3와 즉시 입력 처리를 적용했습니다.
+그림을 그려 마법을 만들고 WASD·모바일 스틱으로 걷고 선택적으로 구르는 BLOOM 기반 액션 게임입니다. 현재 버전은 **0.12.1**입니다. 최신 ChatGPT 원본 0.9.2를 이관하고 GameKit protocol 3와 즉시 입력 처리를 적용했습니다.
 
 [게임 실행](https://byh-playground.github.io/bloom-sketch-town/)
 
@@ -33,7 +33,7 @@ python source/e2e.py --live-p2p
 
 ## GameKit과 입력
 
-멀티플레이에 사용하는 simloop, interpolation, rollback, transport는 모두 PR44의 동일 dist 커밋 `7cf67c33451848d1af4a7b003cbe1b81ffef8b53`에 고정했습니다. `source/gamekit/manifest.json`의 SHA-256을 빌드에서 확인하고 공식 ESM 바이트를 단일 HTML에 포함합니다. 기존 renderer/input/dom/audio와 게임 규칙은 원본을 유지합니다. 이전 멀티플레이 버전과는 방 namespace와 simulationVersion을 분리합니다.
+멀티플레이에 사용하는 simloop, interpolation, rollback, transport는 모두 PR45의 동일 dist 커밋 `994b94aea65838a37b5e5158e09b5f9fa33d6ff7`에 고정했습니다. `source/gamekit/manifest.json`의 SHA-256을 빌드에서 확인하고 공식 ESM 바이트를 단일 HTML에 포함합니다. 기존 renderer/input/dom/audio와 게임 규칙은 원본을 유지합니다. 이전 멀티플레이 버전과는 방 namespace와 simulationVersion을 분리합니다.
 
 입력 이벤트는 `observeInput` → 공식 `submitInput`으로 즉시 송신합니다. 입력 60Hz, 시뮬레이션 30TPS, 렌더 최대 60FPS는 독립 실행되며 게임 설정입니다. Command는 한 번만 제출하고 최초 예약 T를 바꾸지 않습니다. `MP_PROFILE`의 network scheduling, safety margin 8ms, jitter multiplier 2로 정상 입력에 도착 여유를 주며 늦은 입력만 공식 rollback으로 보정합니다. `reconciled`에서 표시 상태를 다시 게시합니다.
 
@@ -63,3 +63,10 @@ PR CI는 번들 해시 확인과 빌드 재현성을 검사합니다. main 병�
 - 이동 중에도 그릴 수 있습니다. 포커스 상실, 모달 열기, 터치 취소는 이동 입력을 해제합니다.
 
 온라인 입력 크기와 simulationVersion을 변경하여 0.11.x 방과 분리했습니다. 모든 참가자는 같은 0.12.0 및 GameKit 번들을 사용합니다.
+
+
+### 0.12.1 일정한 걷기 표시
+
+기준 60Hz의 정수 분주인 시뮬 30TPS·입력 60Hz·표시 최대 60Hz만 설정합니다. GameKit loop가 다음 실행 마감을 소유하고 timer는 이를 따릅니다. 실제 늦은 실행의 catch-up은 유지하며 입력 이벤트는 즉시 제출합니다. 물리 디스플레이나 OS timer 정확도를 전제하지 않습니다.
+
+권위 위치는 시뮬레이션 시각에 맞춘 2틱(66.7ms) 표시 지연으로 보간하여 수신 시각의 불규칙성을 흡수합니다. 이 지연은 입력 송신·게임 판정에 추가되지 않으며 온라인 자신의 움직임은 공식 LocalInputPreview로 즉시 표시합니다. 예측 구간은 실제 미래 tick 수와 loop의 표시 경계 시각을 사용합니다. 카메라·몸체는 같은 표시 위치를 따릅니다.

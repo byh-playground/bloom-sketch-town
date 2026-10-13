@@ -60,7 +60,7 @@
   let frameCostMs=0,maxFrameCostMs=0;
   // A single native BLOOM GameKit InterpolationTimeline drives *both* offline and online presentation.
   // The simulation is never modified for presentation; reusable prototype-based view models own the sampled pose.
-  mp.interpolation = new InterpolationTimeline({stepMs:CFG.tickMs,
+  mp.interpolation = new InterpolationTimeline({stepMs:CFG.tickMs,delayMs:CFG.tickMs*2,
     schema:{x:'number',y:'number',roll:'number',age:'number',life:'number'}});
   let poseReady=false,capturedAtMs=0,paintFrameNow=0,presentationActive=false;
   let nextPaintAt=0,presentationSnapshots=0,lastAcceptedRevision=-1;
@@ -150,7 +150,7 @@
     // The checkpoint contains only the local actor. World state remains in RoomSession's rollback history.
     const metadata=mp.session.localInputState;
     mp.inputPreview.reconcile({snapshot:snapshotLocalActor(),revision:mp.poseRevision,
-      tick:mp.session.tick,epoch:mp.session.epoch??0,timeMs:now,
+      tick:mp.session.tick,epoch:mp.session.epoch??0,timeMs:now,phaseStartMs:loop.simulationTimeMs??now,
       input:metadata?.replayInput??SOLO_INPUT,
       ...(mode==='rollback'?{mode:'reset'}:{})});
     mp.previewNeedsReset=false;
@@ -279,15 +279,15 @@
   }
   function rebindGameLoop(){
     pauseGameLoops();
-    loop=createLoop({session:gameSession,getInput:mp.connected?localInputPacket:()=>SOLO_INPUT,
+    loop=createLoop({session:gameSession,rates:{baseHz:CFG.baseHz,inputHz:CFG.inputHz,renderHz:CFG.renderHz},getInput:mp.connected?localInputPacket:()=>SOLO_INPUT,
       inputPreview:mp.connected?mp.inputPreview:undefined,
       onPreviewError(error){console.error('[Sketch Town GameKit input preview]',error);mp.stats.previewErrors=(mp.stats.previewErrors||0)+1;},
-      backlogPolicy:'drop',maxBacklogTicks:16,onAdvance:onSimulationAdvance,
+      backlogPolicy:'retain',maxBacklogTicks:16,onAdvance:onSimulationAdvance,
       render(){
         const now=performance.now();
         // Deadline-based 60Hz cap alternates 2/3 RAF intervals on 144Hz rather than falling to 48 FPS.
         if(nextPaintAt && now+0.7<nextPaintAt)return;
-        nextPaintAt=Math.max(nextPaintAt||now,now-1000/60)+1000/60;
+        nextPaintAt=Math.max(nextPaintAt||now,now-1000/CFG.renderHz)+1000/CFG.renderHz;
         renderInterpolated();
         $('screenMessage').textContent=world.screenText;
         $('screenMessage').classList.toggle('show',world.screenTextMs>0);
@@ -306,9 +306,8 @@
     });
     resetPresentation();capturePresentation();
     // GameKit native timer pump owns the 30TPS deadline independently of rAF presentation.
-    deadlinePump=createDeadlineScheduler({getIntervalMs:()=>CFG.tickMs,
-      pulse:now=>loop.pulse(now,{render:false,input:false}),maxBacklogTicks:16,
-      onGap:()=>loop.resetTiming()});
+    deadlinePump=createDeadlineScheduler({getDeadlineMs:()=>loop.nextDeadlineMs,
+      pulse:now=>loop.pulse(now,{render:false,input:false})});
     inputPump=createDeadlineScheduler({getIntervalMs:()=>1000/CFG.inputHz,
       pulse:now=>loop.pollInput(now),maxBacklogTicks:8});
     resumeGameLoops();
