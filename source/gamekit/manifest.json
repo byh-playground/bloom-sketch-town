@@ -1,0 +1,77 @@
+{
+  "schemaVersion": 2,
+  "modules": [
+    {
+      "file": "interpolation.js",
+      "sha256": "d1f1c9c4502b97154c524fbdd4c1feb3d69d4dffb477a8585f51e124a9821ffe"
+    },
+    {
+      "file": "rendering.js",
+      "sha256": "5fed746a9797fab4e7c8b99239d00026b913b66f1956c8d6955b7eb4cdf426ef"
+    },
+    {
+      "file": "input.js",
+      "sha256": "ae84399953c7e54c8d96408c97208f42b2246a8ac27ef5265053cb0beb306168"
+    },
+    {
+      "file": "deterministic.js",
+      "sha256": "688178b889e7bd3f19c1bc504c91c03f896a9a7bd832fd2c0fc958b2feadce55"
+    },
+    {
+      "file": "simloop.js",
+      "sha256": "ed82e395e8eb006d4b123ebe9dcb0280a6a3765620375aac435b3d56d74f2e90"
+    },
+    {
+      "file": "transport.js",
+      "sha256": "3bded746222c0aa1769697442b579922d406e67d79e3dbf65df5580dd387c007"
+    },
+    {
+      "file": "replay.js",
+      "sha256": "4097b6d78d0368c0339d05a8b274693424c5fb8c3a4f9741921a912f06ab34ee"
+    },
+    {
+      "file": "rollback.js",
+      "sha256": "ec914ba35407859cefee4be25ab517373d9a02be8c998e5bd2da6400ee779ce4"
+    },
+    {
+      "file": "rollback-netcode.js",
+      "sha256": "647355138e42c86210ef7517b01b155c5807b5f9767da71ae6be460ee31bdd3c"
+    },
+    {
+      "file": "camera.js",
+      "sha256": "972268ad14de778f1dca437913cff576155754adf1195948897c0df3ff8f66de"
+    },
+    {
+      "file": "presentation-events.js",
+      "sha256": "469a820e22730cdff9a0e4cd37fcbbfa4ffc9af3e39eab6d9a784e1d544caf84"
+    },
+    {
+      "file": "hud.js",
+      "sha256": "acec30fdab522ef151ab582113f26058aabb48a1d8d11cfe0ea640e1b61c86df"
+    },
+    {
+      "file": "debug-tools.js",
+      "sha256": "72260336a6c3f2ee0357a303fa8943dd8cfa4f7deea5d9517d311d4cd8796a71"
+    },
+    {
+      "file": "audio.js",
+      "sha256": "7e3e16d34ce88124e6ba7699f16d23107a3e42ee93ea5a16691e856e5865c14a"
+    },
+    {
+      "file": "navigation.js",
+      "sha256": "92c387dcfa8af47beb3544f4a16121bbfc8fa9831052b33ce07076dd733c81d3"
+    },
+    {
+      "file": "scenario.js",
+      "sha256": "7b3e8c613ad1840b8ac3ffab6e2b625a2617f71d9d48b83510afb62d260cbdae"
+    }
+  ],
+  "assets": [
+    {
+      "file": "assets/fonts/noto-sans-kr-700-v1.json",
+      "version": "noto-sans-kr-700-v1",
+      "bytes": 514988,
+      "sha256": "d1f0d1b14015d3f417f9552d1f650c8585a71e4d67e13c667a1cca0aca3fc310"
+    }
+  ]
+}
