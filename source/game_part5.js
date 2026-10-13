@@ -58,15 +58,34 @@
   let gameSession=createSoloSession(),loop=null,deadlinePump=null,inputPump=null,paintRAF=0,paintRunning=false;
   let renderFrames=0,frameStarted=0,renderFPS=0,advancedTicks=0,tickStarted=0,measuredTPS=0;
   let frameCostMs=0,maxFrameCostMs=0;
-  // A single native BLOOM GameKit InterpolationTimeline drives *both* offline and online presentation.
-  // The simulation is never modified for presentation; reusable prototype-based view models own the sampled pose.
-  mp.interpolation = new InterpolationTimeline({stepMs:CFG.tickMs,delayMs:CFG.tickMs*2,
-    schema:{x:'number',y:'number',roll:'number',age:'number',life:'number'}});
-  let poseReady=false,capturedAtMs=0,paintFrameNow=0,presentationActive=false;
+  // GameKit owns the display clock, identities, lifetime and path history. Only declared data reaches draw code.
+  const {RenderObject,PresentationRuntime}=gamekitInterpolation;
+  const R=RenderObject;
+  class SceneView extends RenderObject {
+    static renderSchema={x:R.POSITION_X,y:R.POSITION_Y,ageMs:R.LINEAR,lifeMs:R.LINEAR,id:R.STEP,renderKind:R.STEP,kind:R.STEP,r:R.STEP,color:R.STEP};
+    render(){}
+  }
+  class HeroView extends SceneView {static renderSchema={actorId:R.STEP,hp:R.STEP,maxHp:R.STEP,invulMs:R.COUNTDOWN_MS,faceX:R.STEP,faceY:R.STEP,moveX:R.STEP,moveY:R.STEP,
+    'dash.leftMs':R.COUNTDOWN_MS,'dash.elapsedMs':R.LINEAR,'dash.durationMs':R.STEP,'dash.dirX':R.STEP,'dash.dirY':R.STEP,'dash.charges':R.STEP};}
+  class EnemyView extends SceneView {static renderSchema={hp:R.STEP,maxHp:R.STEP,stunMs:R.COUNTDOWN_MS,chargeMs:R.COUNTDOWN_MS,chargeDX:R.STEP,chargeDY:R.STEP,hitMs:R.COUNTDOWN_MS,windupMs:R.COUNTDOWN_MS,attackType:R.STEP};}
+  class ProjectileView extends SceneView {
+    static renderSchema={angle:R.ANGLE,shape:R.STEP,bouncesLeft:R.STEP};
+    static renderPath={x:'x',y:'y',durationMs:CFG.tickMs*12,maxPoints:64};
+  }
+  class HazardView extends SceneView {static renderSchema={vx:R.STEP,vy:R.STEP};}
+  class CastView extends SceneView {static renderSchema={durationMs:R.STEP,owner:R.STEP,shot:R.STEP};}
+  class FieldView extends SceneView {static renderSchema={ex:R.STEP,ey:R.STEP};}
+  class ParticleView extends SceneView {static renderSchema={angle:R.ANGLE,initialMs:R.STEP,segment:R.STEP};}
+  class FloaterView extends SceneView {static renderSchema={text:R.STEP};}
+  class RollView extends SceneView {static renderSchema={maxLifeMs:R.STEP,dirX:R.STEP,dirY:R.STEP};}
+  const sceneTypes={hero:HeroView,enemy:EnemyView,shot:ProjectileView,hazard:HazardView,cast:CastView,field:FieldView,particle:ParticleView,floater:FloaterView,rollMark:RollView,rollTarget:RollView,pickup:SceneView};
+  mp.interpolation=new PresentationRuntime({stepMs:CFG.tickMs,delayMs:CFG.tickMs*2,snapDistance:180});
+  let poseReady=false,capturedAtMs=0,paintFrameNow=0,presentationActive=false,paintFrame=null,localPaintFrame=null;
   let nextPaintAt=0,presentationSnapshots=0,lastAcceptedRevision=-1;
-  const renderViewCache=new WeakMap(),unidentifiedIds=new WeakMap();
+  const renderViewCache=new WeakMap(),unidentifiedIds=new WeakMap(),pathViews=new Map();
+  const sceneViews={hero:[],enemy:[],shot:[],hazard:[],cast:[],pickup:[],field:[],particle:[],floater:[],rollMark:[],rollTarget:[]};
   let nextPresentationId=0;
-  const lastRollCapture=new Map(),lastPositionCapture=new Map();
+  const lastPositionCapture=new Map();
   function presentationId(object,kind){
     if(kind==='hero')return object===hostPlayer?'hero-a':'hero-b';
     if(Number.isSafeInteger(object.id)&&object.id>=0)return kind+'-'+object.id;
@@ -76,7 +95,7 @@
   }
   function forEachPoseEntity(visit){
     visit(hostPlayer,'hero');
-    visit(guestPlayer,'hero');
+    if(mp.shared)visit(guestPlayer,'hero');
     for(const object of world.enemies)if(!object.dead)visit(object,'enemy');
     for(const object of world.projectiles)visit(object,'shot');
     for(const object of world.hazards)visit(object,'hazard');
@@ -156,78 +175,61 @@
     mp.previewNeedsReset=false;
   }
   function capturePresentation(){
-    const entities=[],seen=new Set(),newPositions=new Map(),newRolls=new Map();
+    const entities=[],newPositions=new Map();
     const reset=mp.poseReset,previous=lastPositionCapture;
     if(reset&&mp.poseRevision===lastAcceptedRevision){mp.poseRevision++;mp.poseSequence=0;}
     forEachPoseEntity((object,kind)=>{
-      const id=presentationId(object,kind);
-      const age=Number.isFinite(object.ageMs)?object.ageMs:0;
-      const life=Number.isFinite(object.lifeMs)?object.lifeMs:0;
-      const roll=object.dash?.elapsedMs??0;
-      const values={x:object.x,y:object.y,roll,age,life};
-      const entity={id,generation:object._poseGeneration??0,values};
-      const before=previous.get(id);
-      if(!reset&&!before&&(kind==='shot'||kind==='hazard')&&Number.isFinite(object.prevX)&&Number.isFinite(object.prevY)){
-        // GameKit initialValues makes a projectile's very first 30TPS interval continuous from its launch position.
-        entity.initialValues={x:object.prevX,y:object.prevY,roll:0,
-          age:Math.max(0,age-CFG.tickMs),life:life};
+      const id=presentationId(object,kind),source={...object,renderKind:kind};
+      if(kind==='hero')source.actorId=object===hostPlayer?'a':'b';
+      const entity={id,generation:object._poseGeneration??0,source,type:sceneTypes[kind]};
+      if(!reset&&!previous.has(id)&&(kind==='shot'||kind==='hazard')&&Number.isFinite(object.prevX)&&Number.isFinite(object.prevY)){
+        entity.initialSource={...source,x:object.prevX,y:object.prevY,ageMs:Math.max(0,(object.ageMs||0)-CFG.tickMs)};
+        entity.initialTimeMs=(gameSession.tick-1)*CFG.tickMs;
       }
-      if(!reset&&before&&hypot(object.x-before.x,object.y-before.y)>180)entity.teleport=true;
-      if(kind==='hero'){
-        const old=lastRollCapture.get(id);
-        if(!reset&&old!==undefined&&roll<old-1&&object.dash.leftMs>0)entity.resetFields=['roll'];
-        newRolls.set(id,roll);
-      }
-      entities.push(entity);seen.add(id);newPositions.set(id,{x:object.x,y:object.y});
+      entities.push(entity);newPositions.set(id,{x:object.x,y:object.y});
     });
     const now=Math.max(performance.now(),paintFrameNow);
-    const accepted=mp.interpolation.accept({revision:mp.poseRevision,sequence:++mp.poseSequence,
+    const accepted=mp.interpolation.capture({revision:mp.poseRevision,sequence:++mp.poseSequence,
       timeMs:gameSession.tick*CFG.tickMs,entities,...(reset?{mode:'rollback'}:{})},now);
     if(accepted){
       capturedAtMs=now;poseReady=true;mp.poseReset=false;lastAcceptedRevision=mp.poseRevision;presentationSnapshots++;
       lastPositionCapture.clear();for(const [id,at] of newPositions)lastPositionCapture.set(id,at);
-      lastRollCapture.clear();for(const [id,value] of newRolls)lastRollCapture.set(id,value);
       captureLocalInputPreview(now,reset);
     }
   }
   function resetPresentation(){
     poseReady=false;capturedAtMs=0;paintFrameNow=0;nextPaintAt=0;
     mp.poseRevision++;mp.poseSequence=0;mp.poseReset=true;mp.previewNeedsReset=true;mp.inputPreview?.clear();
-    lastPositionCapture.clear();lastRollCapture.clear();
-  }
-  function presentationObject(object,kind){
-    if(!presentationActive||!poseReady)return object;
-    let view=renderViewCache.get(object);
-    if(!view){view=Object.create(object);renderViewCache.set(object,view);}
-    if(!mp.interpolation.sampleInto(presentationId(object,kind),object._poseGeneration??0,paintFrameNow,view))return null;
-    view.ageMs=view.age;
-    view.lifeMs=view.life;
-    if(kind==='hero'){
-      view.actorId=object===hostPlayer?'a':'b';
-      if(!Object.hasOwn(view,'dash')||Object.getPrototypeOf(view.dash)!==object.dash)
-        view.dash=Object.create(object.dash);
-      if(mp.connected&&object===(mp.role==='join'?guestPlayer:hostPlayer)&&mp.localPresentation&&mp.localPoseSource){
-        const predicted=mp.localPresentation.modelFor(mp.localPoseSource,paintFrameNow);
-        if(predicted){view.x=predicted.x;view.y=predicted.y;view.roll=predicted.roll;
-          view.moveX=predicted.moveX;view.moveY=predicted.moveY;view.faceX=predicted.faceX;view.faceY=predicted.faceY;
-          view.castPreviewMs=predicted.castMs;view.dash.leftMs=predicted.leftMs;
-          view.dash.durationMs=predicted.durationMs;view.dash.dirX=predicted.dirX;
-          view.dash.dirY=predicted.dirY;view.dash.charges=predicted.charges;
-        }
-      }
-      view.dash.elapsedMs=view.roll;
-    }
-    return view;
+    lastPositionCapture.clear();
   }
   function renderInterpolated(){
     if(mp.poseReset&&!mp.session?.resimulating)capturePresentation();
-    // Timeline accept() may advance its monotonic clock; sample after that capture.
-    const now=performance.now();
-    paintFrameNow=now;presentationActive=true;
-    // This clock is strictly visual. Rollback snapshots and authoritative world.clockMs never change on RAF.
-    paintClockMs=world.clockMs+Math.min(CFG.tickMs,Math.max(0,now-capturedAtMs));
-    try{
-      const view=poseReady?presentationObject(player,'hero'):player;
+    const now=performance.now();paintFrameNow=now;presentationActive=true;
+    paintFrame=mp.interpolation.frame(now);
+    localPaintFrame=mp.connected&&mp.localPresentation?mp.localPresentation.frame(now):null;
+    paintClockMs=paintFrame.timeMs;
+    for(const views of Object.values(sceneViews))views.length=0;
+    const pathsSeen=new Set();
+    paintFrame.forEach((model,id,generation)=>{
+      let view=model;
+      if(view.renderKind==='hero'){
+        const object=view.actorId==='a'?hostPlayer:guestPlayer;
+        view=renderViewCache.get(object)??{};Object.assign(view,model);view.dash={...model.dash};
+        const predicted=object===(mp.role==='join'?guestPlayer:hostPlayer)?localPaintFrame?.modelFor(mp.localPoseSource):null;
+        if(predicted){view.x=predicted.x;view.y=predicted.y;view.moveX=predicted.moveX;view.moveY=predicted.moveY;
+          view.faceX=predicted.faceX;view.faceY=predicted.faceY;view.castPreviewMs=predicted.castMs;
+          Object.assign(view.dash,{elapsedMs:predicted.roll,leftMs:predicted.leftMs,durationMs:predicted.durationMs,dirX:predicted.dirX,dirY:predicted.dirY,charges:predicted.charges});
+        }else view.castPreviewMs=0;
+        renderViewCache.set(object,view);
+      }
+      if(view.renderKind==='shot'){
+        let points=pathViews.get(id);if(!points){points=[];pathViews.set(id,points);}pathsSeen.add(id);
+        paintFrame.pathInto(id,generation,points);
+      }
+      sceneViews[view.renderKind].push(view);
+    });
+    for(const id of pathViews.keys())if(!pathsSeen.has(id))pathViews.delete(id);
+    try{const view=sceneViews.hero.find(v=>v.actorId===(mp.role==='join'?'b':'a'));
       if(view)withActor(view,()=>renderWorld());
     }finally{presentationActive=false;}
   }
@@ -330,7 +332,8 @@
     castStroke(raw){const shot=makeShotData(raw);world.commands.push({type:'cast',shot});return {kind:shot.kind,baseDamage:shot.baseDamage};},
     spellSpec(raw){const shot=makeShotData(raw);return {kind:shot.kind,castMs:castDurationMs(shot),recoveryMs:spellRecoveryMs(shot),areaPower:shot.areaPower,baseDamage:shot.baseDamage};},
     rollTo(x,y){queueRollTo(x,y);},
-    renderedActors(){return [hostPlayer,guestPlayer].map(actor=>{const view=renderViewCache.get(actor);return {id:view?.actorId,x:view?.x,y:view?.y,castActive:!!view?.castActive,nextCastAtMs:actor.nextCastAtMs,screenX:view?(view.x-camera.x)*camera.zoom:null};});},
+    presentedProjectiles(){return sceneViews.shot.map(p=>({id:p.id,x:p.x,y:p.y,head:{...pathViews.get('shot-'+p.id)?.at(-1)},path:pathViews.get('shot-'+p.id)?.map(point=>({...point}))}));},
+    renderedActors(){return [hostPlayer,guestPlayer].map(actor=>{const view=renderViewCache.get(actor);return {id:view?.actorId,x:view?.x,y:view?.y,castActive:!!view&&((view.castPreviewMs||0)>0||sceneViews.cast.some(c=>c.owner===view.actorId)),nextCastAtMs:actor.nextCastAtMs,screenX:view?(view.x-camera.x)*camera.zoom:null};});},
     previewInfo(){const now=performance.now(),model=mp.localPresentation&&mp.localPoseSource?mp.localPresentation.modelFor(mp.localPoseSource,now):null;return {enabled:!!mp.inputPreview,ready:mp.inputPreview?.ready??false,pending:mp.inputPreview?.pendingCount??0,metrics:mp.inputPreview?.metrics||null,x:model?.x??null,y:model?.y??null,castMs:model?.castMs??null,actorX:player.x,actorY:player.y,revision:mp.poseRevision};},
     movementState(){return {x:player.moveX,y:player.moveY,speed:CFG.player.walkSpeed};},rollState(){return {...player.dash};},slowState(){return {ratio:world.slowRatio,drawing:drawInput.pointer!==null,hitstopMs:world.hitstopMs};},
     advanceSession(){const result=gameSession.advance(SOLO_INPUT);if(result.status==='advanced')capturePresentation();return result;},pauseRendering(){pauseGameLoops();},resumeRendering(){resumeGameLoops();},pausePainting(){stopPainting();},resumePainting(){startPainting();},renderFrame(){loop.render();},selectGlyph(kind){selectGlyph(kind);},
@@ -353,7 +356,7 @@
     optimizationStats(){return {visualPool:{...visualPools,particles:visualPools.particles.length,floaters:visualPools.floaters.length,activeParticles:world.particles.length,activeFloaters:world.floaters.length},color:{...paletteStats,colors:paletteCache.size},contours:{built:sketchContourBuilds,cached:sketchContourHits},renderer:{...renderer.stats},drawQueueSlots:worldDrawSlots.length,enemyRecords:world.enemies.length,liveEnemies:world.enemies.filter(e=>!e.dead).length};},
     burstFixture(count=24){burst(player.x,player.y,'#bb7153',count,75);},floatingFixture(value='-18'){floating(player.x,player.y-25,value,'#be7757');},
 
-    presentationInfo(){const now=performance.now(),view={};const ok=poseReady&&mp.interpolation.sampleInto(presentationId(player,'hero'),0,now,view);return {ready:poseReady,tracked:mp.interpolation.size,snapshots:presentationSnapshots,simulationX:player.x,simulationY:player.y,renderX:ok?view.x:player.x,renderY:ok?view.y:player.y,clock:world.clockMs,paintClock:paintClockMs};},
+    presentationInfo(){const now=performance.now(),view=poseReady?mp.interpolation.sample(presentationId(player,'hero'),0,now):null;const ok=!!view;return {ready:poseReady,tracked:mp.interpolation.size,snapshots:presentationSnapshots,simulationX:player.x,simulationY:player.y,renderX:ok?view.x:player.x,renderY:ok?view.y:player.y,clock:world.clockMs,paintClock:paintClockMs};},
     modelReport(){return packed.report;},modelClasses(){return CNN_LABELS.slice();},sketchMetrics(){return {grammar:'procedural-pencil',boilMs:SKETCH.boilMs,alive:world.enemies.filter(e=>!e.dead).length,erasedFragments:world.particles.filter(p=>p.kind==='erasedStroke').length};},
     snapshot(){return {slowRatio:world.slowRatio,hitstopMs:world.hitstopMs,tick:gameSession.tick,player:{x:player.x,y:player.y,hp:player.hp,level:player.level,ink:player.ink},mode:world.mode,kills:world.kills,bossSpawned:world.bossSpawned,bossDefeated:world.bossDefeated,enemyCount:world.enemies.filter(e=>!e.dead).length,projectileCount:world.projectiles.length,castCount:world.casts.length,castQueueCount:world.castQueue.length,roll:{charges:player.dash.charges,rechargeMs:player.dash.rechargeMs,activeMs:player.dash.leftMs},modal:ui.modal,worldWidth:CFG.world.width,worldHeight:CFG.world.height,drawPhase:drawInput.pointer!==null?'drawing':'idle',lastResult:world.lastResult,rendererState:renderer.state};}
   };

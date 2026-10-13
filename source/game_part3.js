@@ -189,7 +189,7 @@
   function playerMood(run){
     if(world.mode==='down'||player.hp<=0)return 'down';
     if(player.invulMs>350)return 'hurt';
-    if(world.casts.some(c=>c.owner===player.actorId))return 'cast';
+    if(sceneViews.cast.some(c=>c.owner===player.actorId))return 'cast';
     if(player.hp/player.maxHp<.33)return 'low';
     if(player.dash.leftMs>0)return 'dash';
     if(run)return 'move';
@@ -222,7 +222,7 @@
   }
   function playerBody(){
     const x=player.x,y=player.y,running=player.dash.leftMs>0||hypot(player.moveX||0,player.moveY||0)>.01;
-    player.castActive=world.casts.some(c=>c.owner===player.actorId)||(player.castPreviewMs||0)>0;
+    player.castActive=sceneViews.cast.some(c=>c.owner===player.actorId)||(player.castPreviewMs||0)>0;
     const t=paintClockMs*.013,bob=Math.sin(t)*1.35,mood=playerMood(running),dash=player.dash;
     P.oval(x,y+16,17,5.5,'#62716c',.18);
     const rolling=dash.leftMs>0;
@@ -256,7 +256,7 @@
       return;
     }
     if(player.invulMs>0&&Math.floor(paintClockMs/93)%2===1&&mood!=='hurt')P.ring(x,y,22,'#80a59c',.65,2.2);
-    const anticipation=(player.castPreviewMs||0)>0,casting=world.casts.some(c=>c.owner===player.actorId);
+    const anticipation=(player.castPreviewMs||0)>0,casting=sceneViews.cast.some(c=>c.owner===player.actorId);
     const leg=Math.sin(t)*(running?5.7:1.4),armSwing=Math.cos(t)*(running?4.6:1.5),castLift=casting||anticipation?7:0;
     const fx=player.faceX||1,fy=player.faceY||0;
     P.line(x,y-1+bob,x,y+11+bob,3.4,'#35464b');
@@ -364,10 +364,11 @@
     const pts=c.shot.shape,n=pts.length-1; if(n>0){const fi=Math.min(n,Math.floor(n*p)),head=pts[fi];P.dot(c.x+head.x*1.35,c.y-42+head.y*1.35,4.8,'#fff1a1',.77);P.dot(c.x+head.x*1.35,c.y-42+head.y*1.35,2.6,c.shot.color,.95);}
   }
   function drawProjectile(p){
+    const trail=pathViews.get('shot-'+p.id)??[];
     if(!visible(p.x,p.y,80))return;
-    for(let i=0;i<p.trail.length-1;i++){
-      const a=p.trail[i],b=p.trail[i+1];
-      P.line(a.x,a.y,b.x,b.y,(i+1)/p.trail.length*3.0,p.color,.09+(i/p.trail.length)*.34);
+    for(let i=0;i<trail.length-1;i++){
+      const a=trail[i],b=trail[i+1];
+      P.line(a.x,a.y,b.x,b.y,(i+1)/trail.length*3.0,p.color,.09+(i/trail.length)*.34);
     }
     P.oval(p.x,p.y+5,p.r*.86,4.1,'#8f978f',.17);
     if(p.kind!=='normal'&&p.kind!=='line'){
@@ -438,7 +439,7 @@
   function drawPickup(p){if(!visible(p.x,p.y,30))return;const wig=Math.sin(paintClockMs*.004+p.x)*2;P.ring(p.x,p.y+wig,9,'#8ba893',.4,1.5,14);P.dot(p.x,p.y+wig,5,'#769985');P.dot(p.x-1.5,p.y-1.5+wig,2,'#fffae2',.9);}
   const anchorReuse={x:0,y:0};
   function renderText(){txtCtx.setTransform(screenDpr,0,0,screenDpr,0,0);txtCtx.clearRect(0,0,vw,vh);
-    for(const source of world.floaters){const f=presentationObject(source,'floater');if(!f||!visible(f.x,f.y,40))continue;renderer.worldToScreenInto(f.x,f.y,anchorReuse);const a=clamp(f.lifeMs/250,0,1);txtCtx.globalAlpha=a;txtCtx.textAlign='center';const life=1-f.lifeMs/680,pop=1+.38*Math.exp(-life*12),px=anchorReuse.x,py=anchorReuse.y;
+    for(const f of sceneViews.floater){if(!f||!visible(f.x,f.y,40))continue;renderer.worldToScreenInto(f.x,f.y,anchorReuse);const a=clamp(f.lifeMs/250,0,1);txtCtx.globalAlpha=a;txtCtx.textAlign='center';const life=1-f.lifeMs/680,pop=1+.38*Math.exp(-life*12),px=anchorReuse.x,py=anchorReuse.y;
       txtCtx.translate(px,py);txtCtx.scale(pop,pop);txtCtx.translate(-px,-py);
       txtCtx.font='1000 17px system-ui,sans-serif';txtCtx.lineWidth=4.0;txtCtx.strokeStyle='#fff9ee';txtCtx.strokeText(f.text,anchorReuse.x,anchorReuse.y);txtCtx.fillStyle=f.color;txtCtx.fillText(f.text,anchorReuse.x,anchorReuse.y);txtCtx.setTransform(screenDpr,0,0,screenDpr,0,0);}
     txtCtx.globalAlpha=1;txtCtx.textAlign='left';if(visible(683,616,150)){renderer.worldToScreenInto(683,561,anchorReuse);txtCtx.textAlign='center';txtCtx.font='900 12px system-ui';txtCtx.lineWidth=3.4;txtCtx.strokeStyle='#fff8ee';txtCtx.strokeText('✎ 연필 공방 · E',anchorReuse.x,anchorReuse.y);txtCtx.fillStyle='#5e635c';txtCtx.fillText('✎ 연필 공방 · E',anchorReuse.x,anchorReuse.y);}
@@ -456,7 +457,7 @@
     camera.y=mix(Number.isFinite(camera.y)?camera.y:targetY,targetY,weight);
     renderer.setCamera({x:camera.x,y:camera.y,zoom:z,rotation:0});}
   function drawRollMarks(){
-    for(const source of world.rollMarks){const t=presentationObject(source,'rollMark');if(!t||!visible(t.x,t.y,60))continue;const a=clamp(t.lifeMs/t.maxLifeMs,0,1),dx=t.dirX,dy=t.dirY;
+    for(const t of sceneViews.rollMark){if(!t||!visible(t.x,t.y,60))continue;const a=clamp(t.lifeMs/t.maxLifeMs,0,1),dx=t.dirX,dy=t.dirY;
       const sx=-dy,sy=dx,dist=(1-a)*13;
       // Sketched ring, tilting and breaking apart with motion.
       for(let k=0;k<3;k++){
@@ -466,7 +467,7 @@
       }
       P.line(t.x-sx*7,t.y-sy*7,t.x+sx*9,t.y+sy*9,1.1,'#8b9d8e',a*.38);
     }
-    if(world.rollTarget){const t=presentationObject(world.rollTarget,'rollTarget');if(!t)return;const a=clamp(t.lifeMs/t.maxLifeMs,0,1);
+    if(sceneViews.rollTarget.length){const t=sceneViews.rollTarget[0];if(!t)return;const a=clamp(t.lifeMs/t.maxLifeMs,0,1);
       P.ring(t.x,t.y,8+(1-a)*7,'#6f9b88',a*.52,1.35,14);
       P.line(t.x-5,t.y,t.x+5,t.y,1.1,'#547c75',a*.48);
       P.line(t.x,t.y-5,t.x,t.y+5,1.1,'#547c75',a*.48);
@@ -480,16 +481,16 @@
     worldDraw.length=0;worldDrawCount=0;
     for(const h of world.houses)if(visible(h.x,h.y,160))enqueueWorldDraw('house',h,h.y+45);
     for(const t of world.trees)if(visible(t.x,t.y,100))enqueueWorldDraw('tree',t,t.y+t.r*.5);
-    for(const e of world.enemies){if(e.dead)continue;const view=presentationObject(e,'enemy');if(view&&visible(view.x,view.y,120))enqueueWorldDraw('enemy',view,view.y+view.r*.5);}
-    for(const actor of actors()){const view=presentationObject(actor,'hero');if(view)enqueueWorldDraw('hero',view,view.y+view.r*.5);}worldDraw.sort((a,b)=>a.y-b.y);
+    for(const view of sceneViews.enemy){if(view&&visible(view.x,view.y,120))enqueueWorldDraw('enemy',view,view.y+view.r*.5);}
+    for(const view of sceneViews.hero){if(view)enqueueWorldDraw('hero',view,view.y+view.r*.5);}worldDraw.sort((a,b)=>a.y-b.y);
     for(const item of worldDraw){if(item.type==='house')drawHouse(item.ref);else if(item.type==='tree')drawTree(item.ref);else if(item.type==='enemy')enemyBody(item.ref);else withActor(item.ref,()=>playerBody());}
-    for(const f of world.fields){const view=presentationObject(f,'field');if(view)drawField(view);}
-    for(const c of world.casts){const view=presentationObject(c,'cast');if(view)drawCast(view);}
-    for(const p of world.pickups){const view=presentationObject(p,'pickup');if(view)drawPickup(view);}
-    for(const p of world.projectiles){const view=presentationObject(p,'shot');if(view)drawProjectile(view);}
-    for(const p of world.hazards){const view=presentationObject(p,'hazard');if(view)drawHazard(view);}
-    for(const p of world.particles){const view=presentationObject(p,'particle');if(view)drawParticle(view);}
-    if(mp.shared){const other=mp.role==='join'?hostPlayer:guestPlayer,view=presentationObject(other,'hero');if(view)P.ring(view.x,view.y,view.r+17,'#659cb0',.55,1.4,21);}
+    for(const view of sceneViews.field)drawField(view);
+    for(const view of sceneViews.cast)drawCast(view);
+    for(const view of sceneViews.pickup)drawPickup(view);
+    for(const view of sceneViews.shot)drawProjectile(view);
+    for(const view of sceneViews.hazard)drawHazard(view);
+    for(const view of sceneViews.particle)drawParticle(view);
+    if(mp.shared){const view=sceneViews.hero.find(v=>v.actorId===(mp.role==='join'?'a':'b'));if(view)P.ring(view.x,view.y,view.r+17,'#659cb0',.55,1.4,21);}
     if(player.hp<player.maxHp&&player.hp>0){const radius=player.r+14;P.ring(player.x,player.y,radius,'#ac766e',.25,1.1,18);}
     renderer.endFrame();renderText();
   }

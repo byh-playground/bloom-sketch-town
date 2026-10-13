@@ -1,6 +1,6 @@
 # Sketch Town
 
-그림을 그려 마법을 만들고 WASD·모바일 스틱으로 걷고 선택적으로 구르는 BLOOM 기반 액션 게임입니다. 현재 버전은 **0.12.1**입니다. 최신 ChatGPT 원본 0.9.2를 이관하고 GameKit protocol 3와 즉시 입력 처리를 적용했습니다.
+그림을 그려 마법을 만들고 WASD·모바일 스틱으로 걷고 선택적으로 구르는 BLOOM 기반 액션 게임입니다. 현재 버전은 **0.13.0**입니다. 최신 ChatGPT 원본 0.9.2를 이관하고 GameKit protocol 3와 즉시 입력 처리를 적용했습니다.
 
 [게임 실행](https://byh-playground.github.io/bloom-sketch-town/)
 
@@ -33,7 +33,7 @@ python source/e2e.py --live-p2p
 
 ## GameKit과 입력
 
-멀티플레이에 사용하는 simloop, interpolation, rollback, transport는 모두 PR45의 동일 dist 커밋 `e7a1782275b6414f2bcf2cd29de173f49b849004`에 고정했습니다. `source/gamekit/manifest.json`의 SHA-256을 빌드에서 확인하고 공식 ESM 바이트를 단일 HTML에 포함합니다. 기존 renderer/input/dom/audio와 게임 규칙은 원본을 유지합니다. 이전 멀티플레이 버전과는 방 namespace와 simulationVersion을 분리합니다.
+멀티플레이에 사용하는 simloop, interpolation, rollback, transport는 모두 PR46의 동일 dist 커밋 `e5385ff3f43e598565ac3daed8096e97a7fe30dd`에 고정했습니다. `source/gamekit/manifest.json`의 SHA-256을 빌드에서 확인하고 공식 ESM 바이트를 단일 HTML에 포함합니다. 기존 renderer/input/dom/audio와 게임 규칙은 원본을 유지합니다. 이전 멀티플레이 버전과는 방 namespace와 simulationVersion을 분리합니다.
 
 입력 이벤트는 `observeInput` → 공식 `submitInput`으로 즉시 송신합니다. 입력 60Hz, 시뮬레이션 30TPS, 렌더 최대 60FPS는 독립 실행되며 게임 설정입니다. Command는 한 번만 제출하고 최초 예약 T를 바꾸지 않습니다. `MP_PROFILE`의 network scheduling, safety margin 8ms, jitter multiplier 2로 정상 입력에 도착 여유를 주며 늦은 입력만 공식 rollback으로 보정합니다. `reconciled`에서 표시 상태를 다시 게시합니다.
 
@@ -72,3 +72,14 @@ PR CI는 번들 해시 확인과 빌드 재현성을 검사합니다. main 병�
 권위 위치는 시뮬레이션 시각에 맞춘 2틱(66.7ms) 표시 지연으로 보간하여 수신 시각의 불규칙성을 흡수합니다. 이 지연은 입력 송신·게임 판정에 추가되지 않으며 온라인 자신의 움직임은 공식 LocalInputPreview로 즉시 표시합니다. 예측 구간은 실제 미래 tick 수와 loop의 표시 경계 시각을 사용합니다. 카메라·몸체는 같은 표시 위치를 따릅니다.
 
 [동일 장면 전후 계측](docs/jitter-v0.12.1.json): 온라인 로컬 걷기 화면 델타 범위 −1.75~+2.76px → −0.30~+0.39px, 정지 프레임 2/51 → 0/50. 두 peer의 정상 timer에서 0/2 tick 반복이 없어졌습니다. render CPU p95는 최종 2.2/2.8ms이며 GPU 실행시간은 미측정입니다.
+
+
+### 0.13.0 공통 표시 프레임
+
+GameKit [PR46](https://github.com/byh-playground/bloom-gamekit/pull/46)의 `PresentationRuntime.frame(now)`을 권위 상태 렌더의 기본 경로로 사용합니다. 동적 객체는 현재 world 배열 대신 프레임 목록을 순회하므로 생성 첫 이동 구간과 지연된 제거까지 같은 표시 시간을 따릅니다. 본체·잔상은 `renderPath`/`pathInto`에서 같은 끝점을 받습니다. `Object.create(rawObject)` fallback과 게임 전용 잔상 배열을 제거했습니다.
+
+온라인 자신의 캐릭터는 기존 `LocalInputPreview`를 같은 RAF 시각으로 선택하며, 선택한 모델을 본체·부착 외형·카메라에 함께 전달합니다. 투사체를 예측 시뮬레이션으로 복제하지 않습니다. 시뮬레이션 30TPS, 입력 60Hz, 표시 최대 60Hz와 예약 T 정책은 유지합니다.
+
+[공식 사용 계약과 예제](https://github.com/byh-playground/bloom-gamekit/tree/main/modules/interpolation#권장-진입점-한-표시-프레임): 중간 반사점, 부착 관계, 모양은 게임이 소유합니다. 한 tick 안에 생성·제거되어 스냅샷에 나타나지 않는 객체는 모듈이 추론하지 않습니다. 이 게임의 경로는 현재 시뮬레이션이 계산한 tick 끝점을 보존합니다.
+
+고정 manifest SHA-256: `842c6faa2723538ce6ee2817c9c0188c3596c2d03140c8dd90e156ac58141576`.

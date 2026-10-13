@@ -438,15 +438,17 @@ async def run_real_p2p(browser, suite: E2E):
             boundary=min(s['confirmedTick'] for s in states)
             hashes=await asyncio.gather(*(p.evaluate("t=>window.__sketchRpgDebug.stateHash(t)",boundary) for p in (host,guest)))
             suite.check("late duplicated RTC input reconciles to equal confirmed hash",hashes[0] is not None and hashes[0]==hashes[1],{'tick':boundary,'hashes':hashes,'rollbacks':[s['stats'].get('rollbacks',0) for s in states]})
-            suite.check("both peers use pinned protocol 3 bundle",all(s['gamekitSHA']=='e7a1782275b6414f2bcf2cd29de173f49b849004' and s['inputScheduling']=='network' and s['inputHz']==60 for s in states))
+            suite.check("both peers use pinned protocol 3 bundle",all(s['gamekitSHA']=='e5385ff3f43e598565ac3daed8096e97a7fe30dd' and s['inputScheduling']=='network' and s['inputHz']==60 for s in states))
             for sender,actor in ((host,'a'),(guest,'b')):
                 for page in (host,guest):
-                    await page.evaluate("""() => {window.castFrames=[];const end=performance.now()+1400;
-                      const sample=()=>{castFrames.push(__sketchRpgDebug.renderedActors());if(performance.now()<end)requestAnimationFrame(sample)};sample();}""")
+                    await page.evaluate("""() => {window.castFrames=[];window.shotFrames=[];const end=performance.now()+1400;
+                      const sample=()=>{castFrames.push(__sketchRpgDebug.renderedActors());shotFrames.push(__sketchRpgDebug.presentedProjectiles());if(performance.now()<end)requestAnimationFrame(sample)};sample();}""")
                 await sender.evaluate("__sketchRpgDebug.cast('line')")
                 await sender.wait_for_timeout(1450)
                 for page in (host,guest):
                     frames=await page.evaluate("window.castFrames")
+                    shots=await page.evaluate("window.shotFrames.flat()")
+                    suite.check("projectile trail endpoint uses body display time", bool(shots) and all(p.get('head') and abs(p['head']['x']-p['x'])<0.001 and abs(p['head']['y']-p['y'])<0.001 for p in shots), {'samples':len(shots)})
                     suite.check("only casting actor animates: "+actor,any(p['id']==actor and p['castActive'] for f in frames for p in f) and not any(p['id']!=actor and p['castActive'] for f in frames for p in f))
             suite.check("no JS errors in either online browser", not host_errors and not guest_errors, (host_errors+guest_errors)[:5])
         finally:
