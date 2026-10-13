@@ -221,7 +221,7 @@
     if(Math.abs(fx)>.45)D.line(x+(fx>0?1.4:-1.4),y+r*.15,x+(fx>0?4.2:-4.2),y+r*.16,1,'#f0c487',.45);
   }
   function playerBody(){
-    const x=player.x,y=player.y,running=player.dash.leftMs>0;
+    const x=player.x,y=player.y,running=player.dash.leftMs>0||hypot(player.moveX||0,player.moveY||0)>.01;
     player.castActive=world.casts.some(c=>c.owner===player.actorId)||(player.castPreviewMs||0)>0;
     const t=paintClockMs*.013,bob=Math.sin(t)*1.35,mood=playerMood(running),dash=player.dash;
     P.oval(x,y+16,17,5.5,'#62716c',.18);

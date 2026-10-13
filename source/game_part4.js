@@ -12,14 +12,28 @@
       if(shot.kind==='normal')showResult('일반 낙서 · 특수 그림 유사도 기준 미달',950);
     }catch(error){console.error(error);showResult('마법 분석 실패 · 다시 그려 보세요',950);}}
   const keyboardBindings={KeyW:'up',ArrowUp:'up',KeyA:'left',ArrowLeft:'left',KeyS:'down',ArrowDown:'down',KeyD:'right',ArrowRight:'right',Space:'dash',KeyE:'interact'};
-  // Bounko movement: a battlefield press commits a direction immediately, even while drawing.
+  // Battlefield clicks retain the optional one-shot roll; walking belongs to keys/stick.
   // GameKit DOM input retains pointer capture; a release only ends the gesture, never delays the roll.
   const fieldInput=createDOMInput({target:field,state:actions,keys:keyboardBindings,pointerButtons:{0:'rollAim'},touchAction:'none',onPointer(e){
     if(ui.modal||e.type!=='down')return;
     const target={x:0,y:0};renderer.screenToWorldInto(e.x,e.y,target);queueRollTo(target.x,target.y);
   }});
   // Registered after the GameKit device listener, so the edge already belongs to ActionState.
-  document.addEventListener('keydown',e=>{if(!e.repeat&&keyboardBindings[e.code]&&!ui.modal)wakeInputPreview();});
+  for(const type of ['keydown','keyup'])document.addEventListener(type,e=>{if(!e.repeat&&keyboardBindings[e.code]&&!ui.modal)wakeInputPreview();});
+  const movementStick={pointer:null,x:0,y:0};
+  function resetMovementStick(){movementStick.pointer=null;movementStick.x=movementStick.y=0;$('moveKnob').style.transform='translate(0px,0px)';}
+  const stickInput=createDOMInput({target:$('moveStick'),state:actions,pointerButtons:{0:'moveStick'},excludeTarget:false,touchAction:'none',onPointer(e){
+    if(ui.modal)return;
+    if(e.type==='down'&&movementStick.pointer===null){movementStick.pointer=e.pointerId;focusGameplay();}
+    if(e.pointerId!==movementStick.pointer)return;
+    if(e.type==='up'||e.type==='cancel')resetMovementStick();
+    else{const size=$('moveStick').getBoundingClientRect().width,dx=e.x-size/2,dy=e.y-size/2,length=hypot(dx,dy),radius=size*.34;
+      movementStick.x=length>size*.12?dx/length:0;movementStick.y=length>size*.12?dy/length:0;
+      const scale=Math.min(1,radius/Math.max(1,length));$('moveKnob').style.transform=`translate(${dx*scale}px,${dy*scale}px)`;}
+    wakeInputPreview();
+  },onRelease(){resetMovementStick();wakeInputPreview();}});
+  const rollButtonInput=createDOMInput({target:$('rollButton'),state:actions,pointerButtons:{0:'dash'},excludeTarget:false,touchAction:'none',onPointer(e){if(e.type==='down'){focusGameplay();wakeInputPreview();}}});
+  $('rollButton').addEventListener('click',e=>{if(e.detail===0){actions.pulse('dash');wakeInputPreview();}});
   const paintInput=createDOMInput({target:draw,state:actions,pointerButtons:{0:'paint'},touchAction:'none',onPointer(e){if(ui.modal)return;
     if(e.type==='down'&&drawInput.pointer===null){focusGameplay();drawInput.pointer=e.pointerId;drawInput.points=[];drawInput.length=0;gesture.drawId=e.pointerId;gesture.startMs=world.clockMs;setSlowUi(true);appendDrawPoint(sampleFromPointer(e));$('strokeStatus').textContent='그리는 중 · 손을 떼면 마법 사용';}
     else if(drawInput.pointer===e.pointerId&&e.type==='move'){appendDrawPoint(sampleFromPointer(e));}
@@ -29,7 +43,7 @@
   $('soundButton').addEventListener('click',async()=>{audioOn=!audioOn;sound.setMuted(!audioOn);$('soundButton').setAttribute('aria-pressed',String(audioOn));$('soundButton').textContent=audioOn?'♪ 켬':'♪ 끔';if(audioOn){await sound.unlock();sfx('select');}});
   function showResult(message,durationMs=1250){if(resimulatingGame)return;const c=$('resultChip');c.textContent=message;c.classList.add('show');ui.resultUntil=performance.now()+durationMs;}
   function changeModal(name){const open=name==='training'||name==='help'||name==='multi';ui.modal=open?name:null;for(const id of ['trainingModal','helpModal','multiplayerModal'])$(id).classList.toggle('open',open&&id===(name==='training'?'trainingModal':name==='help'?'helpModal':'multiplayerModal'));
-    if(open){fieldInput.releaseAll('modal');paintInput.releaseAll('modal');dropDraw();if(name==='training'){updateTrainingView();drawTrainingPad();}}
+    if(open){fieldInput.releaseAll('modal');paintInput.releaseAll('modal');stickInput.releaseAll('modal');rollButtonInput.releaseAll('modal');dropDraw();if(name==='training'){updateTrainingView();drawTrainingPad();}}
     else{drawInput.pointer=null;focusGameplay();}
     $('trainingButton').setAttribute('aria-expanded',String(name==='training'));$('helpButton').setAttribute('aria-expanded',String(name==='help'));
   }

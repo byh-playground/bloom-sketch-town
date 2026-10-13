@@ -1,5 +1,5 @@
   const actions=new ActionState(),gesture={drawId:null,points:[],length:0,startMs:0,trainingId:null,trainingPoints:[],lastCombatStroke:null};
-  let player={x:475,y:735,vx:0,vy:0,faceX:1,faceY:0,r:CFG.player.radius,hp:CFG.player.hp,maxHp:CFG.player.hp,level:1,xp:0,xpNext:65,ink:0,power:1,dash:{leftMs:0,durationMs:0,elapsedMs:0,distance:0,charges:2,rechargeMs:0,dirX:1,dirY:0,originX:475,originY:735,rollMarkMs:0},nextCastAtMs:0,invulMs:0,healMsgMs:0,hits:0};
+  let player={x:475,y:735,vx:0,vy:0,moveX:0,moveY:0,faceX:1,faceY:0,r:CFG.player.radius,hp:CFG.player.hp,maxHp:CFG.player.hp,level:1,xp:0,xpNext:65,ink:0,power:1,dash:{leftMs:0,durationMs:0,elapsedMs:0,distance:0,charges:2,rechargeMs:0,dirX:1,dirY:0,originX:475,originY:735,rollMarkMs:0},nextCastAtMs:0,invulMs:0,healMsgMs:0,hits:0};
   const hostPlayer=player;
   const guestPlayer={...hostPlayer,x:536,y:756,hp:hostPlayer.hp,maxHp:hostPlayer.maxHp,dash:{...hostPlayer.dash,originX:536,originY:756},nextCastAtMs:0,hits:0};
   const mp={role:'solo',connected:false,ready:false,connecting:false,shared:false,room:null,session:null,code:'',localId:null,ownerId:null,interpolation:null,poseRevision:0,poseSequence:0,poseReset:true,stats:{rollbacks:0,recoveries:0,commands:0,advanced:0}};
@@ -88,10 +88,23 @@
     if(blocked){d.leftMs=0;d.elapsedMs=d.durationMs;}
     return {mark,landed:d.leftMs===0,blocked};
   }
+  function readMovementInput(actor,input){
+    const x=(input[0]>127?input[0]-256:input[0])/127,y=(input[1]>127?input[1]-256:input[1])/127;
+    const length=Math.max(1,hypot(x,y));actor.moveX=x/length;actor.moveY=y/length;
+  }
+  function stepActorMovement(actor,dt){
+    const rollingMs=actor.dash.leftMs,effect=stepActorRoll(actor,dt);
+    const walkMs=rollingMs>0?Math.max(0,dt-rollingMs):dt;
+    if(walkMs>0&&(actor.moveX||actor.moveY)){
+      const length=hypot(actor.moveX,actor.moveY);actor.faceX=actor.moveX/length;actor.faceY=actor.moveY/length;
+      moveCollider(actor,actor.moveX*CFG.player.walkSpeed*walkMs/1000,actor.moveY*CFG.player.walkSpeed*walkMs/1000,actor.r);
+    }
+    return effect;
+  }
   function addRollMark(x,y){const d=player.dash;world.rollMarks.push({x,y,dirX:d.dirX,dirY:d.dirY,phase:d.durationMs?d.elapsedMs/d.durationMs:0,lifeMs:320,maxLifeMs:320});if(world.rollMarks.length>11)world.rollMarks.shift();}
   function updatePlayer(dt){
     if(player.koMs>0){player.koMs=Math.max(0,player.koMs-dt);if(!player.koMs){reviveActor(player);}return;}
-    const effect=stepActorRoll(player,dt);
+    const effect=stepActorMovement(player,dt);
     if(effect.mark)addRollMark(player.x,player.y);
     if(effect.blocked)burst(player.x,player.y,'#a4aaa0',5,26);
     if(effect.landed){addRollMark(player.x,player.y);sfx('land');}
