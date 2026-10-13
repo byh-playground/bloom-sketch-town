@@ -2,17 +2,18 @@
   // BLOOM GameKit RoomSession(mode=online, profile.mode=rollback).
   // Signaling uses public Nostr relays; RTC carries only GameKit's framed inputs,
   // membership control and validated join/recovery checkpoints. No live world broadcast.
-  const MP_NAMESPACE='sketch-town-coop-090';
-  const MP_SIMULATION_VERSION='sketch-town-v090-world15-input-preview';
-  const MP_ROLLBACK_URL='https://cdn.jsdelivr.net/gh/byh-playground/bloom-gamekit@dist/rollback.js';
-  const MP_TRANSPORT_URL='https://cdn.jsdelivr.net/gh/byh-playground/bloom-gamekit@dist/transport.js';
-  const MP_SIMLOOP_URL='https://cdn.jsdelivr.net/gh/byh-playground/bloom-gamekit@dist/simloop.js';
-  const MP_INTERPOLATION_URL='https://cdn.jsdelivr.net/gh/byh-playground/bloom-gamekit@dist/interpolation.js';
+  const GAMEKIT_SHA='6d9125a58bf63e4b7b0f68a6882c30e9858172bc';
+  const MP_NAMESPACE='sketch-town-coop-0100';
+  const MP_SIMULATION_VERSION='sketch-town-'+CFG.version+'-'+GAMEKIT_SHA;
+  const MP_ROLLBACK_URL=GAMEKIT_URLS.rollback;
+  const MP_TRANSPORT_URL=GAMEKIT_URLS.transport;
+  const MP_SIMLOOP_URL=GAMEKIT_URLS.simloop;
+  const MP_INTERPOLATION_URL=GAMEKIT_URLS.interpolation;
   const MP_SEED=0x31415,MP_INPUT_SIZE=1;
   const MP_PROFILE={mode:'rollback',tickRate:15,baseInputDelayTicks:1,rollbackWindowTicks:8,
     stateHistorySize:32,maxCatchupSteps:4,checksumInterval:15,maxSnapshotBytes:2*1024*1024,
     maxHistoryBytes:16*1024*1024,maxCommandBytes:2048,maxPendingCommands:64,
-    adaptiveInputDelay:true};
+    adaptiveInputDelay:true,inputScheduling:'network',inputSafetyMarginMs:8,inputJitterMultiplier:2};
   const MP_TEXT=new TextEncoder(),MP_READER=new TextDecoder('utf-8',{fatal:true});
   const MP_EMPTY=new Uint8Array(MP_INPUT_SIZE);
   let mpAbort=null,mpGeneration=0;
@@ -96,6 +97,7 @@
       withActor(actor,()=>submitSpell(shot));
     }
   }
+  const inputAudit={submitted:[],executed:[]};
   const multiplayerAdapter={
     save:encodeState,load:loadState,validateSnapshot:validateState,
     applyMembership({players,reason}){
@@ -108,7 +110,11 @@
       const old=resimulatingGame;resimulatingGame=Boolean(context.resimulating||context.recovering||context.replaying||context.synctesting);
       try{
         for(const frame of context.inputs){const actor=frame.playerId===mp.ownerId?hostPlayer:guestPlayer;
-          for(const command of frame.commands)performNetCommand(actor,command.payload);
+          for(const command of frame.commands){
+            inputAudit.executed.push({playerId:frame.playerId,sequence:command.sequence,tick:context.tick,executeTick:command.executeTick,replay:resimulatingGame});
+            if(inputAudit.executed.length>128)inputAudit.executed.shift();
+            performNetCommand(actor,command.payload);
+          }
         }
         tick(CFG.tickMs);
       }finally{resimulatingGame=old;}
@@ -116,11 +122,19 @@
   };
   function onMultiplayerEvent(event){
     mp.stats.events=(mp.stats.events||0)+1;
+    if(event.type==='input-submitted'&&event.commands.length){
+      inputAudit.submitted.push({timeMs:performance.now(),commands:event.commands,schedule:event.schedule});
+      if(inputAudit.submitted.length>64)inputAudit.submitted.shift();
+    }
     if(event.type==='rollback'||event.type==='recovered') {
       mp.previewNeedsReset=true;mp.inputPreview?.clear();
       mp.poseReset=true;mp.poseRevision++;
       if(event.type==='rollback')mp.stats.rollbacks++;
       else mp.stats.recoveries++;
+    }
+    if(event.type==='reconciled'){
+      mp.stats.reconciled=(mp.stats.reconciled||0)+1;
+      capturePresentation();
     }
     if(event.type==='membership-committed'){
       mp.shared=mp.session?.players?.length>=2;
@@ -149,7 +163,7 @@
     const code=$('mpRoomInput').value.trim();if(!/^\d{4}$/.test(code)){mpStatus('방 번호는 숫자 네 자리여야 합니다.');return;}
     mp.role=role;mp.code=code;mp.connecting=true;mpAbort=new AbortController();const generation=++mpGeneration;mpUi();
     try{
-      mpStatus('최신 BLOOM GameKit 롤백·전송·보간 모듈 로딩 중…');
+      mpStatus('고정 BLOOM GameKit 롤백·전송·보간 모듈 로딩 중…');
       const [rollback,transport,simloop,interpolation]=await Promise.all([import(MP_ROLLBACK_URL),import(MP_TRANSPORT_URL),import(MP_SIMLOOP_URL),import(MP_INTERPOLATION_URL)]);
       if(typeof rollback.createRoomSession!=='function'||typeof transport.createNostrDynamicRoom!=='function'||typeof simloop.LocalInputPreview!=='function'||typeof interpolation.PresentationRuntime!=='function')throw new Error('GameKit 모듈 공개 API 불일치');
       if(generation!==mpGeneration)return;
@@ -199,10 +213,13 @@
   mpUi();
   Object.assign(window.__sketchRpgDebug,{
     multiplayerState(){return {role:mp.role,connected:mp.connected,ready:mp.ready,code:mp.code,
+      gamekitSHA:GAMEKIT_SHA,inputHz:CFG.inputHz,inputScheduling:mp.session?.profile.inputScheduling,
       sessionMode:mp.session?.profile.mode||null,tickRate:mp.session?.profile.tickRate||15,previewEnabled:!!mp.inputPreview,
       tick:mp.session?.tick??gameSession.tick,confirmedTick:mp.session?.confirmedTick??null,
       players:mp.session?.players.length||1,shared:mp.shared,network:mp.session?.metrics||null,stats:{...mp.stats},
       host:{x:hostPlayer.x,y:hostPlayer.y,hp:hostPlayer.hp},guest:{x:guestPlayer.x,y:guestPlayer.y,hp:guestPlayer.hp}};},
+    inputAudit(){return structuredClone(inputAudit);},
+    stateHash(tick){return mp.session?.getStateHash(tick);},
     canonicalBytes(){return encodeState().length;},
     canonicalSnapshot(){return encodeState();},
     canonicalRestore(bytes){loadState(bytes);},

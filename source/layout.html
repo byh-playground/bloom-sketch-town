@@ -65,8 +65,8 @@
 <script type="application/json" id="glyphReferences">__GLYPH_REFS__</script>
 <script>
 'use strict';
-(() => {
+(async () => {
 __GAME_JS__
-})();
+})().catch(error=>{console.error(error);const el=document.getElementById('error');el.style.display='block';el.textContent='게임 초기화 오류: '+error.message;});
 </script>
 </body></html>

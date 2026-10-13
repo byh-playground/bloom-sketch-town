@@ -1,36 +1,47 @@
-name: Deploy static Pages
+name: Build and deploy Pages
 on:
+  pull_request:
   push:
     branches: [main]
   workflow_dispatch:
 permissions:
   contents: read
-  pages: write
-  id-token: write
-concurrency:
-  group: pages
-  cancel-in-progress: false
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
       - run: python source/build_rpg.py
-      - uses: actions/configure-pages@v5
+      - name: Verify committed build
+        run: git diff --exit-code -- index.html
       - name: Prepare static artifact
+        if: github.ref == 'refs/heads/main'
         run: |
           mkdir -p _site
           cp index.html _site/index.html
           touch _site/.nojekyll
       - uses: actions/upload-pages-artifact@v4
+        if: github.ref == 'refs/heads/main'
         with:
           path: _site
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/configure-pages@v5
       - name: Deploy Pages artifact
         id: deployment
         uses: actions/deploy-pages@v4

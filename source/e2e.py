@@ -340,11 +340,64 @@ async def run_real_p2p(browser, suite: E2E):
                 }""", timeout=60000) for page in (host, guest)
             ))
             suite.check("actual public Nostr + WebRTC join + GameKit rollback admission", True)
+            for page in (host, guest):
+                cdp=await page.context.new_cdp_session(page)
+                await cdp.send("Emulation.setFocusEmulationEnabled", {"enabled": True})
+            await guest.evaluate("""() => {
+              window.inputTiming={};
+              const send=RTCDataChannel.prototype.send;
+              RTCDataChannel.prototype.send=function(data){
+                if(inputTiming.eventAt && !inputTiming.sendAt) inputTiming.sendAt=performance.now();
+                if(window.delayInputUntil>performance.now()) {
+                  const copy=data instanceof ArrayBuffer?data.slice(0):ArrayBuffer.isView(data)?data.slice():data;
+                  setTimeout(()=>{if(this.readyState==='open'){send.call(this,copy);send.call(this,copy);}},250);
+                } else send.call(this,data);
+              };
+              let before,tick;
+              document.addEventListener('keydown',()=>{
+                inputTiming={eventAt:performance.now()};
+                before=__sketchRpgDebug.previewInfo();tick=__sketchRpgDebug.multiplayerState().tick;
+              },true);
+              document.addEventListener('keydown',()=>{
+                const after=__sketchRpgDebug.previewInfo();
+                inputTiming.immediatePreview=after.metrics.previewPublishes>before.metrics.previewPublishes;
+                inputTiming.sameAuthorityTick=__sketchRpgDebug.multiplayerState().tick===tick;
+                inputTiming.preview=after;
+                const x=before.x;
+                const frame=()=>{const v=__sketchRpgDebug.previewInfo();
+                  if(v.x!==null&&Math.abs(v.x-x)>.1)inputTiming.previewAt=performance.now();
+                  else if(performance.now()-inputTiming.eventAt<1500)requestAnimationFrame(frame);
+                };requestAnimationFrame(frame);
+              });
+            }""")
             before = await guest.evaluate("window.__sketchRpgDebug.multiplayerState().guest.x")
             await guest.keyboard.press("d")
             await guest.wait_for_function("""x => window.__sketchRpgDebug.multiplayerState().guest.x > x+5""", arg=before, timeout=7000)
             await host.wait_for_function("""x => window.__sketchRpgDebug.multiplayerState().guest.x > x+5""", arg=before, timeout=14000)
             suite.check("actual guest input replicates through P2P rollback", True)
+            await guest.wait_for_function("window.inputTiming.previewAt", timeout=5000)
+            timing=await guest.evaluate("window.inputTiming")
+            suite.check("DOM input sends before next simulation tick", timing['sendAt']-timing['eventAt']<1000/15, timing)
+            suite.check("local preview responds without waiting for authority", timing['immediatePreview'] and timing['sameAuthorityTick'], timing)
+            await guest.wait_for_timeout(800)
+            rolls=await host.evaluate("window.__sketchRpgDebug.multiplayerState().stats.rollbacks||0")
+            await guest.evaluate("window.delayInputUntil=performance.now()+300")
+            await guest.keyboard.press("a")
+            await host.wait_for_function("n => (window.__sketchRpgDebug.multiplayerState().stats.rollbacks||0)>n", arg=rolls, timeout=8000)
+            await host.wait_for_function("window.__sketchRpgDebug.multiplayerState().stats.reconciled>0", timeout=5000)
+            await guest.wait_for_timeout(650)
+            states=await asyncio.gather(*(p.evaluate("window.__sketchRpgDebug.multiplayerState()") for p in (host,guest)))
+            audits=await asyncio.gather(*(p.evaluate("window.__sketchRpgDebug.inputAudit()") for p in (host,guest)))
+            reservations={c['sequence']:c['executeTick'] for entry in audits[1]['submitted'] for c in entry['commands']}
+            for audit in audits:
+                executed=audit['executed']
+                suite.check("commands keep reserved T through execution and replay", bool(executed) and all(e['tick']==e['executeTick']==reservations[e['sequence']] for e in executed), executed)
+                normal=[e['sequence'] for e in executed if not e['replay']]
+                suite.check("duplicate packets do not execute a command twice outside replay",len(normal)==len(set(normal)),normal)
+            boundary=min(s['confirmedTick'] for s in states)
+            hashes=await asyncio.gather(*(p.evaluate("t=>window.__sketchRpgDebug.stateHash(t)",boundary) for p in (host,guest)))
+            suite.check("late duplicated RTC input reconciles to equal confirmed hash",hashes[0] is not None and hashes[0]==hashes[1],{'tick':boundary,'hashes':hashes,'rollbacks':[s['stats'].get('rollbacks',0) for s in states]})
+            suite.check("both peers use pinned protocol 3 bundle",all(s['gamekitSHA']=='6d9125a58bf63e4b7b0f68a6882c30e9858172bc' and s['inputScheduling']=='network' and s['inputHz']==60 for s in states))
             suite.check("no JS errors in either online browser", not host_errors and not guest_errors, (host_errors+guest_errors)[:5])
         finally:
             await guest_context.close()

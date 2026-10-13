@@ -55,7 +55,7 @@
     poll(){},releaseInput(){fieldInput.releaseAll('gamekit-blur');paintInput.releaseAll('gamekit-blur');trainingInput.releaseAll('gamekit-blur');},
     advance(){gatherLocalCommands();tick(CFG.tickMs);this.tick++;return {status:'advanced',tick:this.tick};}
   };}
-  let gameSession=createSoloSession(),loop=null,deadlinePump=null,paintRAF=0,paintRunning=false;
+  let gameSession=createSoloSession(),loop=null,deadlinePump=null,inputPump=null,paintRAF=0,paintRunning=false;
   let renderFrames=0,frameStarted=0,renderFPS=0,advancedTicks=0,tickStarted=0,measuredTPS=0;
   let frameCostMs=0,maxFrameCostMs=0;
   // A single native BLOOM GameKit InterpolationTimeline drives *both* offline and online presentation.
@@ -255,20 +255,21 @@
     paintRunning=true;
     const paint=()=>{
       if(!paintRunning)return;
-      if(mp.inputPreview)loop.observeInput(performance.now());
       loop.render();
       if(paintRunning)paintRAF=requestAnimationFrame(paint);
     };
     paintRAF=requestAnimationFrame(paint);
   }
   function pauseGameLoops(){
-    stopPainting();deadlinePump?.stop();loop?.stop();
+    stopPainting();inputPump?.stop();deadlinePump?.stop();loop?.stop();
   }
   function resumeGameLoops(){
     if(deadlinePump?.running)return;
     loop.resetTiming();
     if(mp.inputPreview&&mp.connected){mp.poseReset=true;capturePresentation();}
-    loop.pulse(performance.now(),{render:false});
+    loop.observeInput(performance.now());
+    loop.pulse(performance.now(),{render:false,input:false});
+    inputPump?.rebase();inputPump?.start();
     deadlinePump?.rebase();deadlinePump?.start();
     startPainting();
   }
@@ -302,8 +303,10 @@
     resetPresentation();capturePresentation();
     // GameKit native timer pump owns the 15TPS deadline independently of rAF presentation.
     deadlinePump=createDeadlineScheduler({getIntervalMs:()=>CFG.tickMs,
-      pulse:now=>loop.pulse(now,{render:false}),maxBacklogTicks:8,
+      pulse:now=>loop.pulse(now,{render:false,input:false}),maxBacklogTicks:8,
       onGap:()=>loop.resetTiming()});
+    inputPump=createDeadlineScheduler({getIntervalMs:()=>1000/CFG.inputHz,
+      pulse:now=>loop.pollInput(now),maxBacklogTicks:8});
     resumeGameLoops();
   }
   const ro=new ResizeObserver(()=>{if(!renderer.active)resizeAll();});ro.observe(field);ro.observe(draw.parentElement);ro.observe(trainingPad.parentElement);
