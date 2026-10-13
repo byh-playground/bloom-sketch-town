@@ -437,7 +437,7 @@ async def run_real_p2p(browser, suite: E2E):
             boundary=min(s['confirmedTick'] for s in states)
             hashes=await asyncio.gather(*(p.evaluate("t=>window.__sketchRpgDebug.stateHash(t)",boundary) for p in (host,guest)))
             suite.check("late duplicated RTC input reconciles to equal confirmed hash",hashes[0] is not None and hashes[0]==hashes[1],{'tick':boundary,'hashes':hashes,'rollbacks':[s['stats'].get('rollbacks',0) for s in states]})
-            suite.check("both peers use pinned protocol 3 bundle",all(s['gamekitSHA']=='994b94aea65838a37b5e5158e09b5f9fa33d6ff7' and s['inputScheduling']=='network' and s['inputHz']==60 for s in states))
+            suite.check("both peers use pinned protocol 3 bundle",all(s['gamekitSHA']=='e7a1782275b6414f2bcf2cd29de173f49b849004' and s['inputScheduling']=='network' and s['inputHz']==60 for s in states))
             for sender,actor in ((host,'a'),(guest,'b')):
                 for page in (host,guest):
                     await page.evaluate("""() => {window.castFrames=[];const end=performance.now()+1400;
