@@ -1,0 +1,333 @@
+{
+  "suite": "Sketch Town real Chromium E2E (single entrypoint)",
+  "html_sha256": "3083928e9e6a8e68ad66ac086fb05acc405467b8c18eb2793923fdef3d0a0e14",
+  "headless": true,
+  "live_p2p_requested": true,
+  "chromium": "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
+  "elapsed_seconds": 28.8,
+  "status": "PASS",
+  "checks": [
+    {
+      "name": "real desktop WebGL renders game geometry",
+      "status": "PASS"
+    },
+    {
+      "name": "30 TPS simulation / 60 FPS rendering targets",
+      "status": "PASS"
+    },
+    {
+      "name": "GameKit interpolation has live entities",
+      "status": "PASS"
+    },
+    {
+      "name": "the actual simulation advances independently from render",
+      "status": "PASS"
+    },
+    {
+      "name": "idle WASD key actually executes offline rollVector",
+      "status": "PASS"
+    },
+    {
+      "name": "W moves up with a brief tap",
+      "status": "PASS"
+    },
+    {
+      "name": "S moves down with a brief tap",
+      "status": "PASS"
+    },
+    {
+      "name": "real one-stroke gesture → CNN → spell → real boss damage",
+      "status": "PASS"
+    },
+    {
+      "name": "WASD after drawing triggers actual charge roll",
+      "status": "PASS"
+    },
+    {
+      "name": "roll range is 3 player diameters",
+      "status": "PASS"
+    },
+    {
+      "name": "editor imports exactly one original stroke",
+      "status": "PASS"
+    },
+    {
+      "name": "PNG metadata retains original only, no augmented tiles",
+      "status": "PASS"
+    },
+    {
+      "name": "canonical rollback save/load is byte-for-byte identical",
+      "status": "PASS"
+    },
+    {
+      "name": "no game JavaScript exception",
+      "status": "PASS",
+      "detail": []
+    },
+    {
+      "name": "WebGL rendering resumes after input and rollback verification",
+      "status": "PASS"
+    },
+    {
+      "name": "real mobile touch begins a charged roll",
+      "status": "PASS"
+    },
+    {
+      "name": "mobile moves no farther than 96 world units",
+      "status": "PASS"
+    },
+    {
+      "name": "mobile WebGL/JS stays operational",
+      "status": "PASS",
+      "detail": []
+    },
+    {
+      "name": "actual public Nostr + WebRTC join + GameKit rollback admission",
+      "status": "PASS"
+    },
+    {
+      "name": "actual guest input replicates through P2P rollback",
+      "status": "PASS"
+    },
+    {
+      "name": "DOM input sends before next simulation tick",
+      "status": "PASS",
+      "detail": {
+        "eventAt": 11306.5,
+        "sendAt": 11307.599999964237,
+        "immediatePreview": true,
+        "sameAuthorityTick": true,
+        "preview": {
+          "enabled": true,
+          "ready": true,
+          "pending": 0,
+          "metrics": {
+            "snapshotBytes": 5264,
+            "correctionBytes": 5264,
+            "replayBytes": 142,
+            "snapshotCloneMs": 0,
+            "forkMs": 0.20000004768371582,
+            "replayMs": 0.19999998807907104,
+            "replayedInputs": 1,
+            "replayGapSteps": 0,
+            "corrections": 8,
+            "correctionMs": 1.5,
+            "continuedCheckpoints": 0,
+            "continuationRejectedDisabled": 0,
+            "continuationRejectedTick": 0,
+            "continuationRejectedRevision": 0,
+            "continuationRejectedEpoch": 0,
+            "continuationRejectedKey": 0,
+            "continuationRejectedObserved": 0,
+            "continuationRejectedForecast": 0,
+            "continuationRejectedInput": 0,
+            "continuationRejectedFork": 0,
+            "continuationRejectedCommands": 0,
+            "forkRebuilds": 5,
+            "snapshotRefreshes": 0,
+            "forecastReuses": 0,
+            "forecastExtensions": 0,
+            "currentForkExtensions": 0,
+            "clockGaps": 0,
+            "confirmedAdvances": 0,
+            "confirmedAdvanceRejected": 0,
+            "confirmedAdvanceRejectedDisabled": 0,
+            "confirmedAdvanceRejectedKey": 0,
+            "confirmedAdvanceRejectedTick": 0,
+            "confirmedAdvanceRejectedRevision": 0,
+            "confirmedAdvanceRejectedEpoch": 0,
+            "confirmedAdvanceRejectedInput": 0,
+            "confirmedAdvanceRejectedCommands": 0,
+            "confirmedAdvanceRejectedFork": 0,
+            "confirmedAdvanceRejectedPending": 0,
+            "confirmedAdvanceRejectedLimit": 0,
+            "confirmedAdvanceMs": 0,
+            "previewPublishes": 1,
+            "rejectedEpoch": 0,
+            "rejectedHorizon": 0,
+            "rejectedAge": 0,
+            "rejectedCapacity": 0,
+            "pendingCount": 0,
+            "epoch": 1,
+            "generation": 8
+          },
+          "x": 535.4634212193998,
+          "y": 766.3952111399885,
+          "castMs": 0,
+          "actorX": 522.548621432914,
+          "actorY": 766.3952111399885,
+          "revision": 6
+        },
+        "previewAt": 11359.699999988079
+      }
+    },
+    {
+      "name": "local preview responds without waiting for authority",
+      "status": "PASS",
+      "detail": {
+        "eventAt": 11306.5,
+        "sendAt": 11307.599999964237,
+        "immediatePreview": true,
+        "sameAuthorityTick": true,
+        "preview": {
+          "enabled": true,
+          "ready": true,
+          "pending": 0,
+          "metrics": {
+            "snapshotBytes": 5264,
+            "correctionBytes": 5264,
+            "replayBytes": 142,
+            "snapshotCloneMs": 0,
+            "forkMs": 0.20000004768371582,
+            "replayMs": 0.19999998807907104,
+            "replayedInputs": 1,
+            "replayGapSteps": 0,
+            "corrections": 8,
+            "correctionMs": 1.5,
+            "continuedCheckpoints": 0,
+            "continuationRejectedDisabled": 0,
+            "continuationRejectedTick": 0,
+            "continuationRejectedRevision": 0,
+            "continuationRejectedEpoch": 0,
+            "continuationRejectedKey": 0,
+            "continuationRejectedObserved": 0,
+            "continuationRejectedForecast": 0,
+            "continuationRejectedInput": 0,
+            "continuationRejectedFork": 0,
+            "continuationRejectedCommands": 0,
+            "forkRebuilds": 5,
+            "snapshotRefreshes": 0,
+            "forecastReuses": 0,
+            "forecastExtensions": 0,
+            "currentForkExtensions": 0,
+            "clockGaps": 0,
+            "confirmedAdvances": 0,
+            "confirmedAdvanceRejected": 0,
+            "confirmedAdvanceRejectedDisabled": 0,
+            "confirmedAdvanceRejectedKey": 0,
+            "confirmedAdvanceRejectedTick": 0,
+            "confirmedAdvanceRejectedRevision": 0,
+            "confirmedAdvanceRejectedEpoch": 0,
+            "confirmedAdvanceRejectedInput": 0,
+            "confirmedAdvanceRejectedCommands": 0,
+            "confirmedAdvanceRejectedFork": 0,
+            "confirmedAdvanceRejectedPending": 0,
+            "confirmedAdvanceRejectedLimit": 0,
+            "confirmedAdvanceMs": 0,
+            "previewPublishes": 1,
+            "rejectedEpoch": 0,
+            "rejectedHorizon": 0,
+            "rejectedAge": 0,
+            "rejectedCapacity": 0,
+            "pendingCount": 0,
+            "epoch": 1,
+            "generation": 8
+          },
+          "x": 535.4634212193998,
+          "y": 766.3952111399885,
+          "castMs": 0,
+          "actorX": 522.548621432914,
+          "actorY": 766.3952111399885,
+          "revision": 6
+        },
+        "previewAt": 11359.699999988079
+      }
+    },
+    {
+      "name": "commands keep reserved T through execution and replay",
+      "status": "PASS",
+      "detail": [
+        {
+          "playerId": "0ee105c4021287fd8fa0706055a7bb4a497707a954bbe0107936a872843bdf85",
+          "sequence": 1,
+          "tick": 182,
+          "executeTick": 182,
+          "replay": false
+        },
+        {
+          "playerId": "0ee105c4021287fd8fa0706055a7bb4a497707a954bbe0107936a872843bdf85",
+          "sequence": 2,
+          "tick": 217,
+          "executeTick": 217,
+          "replay": true
+        }
+      ]
+    },
+    {
+      "name": "duplicate packets do not execute a command twice outside replay",
+      "status": "PASS",
+      "detail": [
+        1
+      ]
+    },
+    {
+      "name": "commands keep reserved T through execution and replay",
+      "status": "PASS",
+      "detail": [
+        {
+          "playerId": "0ee105c4021287fd8fa0706055a7bb4a497707a954bbe0107936a872843bdf85",
+          "sequence": 1,
+          "tick": 182,
+          "executeTick": 182,
+          "replay": false
+        },
+        {
+          "playerId": "0ee105c4021287fd8fa0706055a7bb4a497707a954bbe0107936a872843bdf85",
+          "sequence": 2,
+          "tick": 217,
+          "executeTick": 217,
+          "replay": false
+        }
+      ]
+    },
+    {
+      "name": "duplicate packets do not execute a command twice outside replay",
+      "status": "PASS",
+      "detail": [
+        1,
+        2
+      ]
+    },
+    {
+      "name": "late duplicated RTC input reconciles to equal confirmed hash",
+      "status": "PASS",
+      "detail": {
+        "tick": 239,
+        "hashes": [
+          3265989441,
+          3265989441
+        ],
+        "rollbacks": [
+          1,
+          0
+        ]
+      }
+    },
+    {
+      "name": "both peers use pinned protocol 3 bundle",
+      "status": "PASS"
+    },
+    {
+      "name": "only casting actor animates: a",
+      "status": "PASS"
+    },
+    {
+      "name": "only casting actor animates: a",
+      "status": "PASS"
+    },
+    {
+      "name": "only casting actor animates: b",
+      "status": "PASS"
+    },
+    {
+      "name": "only casting actor animates: b",
+      "status": "PASS"
+    },
+    {
+      "name": "no JS errors in either online browser",
+      "status": "PASS",
+      "detail": []
+    }
+  ],
+  "errors": []
+}

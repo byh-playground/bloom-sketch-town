@@ -1,0 +1,198 @@
+{
+  "gameVersion": "0.11.0",
+  "gamekitDist": "7cf67c33451848d1af4a7b003cbe1b81ffef8b53",
+  "scenario": "2 real Edge peers, 800x600, alternating one-shot right rolls, 30TPS / 60Hz input / 60FPS cap",
+  "renderer": "ANGLE (NVIDIA, NVIDIA GeForce GTX 1660 Ti (0x00002191) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+  "gpuTimeMeasured": false,
+  "mobileHardwareMeasured": false,
+  "baseline15TPSPlateausMs": [
+    116.3,
+    132.9,
+    166.5
+  ],
+  "peers": [
+    {
+      "role": "host",
+      "durationMs": 5487.699999988079,
+      "tickCPU": {
+        "p50": 0.1,
+        "p95": 0.2,
+        "p99": 0.2
+      },
+      "advanceCPU": {
+        "p50": 0.3,
+        "p95": 0.4,
+        "p99": 0.5
+      },
+      "advanceCPUmsPerSecond": 8.09,
+      "snapshotSaveCPU": {
+        "p50": 0.1,
+        "p95": 0.2,
+        "p99": 0.2
+      },
+      "renderCPU": {
+        "p50": 1.8,
+        "p95": 2.6,
+        "p99": 3
+      },
+      "renderInterval": {
+        "p50": 16.7,
+        "p95": 16.9,
+        "p99": 17
+      },
+      "rafInterval": {
+        "p50": 8.3,
+        "p95": 8.5,
+        "p99": 8.5
+      },
+      "renderFPS": 59.95,
+      "renderIntervalsOver33ms": 0,
+      "longTasksOver50ms": 0,
+      "localMidRollPlateausMs": [
+        33.4
+      ],
+      "previewMetrics": {
+        "snapshotBytes": 227010,
+        "correctionBytes": 227010,
+        "replayBytes": 1264,
+        "snapshotCloneMs": 0.4999999403953552,
+        "forkMs": 0.4999999403953552,
+        "replayMs": 0.5,
+        "replayedInputs": 27,
+        "replayGapSteps": 0,
+        "corrections": 345,
+        "correctionMs": 6.800000250339508,
+        "continuedCheckpoints": 0,
+        "continuationRejectedDisabled": 0,
+        "continuationRejectedTick": 0,
+        "continuationRejectedRevision": 0,
+        "continuationRejectedEpoch": 0,
+        "continuationRejectedKey": 0,
+        "continuationRejectedObserved": 0,
+        "continuationRejectedForecast": 0,
+        "continuationRejectedInput": 0,
+        "continuationRejectedFork": 0,
+        "continuationRejectedCommands": 0,
+        "forkRebuilds": 22,
+        "snapshotRefreshes": 0,
+        "forecastReuses": 0,
+        "forecastExtensions": 8,
+        "currentForkExtensions": 0,
+        "clockGaps": 0,
+        "confirmedAdvances": 0,
+        "confirmedAdvanceRejected": 0,
+        "confirmedAdvanceRejectedDisabled": 0,
+        "confirmedAdvanceRejectedKey": 0,
+        "confirmedAdvanceRejectedTick": 0,
+        "confirmedAdvanceRejectedRevision": 0,
+        "confirmedAdvanceRejectedEpoch": 0,
+        "confirmedAdvanceRejectedInput": 0,
+        "confirmedAdvanceRejectedCommands": 0,
+        "confirmedAdvanceRejectedFork": 0,
+        "confirmedAdvanceRejectedPending": 0,
+        "confirmedAdvanceRejectedLimit": 0,
+        "confirmedAdvanceMs": 0,
+        "previewPublishes": 26,
+        "rejectedEpoch": 0,
+        "rejectedHorizon": 0,
+        "rejectedAge": 0,
+        "rejectedCapacity": 0,
+        "pendingCount": 0,
+        "epoch": 1,
+        "generation": 345
+      }
+    },
+    {
+      "role": "guest",
+      "durationMs": 5687.800000011921,
+      "tickCPU": {
+        "p50": 0.1,
+        "p95": 0.2,
+        "p99": 0.3
+      },
+      "advanceCPU": {
+        "p50": 0.3,
+        "p95": 0.5,
+        "p99": 0.6
+      },
+      "advanceCPUmsPerSecond": 8.23,
+      "snapshotSaveCPU": {
+        "p50": 0.1,
+        "p95": 0.2,
+        "p99": 0.2
+      },
+      "renderCPU": {
+        "p50": 1.9,
+        "p95": 2.7,
+        "p99": 3
+      },
+      "renderInterval": {
+        "p50": 16.7,
+        "p95": 16.9,
+        "p99": 17
+      },
+      "rafInterval": {
+        "p50": 8.3,
+        "p95": 8.4,
+        "p99": 8.5
+      },
+      "renderFPS": 59.95,
+      "renderIntervalsOver33ms": 0,
+      "longTasksOver50ms": 0,
+      "localMidRollPlateausMs": [
+        33.5
+      ],
+      "previewMetrics": {
+        "snapshotBytes": 134232,
+        "correctionBytes": 134232,
+        "replayBytes": 1282,
+        "snapshotCloneMs": 0.10000002384185791,
+        "forkMs": 0.30000007152557373,
+        "replayMs": 0.800000011920929,
+        "replayedInputs": 29,
+        "replayGapSteps": 0,
+        "corrections": 204,
+        "correctionMs": 4.400000214576721,
+        "continuedCheckpoints": 0,
+        "continuationRejectedDisabled": 0,
+        "continuationRejectedTick": 0,
+        "continuationRejectedRevision": 0,
+        "continuationRejectedEpoch": 0,
+        "continuationRejectedKey": 0,
+        "continuationRejectedObserved": 0,
+        "continuationRejectedForecast": 0,
+        "continuationRejectedInput": 0,
+        "continuationRejectedFork": 0,
+        "continuationRejectedCommands": 0,
+        "forkRebuilds": 24,
+        "snapshotRefreshes": 0,
+        "forecastReuses": 0,
+        "forecastExtensions": 8,
+        "currentForkExtensions": 0,
+        "clockGaps": 0,
+        "confirmedAdvances": 0,
+        "confirmedAdvanceRejected": 0,
+        "confirmedAdvanceRejectedDisabled": 0,
+        "confirmedAdvanceRejectedKey": 0,
+        "confirmedAdvanceRejectedTick": 0,
+        "confirmedAdvanceRejectedRevision": 0,
+        "confirmedAdvanceRejectedEpoch": 0,
+        "confirmedAdvanceRejectedInput": 0,
+        "confirmedAdvanceRejectedCommands": 0,
+        "confirmedAdvanceRejectedFork": 0,
+        "confirmedAdvanceRejectedPending": 0,
+        "confirmedAdvanceRejectedLimit": 0,
+        "confirmedAdvanceMs": 0,
+        "previewPublishes": 28,
+        "rejectedEpoch": 0,
+        "rejectedHorizon": 0,
+        "rejectedAge": 0,
+        "rejectedCapacity": 0,
+        "pendingCount": 0,
+        "epoch": 1,
+        "generation": 204
+      }
+    }
+  ],
+  "errors": []
+}

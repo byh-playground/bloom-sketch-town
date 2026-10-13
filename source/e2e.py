@@ -166,14 +166,14 @@ async def run_desktop(browser, suite: E2E, html: str):
           snap:window.__sketchRpgDebug.snapshot()
         })""")
         suite.check("real desktop WebGL renders game geometry", info["gpu"]["vertices"] > 0 and info["snap"]["rendererState"] == "ready")
-        suite.check("15 TPS simulation / 60 FPS rendering targets", info["stats"]["targetTPS"] == 15 and info["stats"]["targetFPS"] == 60)
+        suite.check("30 TPS simulation / 60 FPS rendering targets", info["stats"]["targetTPS"] == 30 and info["stats"]["targetFPS"] == 60)
         suite.check("GameKit interpolation has live entities", info["stats"]["interpolated"] and info["stats"]["trackedEntities"] > 0)
         before_tick = info["snap"]["tick"]
         await page.wait_for_timeout(800)
         tick_state = await page.evaluate("window.__sketchRpgDebug.snapshot().tick")
         suite.check("the actual simulation advances independently from render", tick_state > before_tick + 3)
         # Real WebGL already verified above. Suppress repeated software GPU frames during
-        # heavy input simulation; the actual GameKit timer continues at 15TPS.
+        # heavy input simulation; the actual GameKit timer continues at 30TPS.
         await page.evaluate("window.__sketchRpgDebug.pausePainting()")
 
         # Regression for the original defect: input was captured by ActionState, but
@@ -336,7 +336,7 @@ async def run_real_p2p(browser, suite: E2E):
             await asyncio.gather(*(
                 page.wait_for_function("""() => {
                   const s=window.__sketchRpgDebug.multiplayerState();
-                  return s.connected && s.shared && s.players===2 && s.sessionMode==='rollback' && s.tickRate===15;
+                  return s.connected && s.shared && s.players===2 && s.sessionMode==='rollback' && s.tickRate===30;
                 }""", timeout=60000) for page in (host, guest)
             ))
             suite.check("actual public Nostr + WebRTC join + GameKit rollback admission", True)
@@ -377,7 +377,7 @@ async def run_real_p2p(browser, suite: E2E):
             suite.check("actual guest input replicates through P2P rollback", True)
             await guest.wait_for_function("window.inputTiming.previewAt", timeout=5000)
             timing=await guest.evaluate("window.inputTiming")
-            suite.check("DOM input sends before next simulation tick", timing['sendAt']-timing['eventAt']<1000/15, timing)
+            suite.check("DOM input sends before next simulation tick", timing['sendAt']-timing['eventAt']<1000/30, timing)
             suite.check("local preview responds without waiting for authority", timing['immediatePreview'] and timing['sameAuthorityTick'], timing)
             await guest.wait_for_timeout(800)
             rolls=await host.evaluate("window.__sketchRpgDebug.multiplayerState().stats.rollbacks||0")
@@ -397,7 +397,16 @@ async def run_real_p2p(browser, suite: E2E):
             boundary=min(s['confirmedTick'] for s in states)
             hashes=await asyncio.gather(*(p.evaluate("t=>window.__sketchRpgDebug.stateHash(t)",boundary) for p in (host,guest)))
             suite.check("late duplicated RTC input reconciles to equal confirmed hash",hashes[0] is not None and hashes[0]==hashes[1],{'tick':boundary,'hashes':hashes,'rollbacks':[s['stats'].get('rollbacks',0) for s in states]})
-            suite.check("both peers use pinned protocol 3 bundle",all(s['gamekitSHA']=='6d9125a58bf63e4b7b0f68a6882c30e9858172bc' and s['inputScheduling']=='network' and s['inputHz']==60 for s in states))
+            suite.check("both peers use pinned protocol 3 bundle",all(s['gamekitSHA']=='7cf67c33451848d1af4a7b003cbe1b81ffef8b53' and s['inputScheduling']=='network' and s['inputHz']==60 for s in states))
+            for sender,actor in ((host,'a'),(guest,'b')):
+                for page in (host,guest):
+                    await page.evaluate("""() => {window.castFrames=[];const end=performance.now()+1400;
+                      const sample=()=>{castFrames.push(__sketchRpgDebug.renderedActors());if(performance.now()<end)requestAnimationFrame(sample)};sample();}""")
+                await sender.evaluate("__sketchRpgDebug.cast('line')")
+                await sender.wait_for_timeout(1450)
+                for page in (host,guest):
+                    frames=await page.evaluate("window.castFrames")
+                    suite.check("only casting actor animates: "+actor,any(p['id']==actor and p['castActive'] for f in frames for p in f) and not any(p['id']!=actor and p['castActive'] for f in frames for p in f))
             suite.check("no JS errors in either online browser", not host_errors and not guest_errors, (host_errors+guest_errors)[:5])
         finally:
             await guest_context.close()

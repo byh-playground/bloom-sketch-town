@@ -31,7 +31,7 @@
     $('rollHud').classList.toggle('roll-empty',d.charges===0);
     $('rollStatus').textContent=`${d.charges} / ${capacity} · ${d.leftMs>0?'구르기 중':d.charges<capacity?'순차 충전 중':'준비 완료'}`;
   }
-  // One 15TPS simulation scheduler, separated from RAF presentation at the display refresh rate.
+  // One 30TPS simulation scheduler, separated from RAF presentation at the display refresh rate.
   // GameKit InterpolationTimeline owns both solo and multiplayer presentation. Online RoomSession owns rollback.
   const SOLO_INPUT=new Uint8Array(1),sampleDash={},sampleInteract={},sampleDirections={up:{},down:{},left:{},right:{}};
   function gatherLocalCommands(){
@@ -51,7 +51,7 @@
     actions.consume();
   }
   function createSoloSession(){return {
-    tick:0,inputSize:1,pace:1,profile:{tickRate:15,maxCatchupSteps:CFG.maxCatchup},closed:false,resimulating:false,
+    tick:0,inputSize:1,pace:1,profile:{tickRate:30,maxCatchupSteps:CFG.maxCatchup},closed:false,resimulating:false,
     poll(){},releaseInput(){fieldInput.releaseAll('gamekit-blur');paintInput.releaseAll('gamekit-blur');trainingInput.releaseAll('gamekit-blur');},
     advance(){gatherLocalCommands();tick(CFG.tickMs);this.tick++;return {status:'advanced',tick:this.tick};}
   };}
@@ -126,11 +126,12 @@
       writeLocalPose(fork.pose,fork.actor,fork.castMs);return fork;
     }
     mp.inputPreview=new simloop.LocalInputPreview({createFork:makeFork,
+      isActive:fork=>fork.actor.dash.leftMs>0||fork.castMs>0,
       readEntities:fork=>[{id:identity,generation:0,source:fork.pose}],
       presentation:mp.localPresentation,
       captureSnapshot:snapshotLocalActor,
       cloneSnapshot:value=>({actor:{...value.actor,dash:{...value.actor.dash}},mode:value.mode,castMs:value.castMs}),
-      maxPendingInputs:8,maxFutureTicks:8,maxAgeMs:650,stepMs:CFG.tickMs});
+      maxPendingInputs:16,maxFutureTicks:16,maxAgeMs:650,stepMs:CFG.tickMs});
     mp.previewNeedsReset=true;
   }
   function wakeInputPreview(){
@@ -166,7 +167,7 @@
       const entity={id,generation:object._poseGeneration??0,values};
       const before=previous.get(id);
       if(!reset&&!before&&(kind==='shot'||kind==='hazard')&&Number.isFinite(object.prevX)&&Number.isFinite(object.prevY)){
-        // GameKit initialValues makes a projectile's very first 15TPS interval continuous from its launch position.
+        // GameKit initialValues makes a projectile's very first 30TPS interval continuous from its launch position.
         entity.initialValues={x:object.prevX,y:object.prevY,roll:0,
           age:Math.max(0,age-CFG.tickMs),life:life};
       }
@@ -201,6 +202,7 @@
     view.ageMs=view.age;
     view.lifeMs=view.life;
     if(kind==='hero'){
+      view.actorId=object===hostPlayer?'a':'b';
       if(!Object.hasOwn(view,'dash')||Object.getPrototypeOf(view.dash)!==object.dash)
         view.dash=Object.create(object.dash);
       if(mp.connected&&object===(mp.role==='join'?guestPlayer:hostPlayer)&&mp.localPresentation&&mp.localPoseSource){
@@ -278,7 +280,7 @@
     loop=createLoop({session:gameSession,getInput:mp.connected?localInputPacket:()=>SOLO_INPUT,
       inputPreview:mp.connected?mp.inputPreview:undefined,
       onPreviewError(error){console.error('[Sketch Town GameKit input preview]',error);mp.stats.previewErrors=(mp.stats.previewErrors||0)+1;},
-      backlogPolicy:'drop',maxBacklogTicks:8,onAdvance:onSimulationAdvance,
+      backlogPolicy:'drop',maxBacklogTicks:16,onAdvance:onSimulationAdvance,
       render(){
         const now=performance.now();
         // Deadline-based 60Hz cap alternates 2/3 RAF intervals on 144Hz rather than falling to 48 FPS.
@@ -301,9 +303,9 @@
       onError(error){pauseGameLoops();console.error(error);const el=$('error');el.style.display='block';el.textContent=`게임 실행 오류: ${error.stack||error.message||error}`;}
     });
     resetPresentation();capturePresentation();
-    // GameKit native timer pump owns the 15TPS deadline independently of rAF presentation.
+    // GameKit native timer pump owns the 30TPS deadline independently of rAF presentation.
     deadlinePump=createDeadlineScheduler({getIntervalMs:()=>CFG.tickMs,
-      pulse:now=>loop.pulse(now,{render:false,input:false}),maxBacklogTicks:8,
+      pulse:now=>loop.pulse(now,{render:false,input:false}),maxBacklogTicks:16,
       onGap:()=>loop.resetTiming()});
     inputPump=createDeadlineScheduler({getIntervalMs:()=>1000/CFG.inputHz,
       pulse:now=>loop.pollInput(now),maxBacklogTicks:8});
@@ -320,13 +322,14 @@
   resizeAll();applyRoute();rebindGameLoop();
   // E2E probes observe the actual SDK frame / tick / draw / gameplay pipeline.
   window.__sketchRpgDebug={
-    source:{renderer:'BLOOM GameKit Renderer2D · WebGL1',input:'ActionState/createDOMInput + LocalInputPreview',time:'GameKit createDeadlineScheduler 15TPS + separate RAF capped 60FPS + InterpolationTimeline/PresentationRuntime',audio:'AudioPlayer'},
+    source:{renderer:'BLOOM GameKit Renderer2D · WebGL1',input:'ActionState/createDOMInput + LocalInputPreview',time:'GameKit createDeadlineScheduler 30TPS + separate RAF capped 60FPS + InterpolationTimeline/PresentationRuntime',audio:'AudioPlayer'},
     analyze(raw){const s=makeShotData(raw);return {name:s.name,kind:s.kind,area:s.areaPx2,damage:s.baseDamage,cnn:s.cnn.prob,reference:s.reference};},
     sample:samplePoints,
     cast(type){const shot=makeShotData(samplePoints(type));world.commands.push({type:'cast',shot});},
     castStroke(raw){const shot=makeShotData(raw);world.commands.push({type:'cast',shot});return {kind:shot.kind,baseDamage:shot.baseDamage};},
     spellSpec(raw){const shot=makeShotData(raw);return {kind:shot.kind,castMs:castDurationMs(shot),recoveryMs:spellRecoveryMs(shot),areaPower:shot.areaPower,baseDamage:shot.baseDamage};},
     rollTo(x,y){queueRollTo(x,y);},
+    renderedActors(){return [hostPlayer,guestPlayer].map(actor=>{const view=renderViewCache.get(actor);return {id:view?.actorId,x:view?.x,y:view?.y,castActive:!!view?.castActive,nextCastAtMs:actor.nextCastAtMs,screenX:view?(view.x-camera.x)*camera.zoom:null};});},
     previewInfo(){const now=performance.now(),model=mp.localPresentation&&mp.localPoseSource?mp.localPresentation.modelFor(mp.localPoseSource,now):null;return {enabled:!!mp.inputPreview,ready:mp.inputPreview?.ready??false,pending:mp.inputPreview?.pendingCount??0,metrics:mp.inputPreview?.metrics||null,x:model?.x??null,y:model?.y??null,castMs:model?.castMs??null,actorX:player.x,actorY:player.y,revision:mp.poseRevision};},
     rollState(){return {...player.dash};},slowState(){return {ratio:world.slowRatio,drawing:drawInput.pointer!==null,hitstopMs:world.hitstopMs};},
     advanceSession(){const result=gameSession.advance(SOLO_INPUT);if(result.status==='advanced')capturePresentation();return result;},pauseRendering(){pauseGameLoops();},resumeRendering(){resumeGameLoops();},pausePainting(){stopPainting();},resumePainting(){startPainting();},renderFrame(){loop.render();},selectGlyph(kind){selectGlyph(kind);},
@@ -345,7 +348,7 @@
     tick(ms=CFG.tickMs){tick(ms);},
     datasetCount(){return {original:dataset.entries.length};},
     datasetAdd(type){addSample(samplePoints(type));},
-    rendererStats(){return {...renderer.stats};},performanceStats(){return {targetTPS:15,actualTPS:measuredTPS,targetFPS:60,actualFPS:renderFPS,rollbackCount:mp.session?.metrics?.rollbacks??0,interpolated:poseReady&&!!mp.interpolation,trackedEntities:mp.interpolation.size,frameCostMs:+frameCostMs.toFixed(2),maxFrameCostMs:+maxFrameCostMs.toFixed(2),presentationSnapshots};},
+    rendererStats(){return {...renderer.stats};},performanceStats(){return {targetTPS:30,actualTPS:measuredTPS,targetFPS:60,actualFPS:renderFPS,rollbackCount:mp.session?.metrics?.rollbacks??0,interpolated:poseReady&&!!mp.interpolation,trackedEntities:mp.interpolation.size,frameCostMs:+frameCostMs.toFixed(2),maxFrameCostMs:+maxFrameCostMs.toFixed(2),presentationSnapshots};},
     optimizationStats(){return {visualPool:{...visualPools,particles:visualPools.particles.length,floaters:visualPools.floaters.length,activeParticles:world.particles.length,activeFloaters:world.floaters.length},color:{...paletteStats,colors:paletteCache.size},contours:{built:sketchContourBuilds,cached:sketchContourHits},renderer:{...renderer.stats},drawQueueSlots:worldDrawSlots.length,enemyRecords:world.enemies.length,liveEnemies:world.enemies.filter(e=>!e.dead).length};},
     burstFixture(count=24){burst(player.x,player.y,'#bb7153',count,75);},floatingFixture(value='-18'){floating(player.x,player.y-25,value,'#be7757');},
 

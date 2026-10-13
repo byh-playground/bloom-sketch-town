@@ -1,7 +1,7 @@
   const $=id=>document.getElementById(id);
   const clamp=(v,a,b)=>Math.min(b,Math.max(a,v)),mix=(a,b,t)=>a+(b-a)*t,hypot=Math.hypot;
   const art={normal:'#293846',line:'#344e58',circle:'#799c91',triangle:'#d08c63',square:'#8f8b80',flame:'#ce704e',water:'#519cbd',lightning:'#558fbc',star:'#d8a34a',shuriken:'#9887b0',starcircle:'#cd995c'};
-  const CFG=Object.freeze({version:'0.10.0',inputHz:60,tickMs:1000/15,maxCatchup:4,world:{width:2380,height:1460},player:{hp:120,radius:16,roll:{capacity:2,rechargeMs:650,rangeDiameters:3,durationMinMs:110,durationMaxMs:270,travelSpeed:765,projectileInvulMs:145}},boss:{x:1948,y:706,radius:255},spawnLimit:17,castLimit:4,maxParticles:360});
+  const CFG=Object.freeze({version:'0.11.0',inputHz:60,tickMs:1000/30,maxCatchup:8,world:{width:2380,height:1460},player:{hp:120,radius:16,roll:{capacity:2,rechargeMs:650,rangeDiameters:3,durationMinMs:110,durationMaxMs:270,travelSpeed:765,projectileInvulMs:145}},boss:{x:1948,y:706,radius:255},spawnLimit:17,castLimit:4,maxParticles:360});
   let PW=280,PH=150; // recognizer owns DRAW-PAD CSS pixels, not world / GPU coordinates.
   const field=$('field'),renderer=new Renderer2D(field,{batchVertices:32768}),draw=$('draw'),drawCtx=draw.getContext('2d'),trainingPad=$('trainingPad'),trainingCtx=trainingPad.getContext('2d');
   const mini=$('map'),miniCtx=mini.getContext('2d');
