@@ -250,7 +250,7 @@ if(e.hp<=0){e.dead=true;world.kills++;burst(e.x,e.y,enemyDefs[e.kind].color,9,10
       areaPower:shot.areaPower,baseDamage:shot.baseDamage*player.power,impact:shot.impact,pen:shot.pen,r:radius,
       hitAt:new Map(),bouncesLeft:bounces,bouncesTotal:bounces,bounceCount:0,lastHitId:null,
       state:'flight',targetId:target?.id||null,orbitMs:0,orbitDurationMs:0,orbitCenter:null,orbitAngle:0,
-      lifeMs:special?clamp(2750+bounces*440,3250,7900):840,ageMs:0,trail:[]};
+      lifeMs:special?clamp(2750+bounces*440,3250,7900):840,ageMs:0};
     if(world.projectiles.length>=55)world.projectiles.shift();world.projectiles.push(p);
     burst(p.x,p.y,p.color,5,42);sfx('throw');
   }
@@ -359,7 +359,6 @@ if(e.hp<=0){e.dead=true;world.kills++;burst(e.x,e.y,enemyDefs[e.kind].color,9,10
         if(!remove)for(const e of world.enemies){if(e.dead||p.ageMs-(p.hitAt.get(e.id)??-1e6)<(p.kind==='shuriken'?130:310))continue;
           if(segmentCircle(p.prevX,p.prevY,p.x,p.y,e.x,e.y,e.r+p.r)){remove=hitProjectile(p,e);break;}}
       }
-      if(p.trail.length>=13)p.trail.shift();p.trail.push({x:p.x,y:p.y});
       if(remove)world.projectiles.splice(i,1);
     }
     for(let i=world.hazards.length-1;i>=0;i--){const p=world.hazards[i];p.ageMs+=hostileDt;p.prevX=p.x;p.prevY=p.y;p.x+=p.vx*hostileDt/1000;p.y+=p.vy*hostileDt/1000;
