@@ -1,6 +1,6 @@
 # Sketch Town
 
-그림을 그려 마법을 만들고 WASD·모바일 스틱으로 걷고 선택적으로 구르는 BLOOM 기반 액션 게임입니다. 현재 버전은 **0.13.0**입니다. 최신 ChatGPT 원본 0.9.2를 이관하고 GameKit protocol 3와 즉시 입력 처리를 적용했습니다.
+그림을 그려 마법을 만들고 WASD·모바일 스틱으로 걷고 선택적으로 구르는 BLOOM 기반 액션 게임입니다. 현재 버전은 **0.13.1**입니다. 최신 ChatGPT 원본 0.9.2를 이관하고 GameKit protocol 3와 즉시 입력 처리를 적용했습니다.
 
 [게임 실행](https://byh-playground.github.io/bloom-sketch-town/)
 
@@ -33,7 +33,7 @@ python source/e2e.py --live-p2p
 
 ## GameKit과 입력
 
-멀티플레이에 사용하는 simloop, interpolation, rollback, transport는 모두 PR46의 동일 dist 커밋 `e5385ff3f43e598565ac3daed8096e97a7fe30dd`에 고정했습니다. `source/gamekit/manifest.json`의 SHA-256을 빌드에서 확인하고 공식 ESM 바이트를 단일 HTML에 포함합니다. 기존 renderer/input/dom/audio와 게임 규칙은 원본을 유지합니다. 이전 멀티플레이 버전과는 방 namespace와 simulationVersion을 분리합니다.
+멀티플레이에 사용하는 simloop, interpolation, rollback, transport는 모두 PR48의 동일 dist 커밋 `e108fe481aa7314974c39974a169b549500bf12c`에 고정했습니다. `source/gamekit/manifest.json`의 SHA-256을 빌드에서 확인하고 공식 ESM 바이트를 단일 HTML에 포함합니다. 기존 renderer/input/dom/audio와 게임 규칙은 원본을 유지합니다. 이전 멀티플레이 버전과는 방 namespace와 simulationVersion을 분리합니다.
 
 입력 이벤트는 `observeInput` → 공식 `submitInput`으로 즉시 송신합니다. 입력 60Hz, 시뮬레이션 30TPS, 렌더 최대 60FPS는 독립 실행되며 게임 설정입니다. Command는 한 번만 제출하고 최초 예약 T를 바꾸지 않습니다. `MP_PROFILE`의 network scheduling, safety margin 8ms, jitter multiplier 2로 정상 입력에 도착 여유를 주며 늦은 입력만 공식 rollback으로 보정합니다. `reconciled`에서 표시 상태를 다시 게시합니다.
 
@@ -87,3 +87,9 @@ GameKit [PR46](https://github.com/byh-playground/bloom-gamekit/pull/46)의 `Pres
 
 [0.13.0 실제 Edge E2E](docs/e2e-v0.13.0.json): 44 PASS, 미실행 0, 27초.
 [GPU·2인 RTC 전후 계측](docs/presentation-v0.13.0.json): 참가자 초기 위치 유지 약 67→16.7ms(다음 한 프레임), 잔상/본체 간격 p95 약 31→0, 렌더 CPU p99 2.7→2.5ms. 표시 지연은 유지하며, 생성 후 첫 표시 시점은 약 4~7→50~55ms입니다. 미래 위치를 먼저 보이고 정지시키는 대신 표시 시간이 도달하면 첫 구간부터 움직입니다. 같은 PC의 짧은 정상 네트워크 측정이며 사용자 인터넷·장시간·모바일 GPU 성능을 보증하지 않습니다.
+
+### 0.13.1 공통 표시 수정
+
+GameKit PR47의 지연된 중첩 상태 전환과 PR48의 preview 복귀 수정을 포함한 공식 dist `e108fe481aa7314974c39974a169b549500bf12c`를 고정했습니다. source는 `2712703c83923f16bb70454ea60e2ac533489ef8`, manifest SHA-256은 `800e4ddd95a33c332dff5a0c60b06438ffea6fd3bb3bca331b52d56b73f0775e`입니다. interpolation 번들만 변경되며 게임 기능·밸런스·30TPS·입력 정책은 유지합니다. 모든 참가자는 0.13.1과 같은 번들을 사용해야 합니다.
+
+[0.13.1 실제 Edge 검증](docs/e2e-v0.13.1.json): 기존 단일 E2E `--live-p2p`에서 44 PASS, 0 NOT RUN, 33.52초. 기본·모바일 입력, 즉시 preview, 공개 Nostr·2인 RTC, 예약 T·중복·확정 hash, 몸체·잔상 표시 시점을 확인했습니다.
