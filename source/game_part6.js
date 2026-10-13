@@ -2,16 +2,16 @@
   // BLOOM GameKit RoomSession(mode=online, profile.mode=rollback).
   // Signaling uses public Nostr relays; RTC carries only GameKit's framed inputs,
   // membership control and validated join/recovery checkpoints. No live world broadcast.
-  const GAMEKIT_SHA='6d9125a58bf63e4b7b0f68a6882c30e9858172bc';
-  const MP_NAMESPACE='sketch-town-coop-0100';
+  const GAMEKIT_SHA='7cf67c33451848d1af4a7b003cbe1b81ffef8b53';
+  const MP_NAMESPACE='sketch-town-coop-0110';
   const MP_SIMULATION_VERSION='sketch-town-'+CFG.version+'-'+GAMEKIT_SHA;
   const MP_ROLLBACK_URL=GAMEKIT_URLS.rollback;
   const MP_TRANSPORT_URL=GAMEKIT_URLS.transport;
   const MP_SIMLOOP_URL=GAMEKIT_URLS.simloop;
   const MP_INTERPOLATION_URL=GAMEKIT_URLS.interpolation;
   const MP_SEED=0x31415,MP_INPUT_SIZE=1;
-  const MP_PROFILE={mode:'rollback',tickRate:15,baseInputDelayTicks:1,rollbackWindowTicks:8,
-    stateHistorySize:32,maxCatchupSteps:4,checksumInterval:15,maxSnapshotBytes:2*1024*1024,
+  const MP_PROFILE={mode:'rollback',tickRate:30,baseInputDelayTicks:1,rollbackWindowTicks:16,
+    stateHistorySize:64,maxCatchupSteps:8,checksumInterval:30,maxSnapshotBytes:2*1024*1024,
     maxHistoryBytes:16*1024*1024,maxCommandBytes:2048,maxPendingCommands:64,
     adaptiveInputDelay:true,inputScheduling:'network',inputSafetyMarginMs:8,inputJitterMultiplier:2};
   const MP_TEXT=new TextEncoder(),MP_READER=new TextDecoder('utf-8',{fatal:true});
@@ -23,7 +23,7 @@
     $('multiplayerButton').textContent=mp.connected?`협동 · ${mp.role==='host'?'방장':'참가'}`:mp.connecting?'멀티 · 연결 중':'멀티 · 혼자';
     $('mpRoomDisplay').textContent=mp.code||'────';
     $('mpBadge').classList.toggle('off',!active);
-    $('mpBadge').textContent=mp.connected?`<${mp.code}> ${mp.session?.status||'연결 중'} · ${mp.session?.profile?.tickRate||15} TPS · ${mp.session?.profile?.mode||'rollback'}`:mp.connecting?`<${mp.code}> 방 연결 중`:'';
+    $('mpBadge').textContent=mp.connected?`<${mp.code}> ${mp.session?.status||'연결 중'} · ${mp.session?.profile?.tickRate||30} TPS · ${mp.session?.profile?.mode||'rollback'}`:mp.connecting?`<${mp.code}> 방 연결 중`:'';
     $('mpHost').disabled=active;$('mpJoin').disabled=active;
     $('mpLeave').textContent=active?'연결 종료':'취소';
   }
@@ -140,7 +140,7 @@
       mp.shared=mp.session?.players?.length>=2;
       mp.ready=mp.shared;
       mp.poseReset=true;mp.poseRevision++;mp.previewNeedsReset=true;mp.inputPreview?.clear();
-      mpStatus(mp.shared?'참가 승인 완료 · 15 TPS 롤백 협동 시작':'현재 혼자 방을 지키는 중 · 참가자를 기다립니다.');
+      mpStatus(mp.shared?'참가 승인 완료 · 30 TPS 롤백 협동 시작':'현재 혼자 방을 지키는 중 · 참가자를 기다립니다.');
       if(mp.shared)goRoute('play');
       mpUi();
     }
@@ -178,9 +178,9 @@
       player=role==='host'?hostPlayer:guestPlayer;
       const session=rollback.createRoomSession({mode:'online',room,simulationVersion:MP_SIMULATION_VERSION,
         seed:MP_SEED,inputSize:MP_INPUT_SIZE,profile:MP_PROFILE,adapter:multiplayerAdapter,
-        membership:{maxPlayers:2,maxCatchupSteps:4},roomOwnerId:mp.ownerId,
+        membership:{maxPlayers:2,maxCatchupSteps:8},roomOwnerId:mp.ownerId,
         onEvent:onMultiplayerEvent});
-      if(session.profile.mode!=='rollback'||session.profile.tickRate!==15)throw new Error('RoomSession 15TPS rollback 설정 검증 실패');
+      if(session.profile.mode!=='rollback'||session.profile.tickRate!==30)throw new Error('RoomSession 30TPS rollback 설정 검증 실패');
       mp.session=session;gameSession=session;
       initializeInputPreview(simloop,interpolation);
       mp.poseRevision++;mp.poseReset=true;mp.poseSequence=0;
@@ -214,7 +214,7 @@
   Object.assign(window.__sketchRpgDebug,{
     multiplayerState(){return {role:mp.role,connected:mp.connected,ready:mp.ready,code:mp.code,
       gamekitSHA:GAMEKIT_SHA,inputHz:CFG.inputHz,inputScheduling:mp.session?.profile.inputScheduling,
-      sessionMode:mp.session?.profile.mode||null,tickRate:mp.session?.profile.tickRate||15,previewEnabled:!!mp.inputPreview,
+      sessionMode:mp.session?.profile.mode||null,tickRate:mp.session?.profile.tickRate||30,previewEnabled:!!mp.inputPreview,
       tick:mp.session?.tick??gameSession.tick,confirmedTick:mp.session?.confirmedTick??null,
       players:mp.session?.players.length||1,shared:mp.shared,network:mp.session?.metrics||null,stats:{...mp.stats},
       host:{x:hostPlayer.x,y:hostPlayer.y,hp:hostPlayer.hp},guest:{x:guestPlayer.x,y:guestPlayer.y,hp:guestPlayer.hp}};},

@@ -48,7 +48,7 @@
   function down(action){return actions.sampleInto(action,heldSample).held;}
   function playerInputs(){const x=(down('right')?1:0)-(down('left')?1:0),y=(down('down')?1:0)-(down('up')?1:0),m=hypot(x,y);return m>1?{x:x/m,y:y/m}:{x,y};}
   function queueRollTo(x,y){
-    // Tap direction is relative to the local GameKit presentation pose, not a stale 15TPS position.
+    // Tap direction is relative to the local GameKit presentation pose, not a stale 30TPS position.
     const rendered=mp.connected&&mp.localPresentation&&mp.localPoseSource
       ?mp.localPresentation.modelFor(mp.localPoseSource,performance.now()):null;
     const dx=x-(rendered?.x??player.x),dy=y-(rendered?.y??player.y),dist=hypot(dx,dy);

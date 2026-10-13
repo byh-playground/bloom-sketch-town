@@ -189,7 +189,7 @@
   function playerMood(run){
     if(world.mode==='down'||player.hp<=0)return 'down';
     if(player.invulMs>350)return 'hurt';
-    if(world.casts.length)return 'cast';
+    if(world.casts.some(c=>c.owner===player.actorId))return 'cast';
     if(player.hp/player.maxHp<.33)return 'low';
     if(player.dash.leftMs>0)return 'dash';
     if(run)return 'move';
@@ -222,6 +222,7 @@
   }
   function playerBody(){
     const x=player.x,y=player.y,running=player.dash.leftMs>0;
+    player.castActive=world.casts.some(c=>c.owner===player.actorId)||(player.castPreviewMs||0)>0;
     const t=paintClockMs*.013,bob=Math.sin(t)*1.35,mood=playerMood(running),dash=player.dash;
     P.oval(x,y+16,17,5.5,'#62716c',.18);
     const rolling=dash.leftMs>0;
@@ -255,8 +256,8 @@
       return;
     }
     if(player.invulMs>0&&Math.floor(paintClockMs/93)%2===1&&mood!=='hurt')P.ring(x,y,22,'#80a59c',.65,2.2);
-    const anticipation=(player.castPreviewMs||0)>0;
-    const leg=Math.sin(t)*(running?5.7:1.4),armSwing=Math.cos(t)*(running?4.6:1.5),castLift=world.casts.length||anticipation?7:0;
+    const anticipation=(player.castPreviewMs||0)>0,casting=world.casts.some(c=>c.owner===player.actorId);
+    const leg=Math.sin(t)*(running?5.7:1.4),armSwing=Math.cos(t)*(running?4.6:1.5),castLift=casting||anticipation?7:0;
     const fx=player.faceX||1,fy=player.faceY||0;
     P.line(x,y-1+bob,x,y+11+bob,3.4,'#35464b');
     P.line(x,y+8+bob,x-6-leg*.45,y+20,3.2,'#35464b');P.line(x,y+8+bob,x+6+leg*.45,y+20,3.2,'#35464b');
@@ -265,7 +266,7 @@
     P.line(x+1,y+1+bob,handX,handY,2.7,'#35464b');
     const tipX=handX+fx*17,tipY=handY+fy*17;
     P.line(handX,handY,tipX,tipY,3.9,'#7f6754');P.dot(tipX,tipY,3.8,'#e6bb72');
-    if(world.casts.length||anticipation){P.dot(tipX+Math.cos(t*1.7)*2,tipY+Math.sin(t*1.5)*2,2.4,'#f0d09a',.85);P.ring(x,y,22+3*Math.sin(t*1.1),'#c19a68',.45,1.8,18);}
+    if(casting||anticipation){P.dot(tipX+Math.cos(t*1.7)*2,tipY+Math.sin(t*1.5)*2,2.4,'#f0d09a',.85);P.ring(x,y,22+3*Math.sin(t*1.1),'#c19a68',.45,1.8,18);}
     const hx=x,hy=y-13+bob,hr=10.9;
     P.oval(hx,hy+1,11.6,11.9,'#2b393d');P.oval(hx,hy,10.2,10.4,'#f5d7aa');
     const angle=Math.atan2(fy,fx||.0001),baseY=hy-7.2,tipHatX=hx+Math.cos(angle-.3)*5.7,tipHatY=hy-20.5+Math.sin(angle-.3)*3.2;
