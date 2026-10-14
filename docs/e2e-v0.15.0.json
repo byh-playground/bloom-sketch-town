@@ -1,0 +1,521 @@
+{
+  "version": "0.15.0",
+  "base": "fa8d19dcfd69e61c64b35a220fd34e2ac2c25b88",
+  "coreCandidate": "b8668bc46a64846e251c347ed0937d58ebc3f5d8",
+  "html_sha256": "aff45d0a2b9383581d5f691d3eb929a22a2809a2a4bce7b523ec71e051d24b96",
+  "status": "PASS",
+  "checksPassed": 51,
+  "commands": [
+    "python source/e2e.py",
+    "python source/e2e.py --flow online --live-p2p"
+  ],
+  "runs": [
+    {
+      "suite": "Sketch Town real Chromium E2E (single entrypoint)",
+      "html_sha256": "aff45d0a2b9383581d5f691d3eb929a22a2809a2a4bce7b523ec71e051d24b96",
+      "flow": "all",
+      "renderer_backend": "WebGL1 / ANGLE SwiftShader (existing E2E flags; no mock renderer)",
+      "headless": true,
+      "live_p2p_requested": false,
+      "chromium": "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
+      "browser_version": "155.0.4283.45",
+      "elapsed_seconds": 59.53,
+      "status": "PASS",
+      "checks": [
+        {
+          "name": "real desktop WebGL renders game geometry",
+          "status": "PASS"
+        },
+        {
+          "name": "30 TPS simulation / 60 FPS rendering targets",
+          "status": "PASS"
+        },
+        {
+          "name": "GameKit interpolation has live entities",
+          "status": "PASS"
+        },
+        {
+          "name": "the actual simulation advances independently from render",
+          "status": "PASS"
+        },
+        {
+          "name": "held WASD walks at 140 world units/s without consuming roll",
+          "status": "PASS",
+          "detail": {
+            "distance": 74.66666666666652,
+            "expected": 79.33333333333333
+          }
+        },
+        {
+          "name": "key release stops walking",
+          "status": "PASS"
+        },
+        {
+          "name": "diagonal walking is normalized",
+          "status": "PASS"
+        },
+        {
+          "name": "Space rolls once and held direction resumes immediately",
+          "status": "PASS"
+        },
+        {
+          "name": "focus loss releases held movement",
+          "status": "PASS"
+        },
+        {
+          "name": "battlefield tap neither rolls nor casts",
+          "status": "PASS",
+          "detail": {
+            "before": {
+              "slowRatio": 1,
+              "hitstopMs": 0,
+              "tick": 81,
+              "player": {
+                "x": 475,
+                "y": 735,
+                "hp": 120,
+                "level": 1,
+                "ink": 100
+              },
+              "mode": "playing",
+              "kills": 0,
+              "bossSpawned": false,
+              "bossDefeated": false,
+              "enemyCount": 1,
+              "projectileCount": 0,
+              "castCount": 0,
+              "castQueueCount": 0,
+              "roll": {
+                "charges": 2,
+                "rechargeMs": 0,
+                "activeMs": 0
+              },
+              "modal": null,
+              "worldWidth": 4400,
+              "worldHeight": 1460,
+              "drawPhase": "idle",
+              "lastResult": null,
+              "rendererState": "ready"
+            },
+            "after": {
+              "slowRatio": 1,
+              "hitstopMs": 0,
+              "tick": 85,
+              "player": {
+                "x": 475,
+                "y": 735,
+                "hp": 120,
+                "level": 1,
+                "ink": 100
+              },
+              "mode": "playing",
+              "kills": 0,
+              "bossSpawned": false,
+              "bossDefeated": false,
+              "enemyCount": 1,
+              "projectileCount": 0,
+              "castCount": 0,
+              "castQueueCount": 0,
+              "roll": {
+                "charges": 2,
+                "rechargeMs": 0,
+                "activeMs": 0
+              },
+              "modal": null,
+              "worldWidth": 4400,
+              "worldHeight": 1460,
+              "drawPhase": "idle",
+              "lastResult": null,
+              "rendererState": "ready"
+            }
+          }
+        },
+        {
+          "name": "WASD moves during drawing while screen ink stays fixed",
+          "status": "PASS"
+        },
+        {
+          "name": "release freezes latest visible-player to drawing-center aim",
+          "status": "PASS",
+          "detail": {
+            "aim": -0.26174144901545554,
+            "visibleAim": -0.26174144901545554
+          }
+        },
+        {
+          "name": "projectile keeps released direction and drawn shape despite later movement and nearer enemy",
+          "status": "PASS"
+        },
+        {
+          "name": "blur cancels drawing without a cast",
+          "status": "PASS"
+        },
+        {
+          "name": "modal cancels drawing without a cast",
+          "status": "PASS"
+        },
+        {
+          "name": "resize cancels drawing without a cast",
+          "status": "PASS"
+        },
+        {
+          "name": "real one-stroke gesture → CNN → spell → real boss damage",
+          "status": "PASS"
+        },
+        {
+          "name": "WASD after drawing still walks",
+          "status": "PASS"
+        },
+        {
+          "name": "editor imports exactly one original stroke",
+          "status": "PASS"
+        },
+        {
+          "name": "PNG metadata retains original only, no augmented tiles",
+          "status": "PASS"
+        },
+        {
+          "name": "canonical rollback save/load is byte-for-byte identical",
+          "status": "PASS"
+        },
+        {
+          "name": "no game JavaScript exception",
+          "status": "PASS",
+          "detail": []
+        },
+        {
+          "name": "WebGL rendering resumes after input and rollback verification",
+          "status": "PASS"
+        },
+        {
+          "name": "mobile battlefield tap neither rolls nor casts",
+          "status": "PASS"
+        },
+        {
+          "name": "mobile stick and roll remain separate from battlefield drawing",
+          "status": "PASS"
+        },
+        {
+          "name": "independent fingers walk and draw together",
+          "status": "PASS"
+        },
+        {
+          "name": "same real circle keeps classification and combat stats across desktop/mobile viewport and DPR",
+          "status": "PASS",
+          "detail": {
+            "desktop": {
+              "kind": "circle",
+              "baseDamage": 28,
+              "areaPower": 0.30983
+            },
+            "mobile": {
+              "kind": "circle",
+              "baseDamage": 28,
+              "areaPower": 0.30983
+            }
+          }
+        },
+        {
+          "name": "drawing release keeps stick held",
+          "status": "PASS"
+        },
+        {
+          "name": "mobile roll button consumes one charge and resumes walking",
+          "status": "PASS"
+        },
+        {
+          "name": "touch cancellation stops movement",
+          "status": "PASS"
+        },
+        {
+          "name": "mobile WebGL/JS stays operational",
+          "status": "PASS",
+          "detail": []
+        },
+        {
+          "name": "growth selection only inspects; level 1 has one point",
+          "status": "PASS"
+        },
+        {
+          "name": "explicit investment uses one point and shows derived maximum",
+          "status": "PASS"
+        },
+        {
+          "name": "free redistribution never restores current HP or ink",
+          "status": "PASS"
+        },
+        {
+          "name": "restart preserves saved investment and remaining points",
+          "status": "PASS"
+        },
+        {
+          "name": "real attack clears forest before the visible paper-wall door",
+          "status": "PASS"
+        },
+        {
+          "name": "cancelled door stroke leaves gate closed without consuming ink",
+          "status": "PASS"
+        },
+        {
+          "name": "valid drawing with insufficient ink explains needed amount and wait",
+          "status": "PASS",
+          "detail": {
+            "state": {
+              "actor": {
+                "x": 1340,
+                "y": 735,
+                "vx": 0,
+                "vy": 0,
+                "moveX": 0,
+                "moveY": 0,
+                "faceX": 1,
+                "faceY": 0,
+                "r": 16,
+                "hp": 120,
+                "maxHp": 120,
+                "level": 2,
+                "xp": 40,
+                "xpNext": 96,
+                "ink": 13.600000000000016,
+                "inkDelayMs": 0,
+                "investments": {
+                  "inkMax": 1,
+                  "inkRegen": 0,
+                  "inkDiscount": 0,
+                  "attack": 0,
+                  "hp": 0
+                },
+                "power": 1,
+                "dash": {
+                  "leftMs": 0,
+                  "durationMs": 0,
+                  "elapsedMs": 0,
+                  "distance": 0,
+                  "charges": 2,
+                  "rechargeMs": 0,
+                  "dirX": 1,
+                  "dirY": 0,
+                  "originX": 475,
+                  "originY": 735,
+                  "rollMarkMs": 0
+                },
+                "nextCastAtMs": 6258.08408555538,
+                "invulMs": 0,
+                "healMsgMs": 0,
+                "hits": 0,
+                "maxInk": 115,
+                "inkRegen": 8,
+                "inkCostRate": 1
+              },
+              "gates": {
+                "door": {
+                  "open": false,
+                  "stroke": [],
+                  "owner": null
+                },
+                "bridge": {
+                  "open": false,
+                  "stroke": [],
+                  "owner": null
+                }
+              },
+              "regionKills": [
+                5,
+                0,
+                0
+              ],
+              "points": 1,
+              "environment": null
+            },
+            "message": "잉크 25.0 필요 · 현재 12.5 · 약 1.6초 회복 대기"
+          }
+        },
+        {
+          "name": "basic regeneration enables door and preserves the actual stroke",
+          "status": "PASS"
+        },
+        {
+          "name": "completed door changes collision and permits walking into marsh",
+          "status": "PASS"
+        },
+        {
+          "name": "incomplete bridge endpoints are rejected without spending ink",
+          "status": "PASS"
+        },
+        {
+          "name": "marsh clear then drawn endpoint connection opens quarry",
+          "status": "PASS"
+        },
+        {
+          "name": "390px exploration tree shows actual prerequisite gates",
+          "status": "PASS"
+        },
+        {
+          "name": "390px stat detail keeps separate investment action visible",
+          "status": "PASS"
+        },
+        {
+          "name": "region/ink/investment workflow has no JavaScript errors",
+          "status": "PASS",
+          "detail": []
+        },
+        {
+          "name": "public internet WebRTC connection",
+          "status": "NOT_RUN",
+          "reason": "not requested; rerun with --live-p2p (same single E2E)"
+        }
+      ],
+      "errors": []
+    },
+    {
+      "suite": "Sketch Town real Chromium E2E (single entrypoint)",
+      "html_sha256": "aff45d0a2b9383581d5f691d3eb929a22a2809a2a4bce7b523ec71e051d24b96",
+      "flow": "online",
+      "renderer_backend": "WebGL1 / ANGLE SwiftShader (existing E2E flags; no mock renderer)",
+      "headless": true,
+      "live_p2p_requested": true,
+      "chromium": "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
+      "browser_version": "155.0.4283.45",
+      "elapsed_seconds": 29.23,
+      "status": "PASS",
+      "checks": [
+        {
+          "name": "actual public Nostr + WebRTC join + GameKit rollback admission",
+          "status": "PASS"
+        },
+        {
+          "name": "start-before-join personal investments survive authoritative admission",
+          "status": "PASS"
+        },
+        {
+          "name": "simultaneous PC/mobile door completion consumes exactly one personal gate cost",
+          "status": "PASS",
+          "detail": {
+            "deficit": 25,
+            "gate": {
+              "open": true,
+              "stroke": [
+                {
+                  "x": -40,
+                  "y": 60
+                },
+                {
+                  "x": -40,
+                  "y": 37
+                },
+                {
+                  "x": -40,
+                  "y": 14
+                },
+                {
+                  "x": -40,
+                  "y": -9
+                },
+                {
+                  "x": -40,
+                  "y": -32
+                },
+                {
+                  "x": -40,
+                  "y": -55
+                },
+                {
+                  "x": -32,
+                  "y": -58
+                },
+                {
+                  "x": -24,
+                  "y": -61
+                },
+                {
+                  "x": -16,
+                  "y": -64
+                },
+                {
+                  "x": -8,
+                  "y": -67
+                },
+                {
+                  "x": 0,
+                  "y": -70
+                },
+                {
+                  "x": 8,
+                  "y": -67
+                },
+                {
+                  "x": 16,
+                  "y": -64
+                },
+                {
+                  "x": 24,
+                  "y": -61
+                },
+                {
+                  "x": 32,
+                  "y": -58
+                },
+                {
+                  "x": 40,
+                  "y": -55
+                },
+                {
+                  "x": 40,
+                  "y": -32
+                },
+                {
+                  "x": 40,
+                  "y": -9
+                },
+                {
+                  "x": 40,
+                  "y": 14
+                },
+                {
+                  "x": 40,
+                  "y": 37
+                },
+                {
+                  "x": 40,
+                  "y": 60
+                },
+                {
+                  "x": 40,
+                  "y": 60
+                }
+              ],
+              "owner": "a"
+            }
+          }
+        },
+        {
+          "name": "actual reconnect restores shared gate and retains personal investments",
+          "status": "PASS"
+        },
+        {
+          "name": "gate/ink/investment checkpoint finishes with equal confirmed RTC state",
+          "status": "PASS",
+          "detail": {
+            "tick": 565,
+            "hashes": [
+              2532252070,
+              2532252070
+            ]
+          }
+        },
+        {
+          "name": "no JS errors in either online browser",
+          "status": "PASS",
+          "detail": []
+        }
+      ],
+      "errors": []
+    }
+  ],
+  "scope": "PC/390px pointer input, real WebGL, forest-door-marsh-bridge-quarry, recovery ink, stat investment/restart, actual public Nostr/2-peer RTC, simultaneous PC/mobile gate completion, graceful leave/rejoin, equal confirmed checkpoint hashes",
+  "limitations": [
+    "WebGL is backed by existing E2E ANGLE SwiftShader flags; this is not hardware GPU validation.",
+    "Combat fixtures arrange positions and HP for a bounded real-input flow; long-term campaign balance, mobile physical devices, external NAT and endurance are unverified.",
+    "The basic run does not request the full legacy internet RTC suite; the online run covers the new release RTC user workflow."
+  ]
+}

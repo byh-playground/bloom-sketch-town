@@ -2755,8 +2755,14 @@ if(e.hp<=0){e.dead=true;world.kills++;if(e.kind!=='boss')world.regionKills[e.reg
     mpConnect('host');
   });
   $('mpJoin').addEventListener('click',()=>mpConnect('join'));
-  $('mpLeave').addEventListener('click',()=>{
-    if(mp.connected||mp.connecting){++mpGeneration;cleanupMultiplayer();location.reload();return;}
+  $('mpLeave').addEventListener('click',async()=>{
+    if(mp.connected||mp.connecting){
+      $('mpLeave').disabled=true;mpStatus('참가자 목록에서 나가는 중…');let timeout;
+      try{if(mp.session)await Promise.race([mp.session.leave(),new Promise((_,reject)=>{timeout=setTimeout(()=>reject(new Error('참가자 정리 시간 초과')),5000);})]);}
+      catch(error){console.warn('[Sketch Town departure]',error.message);}
+      finally{clearTimeout(timeout);++mpGeneration;cleanupMultiplayer();location.reload();}
+      return;
+    }
     goRoute('play');
   });
   $('mpCopy').addEventListener('click',async()=>{
