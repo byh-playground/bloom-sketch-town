@@ -1,7 +1,8 @@
   // UI is a projection of the single authoritative RPG world. It never changes combat HP/EXP itself.
   function resizeAll(){const r=field.getBoundingClientRect();if(r.width<=0||r.height<=0)return;
+    dropDraw();
     vw=r.width;vh=r.height;dpr=Math.min(2,devicePixelRatio||1);renderer.resize(vw,vh,dpr);screenDpr=dpr;txtCanvas.width=Math.max(1,Math.round(vw*dpr));txtCanvas.height=Math.max(1,Math.round(vh*dpr));
-    const d=draw.getBoundingClientRect();if(d.width>0&&d.height>0){PW=d.width;PH=d.height;drawDpr=dpr;draw.width=Math.round(PW*drawDpr);draw.height=Math.round(PH*drawDpr);}
+    const d=draw.getBoundingClientRect();if(d.width>0&&d.height>0){drawDpr=dpr;draw.width=Math.round(vw*drawDpr);draw.height=Math.round(vh*drawDpr);}
     const tr=trainingPad.getBoundingClientRect();if(tr.width>0&&tr.height>0){tw=tr.width;th=tr.height;trainingDpr=dpr;trainingPad.width=Math.round(tw*trainingDpr);trainingPad.height=Math.round(th*trainingDpr);}
     const mr=mini.getBoundingClientRect();mini.width=Math.round(Math.max(1,mr.width)*dpr);mini.height=Math.round(Math.max(1,mr.height)*dpr);miniCtx.setTransform(dpr,0,0,dpr,0,0);
     previewDataset();}
@@ -52,7 +53,7 @@
   }
   function createSoloSession(){return {
     tick:0,inputSize:2,pace:1,profile:{tickRate:30,maxCatchupSteps:CFG.maxCatchup},closed:false,resimulating:false,
-    poll(){},releaseInput(){fieldInput.releaseAll('gamekit-blur');paintInput.releaseAll('gamekit-blur');trainingInput.releaseAll('gamekit-blur');},
+    poll(){},releaseInput(){fieldInput.releaseAll('gamekit-blur');trainingInput.releaseAll('gamekit-blur');},
     advance(){gatherLocalCommands();readMovementInput(player,localMovementInput);tick(CFG.tickMs);this.tick++;return {status:'advanced',tick:this.tick};}
   };}
   let gameSession=createSoloSession(),loop=null,deadlinePump=null,inputPump=null,paintRAF=0,paintRunning=false;
@@ -303,7 +304,7 @@
         renderFrames++;if(!frameStarted)frameStarted=now;
         if(now-frameStarted>=1000){renderFPS=Math.round(renderFrames*1000/(now-frameStarted));frameStarted=now;renderFrames=0;}
       },
-      onInputRelease(){fieldInput.releaseAll('loop');stickInput.releaseAll('loop');rollButtonInput.releaseAll('loop');paintInput.releaseAll('loop');localMovementInput.fill(0);dropDraw();releaseTrain();},
+      onInputRelease(){fieldInput.releaseAll('loop');stickInput.releaseAll('loop');rollButtonInput.releaseAll('loop');localMovementInput.fill(0);dropDraw();releaseTrain();},
       onError(error){pauseGameLoops();console.error(error);const el=$('error');el.style.display='block';el.textContent=`게임 실행 오류: ${error.stack||error.message||error}`;}
     });
     resetPresentation();capturePresentation();
@@ -321,17 +322,19 @@
     if(document.hidden){stopPainting();loop?.releaseInput();}
     else if(deadlinePump?.running){loop?.resetTiming();deadlinePump.rebase();startPainting();}
   });
-  window.addEventListener('pagehide',()=>{pauseGameLoops();sound.dispose();ro.disconnect();renderer.dispose();fieldInput.dispose();paintInput.dispose();trainingInput.dispose();});
+  window.addEventListener('pagehide',()=>{pauseGameLoops();sound.dispose();ro.disconnect();renderer.dispose();fieldInput.dispose();stickInput.dispose();rollButtonInput.dispose();trainingInput.dispose();});
   resizeAll();applyRoute();rebindGameLoop();
   // E2E probes observe the actual SDK frame / tick / draw / gameplay pipeline.
   window.__sketchRpgDebug={
     source:{renderer:'BLOOM GameKit Renderer2D · WebGL1',input:'ActionState/createDOMInput + LocalInputPreview',time:'GameKit createDeadlineScheduler 30TPS + separate RAF capped 60FPS + InterpolationTimeline/PresentationRuntime',audio:'AudioPlayer'},
     analyze(raw){const s=makeShotData(raw);return {name:s.name,kind:s.kind,area:s.areaPx2,damage:s.baseDamage,cnn:s.cnn.prob,reference:s.reference};},
     sample:samplePoints,
-    cast(type){const shot=makeShotData(samplePoints(type));world.commands.push({type:'cast',shot});},
-    castStroke(raw){const shot=makeShotData(raw);world.commands.push({type:'cast',shot});return {kind:shot.kind,baseDamage:shot.baseDamage};},
+    drawingState(){return {pointer:drawInput.pointer,points:drawInput.points.map(p=>({...p})),aim:drawInput.aim,center:drawInput.center,origin:drawInput.origin};},
+    shotDetails(){return world.projectiles.map(p=>({id:p.id,x:p.x,y:p.y,vx:p.vx,vy:p.vy,angle:p.angle,shape:p.shape,state:p.state,r:p.r}));},
+    queuedShots(){return [...world.commands.filter(c=>c.type==='cast'),...world.castQueue,...world.casts].map(c=>c.shot);},
+    cast(type,aim=0){const shot={...makeShotData(samplePoints(type)),aim};world.commands.push({type:'cast',shot});},
+    castStroke(raw,aim=0){const shot={...makeShotData(raw),aim};world.commands.push({type:'cast',shot});return {kind:shot.kind,baseDamage:shot.baseDamage};},
     spellSpec(raw){const shot=makeShotData(raw);return {kind:shot.kind,castMs:castDurationMs(shot),recoveryMs:spellRecoveryMs(shot),areaPower:shot.areaPower,baseDamage:shot.baseDamage};},
-    rollTo(x,y){queueRollTo(x,y);},
     presentedProjectiles(){return sceneViews.shot.map(p=>({id:p.id,x:p.x,y:p.y,head:{...pathViews.get('shot-'+p.id)?.at(-1)},path:pathViews.get('shot-'+p.id)?.map(point=>({...point}))}));},
     renderedActors(){return [hostPlayer,guestPlayer].map(actor=>{const view=renderViewCache.get(actor);return {id:view?.actorId,x:view?.x,y:view?.y,castActive:!!view&&((view.castPreviewMs||0)>0||sceneViews.cast.some(c=>c.owner===view.actorId)),nextCastAtMs:actor.nextCastAtMs,screenX:view?(view.x-camera.x)*camera.zoom:null};});},
     previewInfo(){const now=performance.now(),model=mp.localPresentation&&mp.localPoseSource?mp.localPresentation.modelFor(mp.localPoseSource,now):null;return {enabled:!!mp.inputPreview,ready:mp.inputPreview?.ready??false,pending:mp.inputPreview?.pendingCount??0,metrics:mp.inputPreview?.metrics||null,x:model?.x??null,y:model?.y??null,castMs:model?.castMs??null,actorX:player.x,actorY:player.y,revision:mp.poseRevision};},
