@@ -16,12 +16,12 @@
     if(hypot(dx,dy)>=24)drawInput.aim=Math.atan2(dy,dx);
     drawInput.center=center;drawInput.origin=origin;
   }
-  function dropDraw(keepEnvironment=false){if(!keepEnvironment)environmentTarget=null;drawInput.environmentPoints=[];drawInput.pointer=null;drawInput.points.length=0;drawInput.length=0;drawInput.finished=null;drawInput.previewUntilMs=0;drawInput.center=null;drawInput.origin=null;gesture.drawId=null;setSlowUi(false);$('strokeStatus').textContent='전장에 한 획 · 놓는 순간 방향 확정';}
+  function dropDraw(keepEnvironment=false){if(!keepEnvironment){environmentTarget=null;environmentFeedback='';}drawInput.environmentPoints=[];drawInput.pointer=null;drawInput.points.length=0;drawInput.length=0;drawInput.finished=null;drawInput.previewUntilMs=0;drawInput.center=null;drawInput.origin=null;gesture.drawId=null;setSlowUi(false);$('strokeStatus').textContent='전장에 한 획 · 놓는 순간 방향 확정';}
   function finishDraw(){
     if(!drawingAllowed()){dropDraw();return;}
     updateDrawingAim();const points=drawInput.points.slice(),length=drawInput.length,aim=drawInput.aim,environment=environmentTarget,envPoints=drawInput.environmentPoints.slice();dropDraw();focusGameplay();
     if(points.length<3||length<16){showResult('조금 더 길게 한 획을 그려 주세요',1100);return;}
-    if(environment){const g=gateOf(environment),stride=Math.max(1,Math.ceil(envPoints.length/34)),sampled=envPoints.filter((_,i)=>i%stride===0);if(sampled.at(-1)!==envPoints.at(-1))sampled.push(envPoints.at(-1));if(!validGateStroke(g,sampled)){showResult(g.instruction+' · 무효 획은 무료입니다.',1900);return;}queueProgression({type:'gate',id:environment,points:sampled});drawInput.finished=points;drawInput.previewUntilMs=performance.now()+350;return;}
+    if(environment){const g=gateOf(environment),sampled=simplifyGateStroke(envPoints),result=magicCircleResult(sampled);environmentTarget=environment;if(!result.ok){environmentFeedback=result.reason;showResult(result.reason+' · 잉크 소비 없음',2400);return;}environmentFeedback='별과 둘레원 확인 · 완성 명령 처리 중';queueProgression({type:'gate',id:environment,points:sampled});drawInput.finished=points;drawInput.previewUntilMs=performance.now()+350;return;}
     gesture.lastCombatStroke=points.map(p=>({...p}));drawInput.finished=points;drawInput.previewUntilMs=performance.now()+220;
     try{const shot=normalizeCommand({type:'cast',shot:{...makeShotData(points),aim}}).shot;world.commands.push({type:'cast',shot});wakeInputPreview();$('lastSpell').textContent=`${shot.name} · 피해 ${Math.round(shot.baseDamage*player.power)}`;$('strokeStatus').textContent='방향 확정 · 마법 준비 중';
       if(shot.kind==='normal')showResult('일반 낙서 · 그린 방향으로 발사',950);
@@ -29,7 +29,7 @@
   function collectCombatDrawing(e){
     if(e.type==='down'&&drawInput.pointer===null&&drawingAllowed()){
       focusGameplay();dropDraw(true);drawInput.pointer=e.pointerId;gesture.drawId=e.pointerId;gesture.startMs=world.clockMs;
-      const actor=displayedDrawingActor();drawInput.aim=Math.atan2(actor.faceY,actor.faceX);setSlowUi(true);appendEnvironmentPoint(e);appendDrawPoint(sampleFromPointer(e));updateDrawingAim();$('strokeStatus').textContent='이동으로 조준 · 놓으면 발사';
+      const actor=displayedDrawingActor();drawInput.aim=Math.atan2(actor.faceY,actor.faceX);setSlowUi(true);appendEnvironmentPoint(e);appendDrawPoint(sampleFromPointer(e));updateDrawingAim();environmentFeedback='';$('strokeStatus').textContent=environmentTarget?'둘레원 한 바퀴 → 다섯 꼭짓점 별':'이동으로 조준 · 놓으면 발사';
     }else if(drawInput.pointer===e.pointerId){
       if(!drawingAllowed()||e.type==='cancel'){dropDraw();return;}
       if(e.type==='move'||e.type==='up'){appendEnvironmentPoint(e);appendDrawPoint(sampleFromPointer(e));updateDrawingAim();if(e.type==='up')finishDraw();}

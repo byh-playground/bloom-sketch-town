@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="ko"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no"/><meta name="theme-color" content="#f8f2e7"/><title>스케치 타운 · 탑다운 액션 RPG v0.15.0</title>
+<html lang="ko"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no"/><meta name="theme-color" content="#f8f2e7"/><title>스케치 타운 · 탑다운 액션 RPG v0.16.0</title>
 <style>
 :root{color-scheme:light;--ink:#24313a;--sub:#65767d;--paper:#f8f2e7;--cream:#fffaf0;--line:#c7bca7;--gold:#efba61;--fire:#ce704e;--bolt:#558fbc;--green:#638e79;--shadow:#c8bca9}
 *{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;color:var(--ink);background:var(--paper);overscroll-behavior:none}button,select,input{font:inherit}button{cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation}button:focus-visible,input:focus-visible,canvas:focus-visible,select:focus-visible{outline:3px solid var(--bolt);outline-offset:2px}button:disabled{opacity:.48;cursor:default}
@@ -52,18 +52,22 @@
 /* Progression uses the existing paper HUD and modal primitives. */
 .hero-line{flex-wrap:wrap}.head-buttons #growthButton{background:#f5e5ba}.growth-panel{max-width:620px}.growth-tabs{display:flex;gap:8px;margin:12px 0}.growth-tabs button{flex:1;padding:10px;min-height:44px;border:1px solid #96a399;border-radius:9px;background:#fffaf0;font-weight:850}.growth-tabs [aria-selected="true"]{background:#dcebdc;border:2px solid #426e64}.growth-tree{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;padding:12px;background:#eee9db;border-radius:10px}.growth-node{flex:1;min-width:125px;max-width:240px;min-height:65px;padding:10px;border:1px solid #96a399;border-radius:9px;background:#fffaf0;display:flex;flex-direction:column;gap:5px;text-align:left}.growth-node small{font-size:11px;color:#596b66}.growth-node[aria-pressed="true"]{outline:3px solid #548a7e;background:#fff0cc}.growth-link{flex-basis:100%;text-align:center;color:#4f7066;font-size:20px;line-height:12px}.growth-detail{min-height:170px;margin-top:13px;padding:14px;border:1px solid #b5ad9e;border-radius:9px;background:#fffaf0}.growth-detail h3{margin:0 0 8px}.growth-detail p{font-size:13px;line-height:1.65}.growth-actions{display:flex;gap:8px;flex-wrap:wrap}.growth-actions button{min-height:44px;padding:10px;border:1px solid #9c9f8f;border-radius:8px;background:#f1d6a1;font-weight:850}#growthEffect,#growthPoints{font-weight:850;font-size:13px}#environmentButton{min-height:44px;border:1px solid #719489;border-radius:9px;background:#e4eedc;font-size:11px;font-weight:900;pointer-events:auto}.region-status{position:absolute;top:175px;left:12px;z-index:3;max-width:240px;background:#fffaf0df;border:1px solid #b7aa91;border-radius:9px;padding:7px;font-size:11px;pointer-events:none}.draw-status{min-height:105px}.spell-ribbon{bottom:130px}.result-chip{bottom:250px}.mini-map{top:112px}.growth-note{font-size:11px;color:#60756d}
 @media(max-width:600px){.top-left{max-width:72vw}.brand small{display:block}.head-buttons button{min-height:30px}.region-status{top:120px;left:7px;max-width:210px;font-size:10px}.mini-map{top:205px}.draw-status{min-height:104px}.spell-ribbon{bottom:128px}.result-chip{bottom:255px}#inkEstimate{white-space:normal;line-height:1.4}.growth-panel{max-height:92dvh}.growth-tree{gap:8px;padding:10px}.growth-node{min-width:110px}#environmentButton{min-height:44px}}
+/* Resource, action and objective hierarchy: one visible owner for each state. */
+.top-left{width:280px;max-width:46vw;padding:10px 12px;gap:8px}.identity{flex:1}.hero-line{justify-content:space-between;font-size:11px}.hp-bg{width:100%;min-width:0;height:7px}.ink-meter{margin-top:7px}.ink-caption{display:flex;gap:7px;align-items:baseline;font-size:12px}.ink-caption output{font-weight:850;color:#315f6b}.ink-caption small{margin-left:auto;font-size:10px;color:#59766e}.ink-bar{position:relative;overflow:hidden;height:12px;border:1px solid #80a39e;border-radius:5px;background:#e1e7de;margin-top:3px}.ink-fill{height:100%;width:100%;background:#568f9c;transition:width .1s linear}.ink-reservation{position:absolute;top:0;bottom:0;background:repeating-linear-gradient(120deg,#e8c17dcc 0 4px,#f8dc9caa 4px 7px)}.ink-estimate{font-size:10px;color:#60736d;line-height:1.35;margin-top:4px;min-height:14px}.ink-meter[data-state="shortage"] .ink-fill{background:#bd7767}.ink-meter[data-state="shortage"] .ink-caption small,.ink-meter[data-state="shortage"] .ink-estimate{color:#9a4e37;font-weight:850}.ink-meter[data-state="waiting"] .ink-fill{background:#8ea9a6}.xp-bg{height:3px;margin-top:7px}.quest{display:none}.head-buttons{display:grid;grid-template-columns:repeat(3,auto);gap:5px;padding:5px}.head-buttons button{min-height:34px;font-size:11px;box-shadow:none}.region-status{top:165px;left:12px;max-width:270px;padding:9px 11px;display:flex;flex-direction:column;gap:4px;line-height:1.45}.region-status b{font-size:13px}.region-status span{font-size:11px;color:#687568}.region-status progress{width:100%;height:5px;accent-color:#7e9b6b}.mini-map{top:102px}.draw-status{width:310px;min-height:102px;bottom:12px;gap:4px;padding:9px 10px;background:#fffaf0ed}.draw-info{gap:4px}.draw-title span{display:none}.draw-info b{font-size:10px;color:#788271;white-space:normal}.environment-actions{display:flex;gap:6px;width:100%}.environment-actions button{min-height:42px}#environmentButton{flex:1}#cancelEnvironment{border:1px solid #c2b59e;background:#fffaf0;border-radius:9px;font-size:11px;padding:0 12px}.spell-ribbon{bottom:131px;gap:5px}.glyph{box-shadow:none;background:#fffaf0dd}.glyph svg{height:31px}.growth-ranks{display:block;height:5px;margin-top:4px;border-radius:3px;background:#dfdfcf;overflow:hidden}.growth-ranks i{display:block;height:100%;background:#729c8b}.growth-detail{border-left:4px solid #6e9c8a}.growth-actions #investButton{background:#dceacb;border-color:#89a46e;color:#314c35}.growth-actions #redistributeButton{background:#fffaf0;font-size:11px}.action-hint{bottom:16px;max-width:38vw;white-space:normal;text-align:center}
+@media(max-width:600px){.hud-top{gap:7px}.top-left{width:236px;max-width:calc(100% - 120px);padding:7px 9px}.top-left .logo{display:none}.brand{font-size:15px}.brand small{display:inline;font-size:8px}.hero-line{font-size:10px}.ink-caption{font-size:11px}.ink-caption small{font-size:9px}.ink-estimate{font-size:9px}.ink-bar{height:12px}.head-buttons{grid-template-columns:1fr 1fr;width:113px;padding:4px;gap:3px}.head-buttons button{font-size:9px;padding:6px 3px;min-height:34px}.head-buttons #multiplayerButton{grid-column:1/-1}.region-status{top:150px;left:7px;max-width:230px;padding:7px 9px}.region-status b{font-size:12px}.region-status span{font-size:10px}.mini-map{top:158px;right:7px;width:88px;height:63px}.mini-map #map{width:78px;height:53px}.draw-status{width:228px;right:7px;bottom:9px;min-height:99px;padding:7px}.spell-ribbon{width:228px;right:7px;bottom:126px;gap:4px}.glyph svg{height:28px}.glyph span{font-size:9px}.result-chip{bottom:253px;max-width:76vw}.mp-status{top:222px;max-width:92vw}.roll-hud{bottom:110px;max-width:120px}.growth-tabs button{font-size:13px}.growth-node{min-width:125px;min-height:70px}.growth-detail p{font-size:12px}#environmentButton{font-size:10px}#cancelEnvironment{font-size:10px;padding:0 9px}}
+@media(max-height:500px){.ink-estimate{display:none}.region-status{top:135px;max-width:200px}.mini-map{display:none}.draw-status{width:235px;bottom:7px}.spell-ribbon{width:235px;bottom:120px}.top-left{padding:5px 8px}.head-buttons button{min-height:30px}}
 </style></head><body>
 <div id="shell"><canvas id="field" tabindex="0" aria-label="스케치 타운 전장: 직접 한 획을 그리고 이동으로 조준한 뒤 놓으면 발사합니다"></canvas><canvas id="draw" aria-hidden="true"></canvas><div id="slowFx" class="slow-veil" aria-hidden="true"><div class="slow-lines"></div></div><div id="hitFlash" class="impact-flash" aria-hidden="true"></div><div id="slowIndicator" class="slow-indicator"><b>◷ 0.25×</b><span>잉크 시간 왜곡</span></div>
  <div class="hud-top">
- <div class="hud-badge top-left"><div class="logo">✎</div><div class="identity"><div class="brand">스케치 타운 <small id="gameVersion">RPG</small></div><div class="hero-line"><b id="level">LV 1</b><span id="hpText">HP 120 / 120</span><span id="inkText">잉크 0</span></div><div class="hp-bg"><div class="hp-fill" id="hpFill"></div></div><div class="xp-bg"><div class="xp-fill" id="xpFill"></div></div></div></div>
+ <div class="hud-badge top-left"><div class="logo">✎</div><div class="identity"><div class="brand">스케치 타운 <small id="gameVersion">RPG</small></div><div class="hero-line"><b id="level">LV 1</b><span id="hpText">HP 120 / 120</span></div><div class="hp-bg"><div class="hp-fill" id="hpFill"></div></div><section id="inkMeter" class="ink-meter" data-state="ready"><div class="ink-caption"><b>잉크</b><output id="inkText">100 / 100</output><small id="inkRecovery">가득 참</small></div><div id="inkBar" class="ink-bar" role="progressbar" aria-label="현재 잉크" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100"><div id="inkFill" class="ink-fill"></div><div id="inkReservation" class="ink-reservation"></div></div><div id="inkEstimate" class="ink-estimate"></div></section><div class="xp-bg"><div class="xp-fill" id="xpFill"></div></div></div></div>
  <div class="top-right"><div class="hud-badge quest"><b id="questTitle">첫 탐험 · 잉크 숲 조사</b><p id="questText">숲의 종이 몬스터를 5마리 물리치세요.</p><progress id="questProgress" max="5" value="0"></progress></div><div class="hud-badge head-buttons"><button id="multiplayerButton">멀티 · 혼자</button><button id="growthButton">성장</button><button id="trainingButton">학습 데이터</button><button id="helpButton">도움말</button><button id="soundButton" aria-pressed="false">♪ 끔</button></div></div>
  </div>
  <div id="mpBadge" class="mp-status off">혼자 플레이 중</div>
- <div id="regionText" class="region-status" role="status"></div><div class="mini-map"><canvas id="map" aria-label="탑다운 미니맵"></canvas></div>
+ <section class="region-status" role="status"><b id="regionTitle">잉크 숲</b><span id="regionText"></span><progress id="regionProgress" max="5" value="0"></progress></section><div class="mini-map"><canvas id="map" aria-label="탑다운 미니맵"></canvas></div>
  <div class="bossbar" id="bossBar"><b>잉크 감시자 · 보스</b><div class="bar"><div class="fill" id="bossFill"></div></div></div>
  <div class="screen-message" id="screenMessage"></div>
  <div class="spell-ribbon" id="ribbon" role="group" aria-label="한 획 마법 그림 도감"></div>
- <div class="draw-status"><div class="draw-title"><strong>✎ 전장에 직접 그리기</strong><span id="drawTip">원을 따라 그려봐</span></div><div class="draw-info"><span id="strokeStatus">전장에 한 획 · 놓는 순간 방향 확정</span><span id="inkEstimate"></span><button id="environmentButton" aria-pressed="false">환경 그리기</button><b id="lastSpell">선: 빠른 연사 · 문양: 연쇄 반사</b></div></div>
+ <div class="draw-status"><div class="draw-title"><strong id="drawMode">한 획 마법</strong><span id="drawTip">원을 따라 그려봐</span></div><div class="draw-info"><span id="strokeStatus">전장에 한 획 · 놓는 순간 방향 확정</span><div class="environment-actions"><button id="environmentButton" aria-pressed="false">E · 환경 마법진</button><button id="cancelEnvironment" hidden>취소</button></div><b id="lastSpell">선: 빠른 연사 · 문양: 연쇄 반사</b></div></div>
  <div class="move-controls" aria-label="이동과 회피"><div id="moveStick" role="group" aria-label="이동 스틱"><span id="moveKnob"></span></div><button id="rollButton" aria-label="구르기">구르기</button></div>
  <div class="roll-hud" id="rollHud"><b>↷ Space · 구르기</b><div class="roll-slots"><span class="roll-slot" id="rollSlot1"><span class="roll-slot-fill" id="rollFill1"></span></span><span class="roll-slot" id="rollSlot2"><span class="roll-slot-fill" id="rollFill2"></span></span></div><small id="rollStatus">2 / 2 · 충전 완료</small></div><div class="action-hint">WASD 이동 · Space 회피 · 전장에 한 획 → 놓아서 발사</div><div class="result-chip" id="resultChip"></div>
  <div class="modal" id="multiplayerModal" role="dialog" aria-modal="true" aria-labelledby="mpTitle"><div class="dialog mp-panel"><div class="dialog-head"><div><h2 id="mpTitle">스케치 타운 · P2P 협동</h2><p>최대 2명 · 양쪽 30TPS 롤백 시뮬레이션 · 60FPS 목표 보간</p></div><button class="close-btn" data-close>닫기 ✕</button></div><div class="modal-contents"><p>같은 HTML 버전으로 접속하세요. 네 자리 방 번호로 연결하며 서버·계정 없이 공개 Nostr 시그널링과 STUN을 사용합니다. 인터넷/NAT 환경에 따라 연결되지 않을 수 있어요.</p><div class="mp-row"><label for="mpRoomInput">방 번호</label><input id="mpRoomInput" maxlength="4" inputmode="numeric" pattern="[0-9]{4}" placeholder="0000" autocomplete="off"></div><div class="mp-row"><button id="mpHost">방 만들기</button><button id="mpJoin">방 참가</button></div><div id="mpRoomDisplay" class="mp-room">────</div><div id="mpProgress" class="mp-alert" role="status" aria-live="polite">방 만들기 또는 참가를 선택하세요.</div><div class="mp-row"><button id="mpLeave">연결 취소·나가기</button><button id="mpCopy">방 번호 복사</button></div><p>게임킷 RoomSession이 양쪽의 입력 명령을 교환하고 30TPS에서 롤백 재실행합니다. 전체 상태를 10Hz 방송하지 않습니다. 방 입장·복구 시 검증한 체크포인트만 교환합니다. 두 마법사가 같은 적과 보스를 공격하고 경험치를 함께 얻습니다. 개인 체력·잉크·구르기 충전은 각각 유지됩니다. 상대가 연결을 끊으면 자동으로 다른 세계에 합류시키지 않습니다.</p></div></div></div>
@@ -72,7 +76,7 @@
   <div class="training-card"><h3>2 · 라벨과 변형 허용</h3><div class="train-controls"><label style="grid-column:1/-1"><span class="training-label">정답 그림(원본 한 획)</span><select id="trainingLabel" class="training-select"><option value="line">선</option><option value="circle">원</option><option value="triangle">삼각형</option><option value="square">사각형</option><option value="flame">불꽃</option><option value="water">물방울</option><option value="lightning">번개</option><option value="star">별</option><option value="shuriken">표창</option><option value="starcircle">별 마법진</option></select></label></div>
   <div class="checks"><label><input id="allowMirrorX" type="checkbox" checked>좌우 반전 허용</label><label><input id="keepVertical" type="checkbox" checked>위아래 방향이 중요함 <small>(상하·180° 반전 금지)</small></label><label><input id="allowMirrorY" type="checkbox">상하 반전 허용</label><label><input id="allowRotate180" type="checkbox">180° 회전 허용</label><label><input id="allowReverse" type="checkbox" checked>시작↔끝 방향 변경 허용</label></div>
   <div class="training-actions"><button class="primary" id="exportSheet">한 장의 PNG 내보내기</button></div><canvas class="sheet-preview" id="sheetPreview" aria-label="학습 이미지 시트 미리보기"></canvas><p class="training-note">내보낸 PNG 안에 <b>원본 획과 라벨·반전 허용 규칙(증강본 없음)</b>를 함께 넣습니다. 나중에 이 파일을 전달하면 여기서 모델을 직접 재학습할 수 있어요.</p></div></div></div></div>
- <div class="modal" id="helpModal" role="dialog" aria-modal="true" aria-labelledby="helpTitle"><div class="dialog"><div class="dialog-head"><div><h2 id="helpTitle">스케치 타운 · 모험 안내</h2><p>그림이 곧 무기. 한 획으로 마을과 숲을 지켜요.</p></div><button class="close-btn" data-close>닫기 ✕</button></div><div class="modal-contents"><div class="help-grid"><section><h3>① 이동·회피</h3><p>PC는 WASD·방향키를 누르는 동안 걷고 놓으면 멈춥니다. Space는 이동 방향, 정지 중에는 바라보는 방향으로 구릅니다. 모바일은 왼쪽 스틱으로 이동하고 옆 구르기 버튼으로 회피합니다. 최대 96 거리, 2회 충전이며 650ms마다 하나씩 회복합니다. 방향을 유지하면 구른 뒤 바로 걷습니다. 전장에 그림을 그리면서도 이동·회피할 수 있습니다. 화살표가 현재 캐릭터에서 그림 중심으로 향하며 손을 떼는 순간 방향이 확정됩니다. 혼자 플레이할 때 그리는 동안 적의 시간이 0.25배로 느려지며 온라인에서는 같은 시간으로 진행됩니다.</p></section><section><h3>② 한 획 마법</h3><p>전장의 빈 곳에 한 획을 그리면 잉크가 선을 따라 완성된 뒤 발사돼요. 가느다란 선은 빠르게 연사하지만 단발 위력과 유지 시간이 짧아요. 면적이 넓은 문양은 시전이 느린 대신 적 사이를 여러 번 튕기며 공격합니다. 그림을 누르면 해당 레퍼런스의 인식 기준이 12%p 완화되지만 CNN 1위는 유지돼야 해요. 불꽃은 네가 그린 나루토풍 문양을 사용합니다.</p></section><section><h3>③ 탐험</h3><p>숲 적 5마리 공략 → 동쪽 봉인 종이벽에 문 그리기 → 습지 적 5마리 공략 → 끊어진 양 끝에 다리 그리기 → 채석장으로 이어집니다. 표시 지점 가까이에서 E 또는 환경 그리기를 선택한 뒤 안내선을 따라 한 획을 그립니다. 문·다리는 공략 완료 후 열리고, 지역 안은 자유 이동입니다. 마법은 놓을 때 확정한 방향으로 발사되고, 문양이 명중하면 다른 적에게 반사됩니다. 캐릭터 가까이에서는 마지막 유효 방향을 유지합니다.</p></section><section><h3>④ 성장</h3><p>레벨 1부터 1포인트, 이후 레벨마다 1포인트를 얻습니다. 성장 탭에서 스탯을 선택하고 별도 투자 버튼으로 확정합니다. 공격·환경 그리기는 회복 잉크를 함께 사용합니다. 최대 100, 초당 8 회복, 소비 뒤 0.75초 대기이며 선 4·문양 12~20·문 25·다리 40이 기본 비용입니다. 드롭은 잉크 회복이며, 취소·무효 획은 비용이 없습니다. 쓰러지면 마을에서 다시 시작합니다. 마을의 치유 원에서 체력을 회복할 수 있습니다.</p></section></div><div class="help-refs" id="helpReferences"></div></div></div></div>
+ <div class="modal" id="helpModal" role="dialog" aria-modal="true" aria-labelledby="helpTitle"><div class="dialog"><div class="dialog-head"><div><h2 id="helpTitle">스케치 타운 · 모험 안내</h2><p>그림이 곧 무기. 한 획으로 마을과 숲을 지켜요.</p></div><button class="close-btn" data-close>닫기 ✕</button></div><div class="modal-contents"><div class="help-grid"><section><h3>① 이동·회피</h3><p>PC는 WASD·방향키를 누르는 동안 걷고 놓으면 멈춥니다. Space는 이동 방향, 정지 중에는 바라보는 방향으로 구릅니다. 모바일은 왼쪽 스틱으로 이동하고 옆 구르기 버튼으로 회피합니다. 최대 96 거리, 2회 충전이며 650ms마다 하나씩 회복합니다. 방향을 유지하면 구른 뒤 바로 걷습니다. 전장에 그림을 그리면서도 이동·회피할 수 있습니다. 화살표가 현재 캐릭터에서 그림 중심으로 향하며 손을 떼는 순간 방향이 확정됩니다. 혼자 플레이할 때 그리는 동안 적의 시간이 0.25배로 느려지며 온라인에서는 같은 시간으로 진행됩니다.</p></section><section><h3>② 한 획 마법</h3><p>전장의 빈 곳에 한 획을 그리면 잉크가 선을 따라 완성된 뒤 발사돼요. 가느다란 선은 빠르게 연사하지만 단발 위력과 유지 시간이 짧아요. 면적이 넓은 문양은 시전이 느린 대신 적 사이를 여러 번 튕기며 공격합니다. 그림을 누르면 해당 레퍼런스의 인식 기준이 12%p 완화되지만 CNN 1위는 유지돼야 해요. 불꽃은 네가 그린 나루토풍 문양을 사용합니다.</p></section><section><h3>③ 탐험</h3><p>숲 적 5마리 공략 → 봉인 종이벽의 별 마법진으로 문 생성 → 습지 적 5마리 공략 → 끊어진 길의 별 마법진으로 다리 생성 → 채석장으로 이어집니다. 표시 지점 가까이에서 E 또는 환경 마법진을 선택하고, 흐린 안내 위에 둘레원 한 바퀴와 다섯 꼭짓점 별을 한 획으로 그립니다. 선·낙서·원만·별만으로는 열리지 않습니다. 실패 이유를 읽고 바로 다시 그리거나 취소할 수 있으며, 성공할 때만 잉크를 소비합니다. 문·다리는 공략 완료 후 열리고, 지역 안은 자유 이동입니다. 마법은 놓을 때 확정한 방향으로 발사되고, 문양이 명중하면 다른 적에게 반사됩니다. 캐릭터 가까이에서는 마지막 유효 방향을 유지합니다.</p></section><section><h3>④ 성장</h3><p>레벨 1부터 1포인트, 이후 레벨마다 1포인트를 얻습니다. 성장 탭에서 스탯을 선택하고 별도 투자 버튼으로 확정합니다. 공격·환경 그리기는 회복 잉크를 함께 사용합니다. 최대 100, 초당 8 회복, 소비 뒤 0.75초 대기이며 선 4·문양 12~20·문 25·다리 40이 기본 비용입니다. 드롭은 잉크 회복이며, 취소·무효 획은 비용이 없습니다. 상단 잉크 바에서 현재/최대와 회복 상태를 확인합니다. 그리는 동안 빗금 부분은 예상 소비량이며, 부족하면 필요한 양과 회복 대기가 표시됩니다. 쓰러지면 마을에서 다시 시작합니다. 마을의 치유 원에서 체력을 회복할 수 있습니다.</p></section></div><div class="help-refs" id="helpReferences"></div></div></div></div>
    <div class="modal" id="growthModal" role="dialog" aria-modal="true" aria-labelledby="growthTitle"><div class="dialog growth-panel"><div class="dialog-head"><div><h2 id="growthTitle">붓의 성장과 탐험</h2><p>탭에서 경로를 살펴보고, 투자 버튼으로 확정하세요.</p></div><button class="close-btn" data-close>닫기 ✕</button></div><nav id="growthTabs" class="growth-tabs" role="tablist" aria-label="성장 계열"><button role="tab" data-tab="ink">잉크</button><button role="tab" data-tab="combat">전투</button><button role="tab" data-tab="explore">탐험</button></nav><output id="growthPoints"></output><div id="growthTree" class="growth-tree" aria-label="선택할 성장 경로"></div><section class="growth-detail"><h3 id="growthDetailTitle"></h3><p id="growthDetailText"></p><p id="growthEffect"></p><div class="growth-actions"><button id="investButton">1포인트 투자</button><button id="redistributeButton">무료 재분배</button></div><p class="growth-note">레벨마다 1포인트 · 무료 재분배는 현재 HP와 잉크를 회복하지 않습니다.</p></section></div></div>
 <div id="error"></div>
 </div>
@@ -732,7 +736,7 @@ dispose(){if(this.disposed)return;this.disposed=true;globalThis.document?.remove
   const $=id=>document.getElementById(id);
   const clamp=(v,a,b)=>Math.min(b,Math.max(a,v)),mix=(a,b,t)=>a+(b-a)*t,hypot=Math.hypot;
   const art={normal:'#293846',line:'#344e58',circle:'#799c91',triangle:'#d08c63',square:'#8f8b80',flame:'#ce704e',water:'#519cbd',lightning:'#558fbc',star:'#d8a34a',shuriken:'#9887b0',starcircle:'#cd995c'};
-  const CFG=Object.freeze({version:'0.15.0',baseHz:60,renderHz:60,inputHz:60,tickMs:1000/30,maxCatchup:8,world:{width:4400,height:1460},player:{hp:120,radius:16,walkSpeed:140,roll:{capacity:2,rechargeMs:650,rangeDiameters:3,durationMinMs:110,durationMaxMs:270,travelSpeed:765,projectileInvulMs:145}},boss:{x:4010,y:706,radius:255},castLimit:4,maxParticles:360});
+  const CFG=Object.freeze({version:'0.16.0',baseHz:60,renderHz:60,inputHz:60,tickMs:1000/30,maxCatchup:8,world:{width:4400,height:1460},player:{hp:120,radius:16,walkSpeed:140,roll:{capacity:2,rechargeMs:650,rangeDiameters:3,durationMinMs:110,durationMaxMs:270,travelSpeed:765,projectileInvulMs:145}},boss:{x:4010,y:706,radius:255},castLimit:4,maxParticles:360});
   $('gameVersion').textContent=`v${CFG.version} · RPG`;
   const DRAWING_STATS=Object.freeze({width:280,height:150,penWidth:3.8,recognitionSize:150});
   const field=$('field'),renderer=new Renderer2D(field,{batchVertices:32768}),draw=$('draw'),drawCtx=draw.getContext('2d'),trainingPad=$('trainingPad'),trainingCtx=trainingPad.getContext('2d');
@@ -1002,7 +1006,7 @@ dispose(){if(this.disposed)return;this.disposed=true;globalThis.document?.remove
     if(!referenceRules[kind])return;
     selectedGlyph=kind;
     for(const b of $('ribbon').querySelectorAll('button'))b.setAttribute('aria-pressed',String(b.dataset.kind===kind));
-    $('drawTip').textContent=`${shapeNames[kind]} ${Math.round(effectiveReferenceThreshold(kind)*100)}%↑ · CNN 1위 필수`;
+    $('drawTip').textContent=`${shapeNames[kind]} · 예시를 따라 한 획`;
   }
   $('ribbon').innerHTML=glyphKinds.map(k=>`<button class="glyph" data-kind="${k}" aria-label="${shapeNames[k]} · ${shapeDesc[k]} 대표 그림 보기" aria-pressed="false">${shapeSvg(k)}<span>${shapeNames[k]}</span></button>`).join('');
   $('helpReferences').innerHTML=glyphKinds.map(k=>`<div class="help-ref">${shapeSvg(k)}<div>${shapeNames[k]}</div></div>`).join('');
@@ -1022,8 +1026,8 @@ dispose(){if(this.disposed)return;this.disposed=true;globalThis.document?.remove
     {id:'quarry',name:'종이 채석장',min:2900,max:4400,goal:3,color:'#e7e1d9',spawns:[['charger',3170,580],['spitter',3360,900],['charger',3590,670]]}
   ]);
   const GATES=Object.freeze([
-    {id:'door',name:'봉인 종이벽 · 문',x:1450,y:735,width:128,passage:180,cost:25,region:0,next:1,instruction:'벽의 표시를 따라 문 윤곽을 한 획으로 그리세요.'},
-    {id:'bridge',name:'끊어진 길 · 다리',x:2900,y:735,width:130,passage:180,cost:40,region:1,next:2,instruction:'표시된 양 끝을 한 획으로 연결하세요.'}
+    {id:'door',name:'봉인 종이벽 · 문',x:1450,y:735,width:128,passage:180,cost:25,region:0,next:1,instruction:'흐린 안내 위에 둘레원 한 바퀴와 오각별을 한 획으로 그리세요.'},
+    {id:'bridge',name:'끊어진 길 · 다리',x:2900,y:735,width:130,passage:180,cost:40,region:1,next:2,instruction:'둘레원과 오각별 마법진을 완성하면 다리가 나타납니다.'}
   ]);
   const PROFILE_KEY='sketch-town-progression-0.15';
   const emptyInvestments=()=>Object.fromEntries(STAT_DEFS.map(s=>[s.id,0]));
@@ -1051,17 +1055,95 @@ dispose(){if(this.disposed)return;this.disposed=true;globalThis.document?.remove
   function nearbyGate(a){return GATES.find(g=>!world.gates[g.id].open&&hypot(a.x-g.x,a.y-g.y)<185);}
   function gateBlocked(x,y,r){return GATES.some(g=>Math.abs(x-g.x)<g.width/2+r&&(!world.gates[g.id].open||Math.abs(y-g.y)>g.passage/2-r));}
   function spawnRegion(index){for(const [kind,x,y]of REGIONS[index].spawns)spawnEnemy(kind,x,y);}
-  function validGateStroke(gate,points){
-    if(!Array.isArray(points)||points.length<3||points.length>36||points.some(p=>!Number.isFinite(p.x)||!Number.isFinite(p.y)||Math.abs(p.x)>160||Math.abs(p.y)>170))return false;
-    const box=strokeBounds(points),length=strokeLength(points);
-    if(gate.id==='door')return box.minX<-20&&box.maxX>20&&box.minY<-30&&box.maxY>30&&box.width<180&&box.height<230&&length>(box.height*2+box.width)*.7;
-    const a=points[0],b=points.at(-1),left={x:-65,y:0},right={x:65,y:0};
-    return (hypot(a.x-left.x,a.y)<40&&hypot(b.x-right.x,b.y)<40||hypot(b.x-left.x,b.y)<40&&hypot(a.x-right.x,a.y)<40)&&length>=85&&length<480&&box.height<140;
+  // Pure geometric structure, not a CNN label or a loose bounding box.
+  // Same quantized stroke is checked by solo/RTC command execution and checkpoint validation.
+  function pointSegmentDistance(p,a,b){const dx=b.x-a.x,dy=b.y-a.y,t=clamp(((p.x-a.x)*dx+(p.y-a.y)*dy)/(dx*dx+dy*dy||1),0,1);return hypot(p.x-a.x-dx*t,p.y-a.y-dy*t);}
+  function simplifyGateStroke(raw){
+    const points=raw.filter((p,i)=>!i||hypot(p.x-raw[i-1].x,p.y-raw[i-1].y)>.35);
+    if(points.length<3)return points;
+    const box=strokeBounds(points);let epsilon=Math.max(.35,Math.max(box.width,box.height)*.006);
+    function reduce(path){if(path.length<3)return path;let distance=0,index=0;for(let i=1;i<path.length-1;i++){const d=pointSegmentDistance(path[i],path[0],path.at(-1));if(d>distance){distance=d;index=i;}}if(distance<=epsilon)return [path[0],path.at(-1)];return [...reduce(path.slice(0,index+1)).slice(0,-1),...reduce(path.slice(index))];}
+    let result=reduce(points);while(result.length>72){epsilon*=1.5;result=reduce(points);}return result.map(p=>({x:+p.x.toFixed(2),y:+p.y.toFixed(2)}));
   }
+  function circleStructure(points){
+    if(points.length<9)return null;const b=strokeBounds(points),cx=(b.minX+b.maxX)/2,cy=(b.minY+b.maxY)/2,r=(b.width+b.height)/4;
+    if(r<25||r>118||hypot(cx,cy)>70||b.width/b.height<.72||b.width/b.height>1.38||hypot(points[0].x-points.at(-1).x,points[0].y-points.at(-1).y)>r*.32)return null;
+    let sweep=0,travel=0,error=0;for(let i=0;i<points.length;i++){const p=points[i];error+=Math.abs(hypot(p.x-cx,p.y-cy)-r)/r;if(i){const a=points[i-1],u=Math.atan2(a.y-cy,a.x-cx),v=Math.atan2(p.y-cy,p.x-cx);let delta=v-u;while(delta>Math.PI)delta-=Math.PI*2;while(delta<-Math.PI)delta+=Math.PI*2;sweep+=delta;travel+=Math.abs(delta);}}
+    if(Math.abs(sweep)<5.5||Math.abs(sweep)>7.3||travel>Math.abs(sweep)*1.18||error/points.length>.14)return null;return {cx,cy,r};
+  }
+  function starStructure(points,circle){
+    if(points.length<6)return false;const {cx,cy,r}=circle,box=strokeBounds(points),length=strokeLength(points),radius=Math.max(...points.map(p=>hypot(p.x-cx,p.y-cy)));
+    if(radius<r*.65||radius>r*1.16||length<radius*6.2||length>radius*12.5||hypot(points[0].x-points.at(-1).x,points[0].y-points.at(-1).y)>radius*.4||hypot((box.minX+box.maxX)/2-cx,(box.minY+box.maxY)/2-cy)>r*.25)return false;
+    const sampled=resample(points,length/48);
+    for(let angle=0;angle<Math.PI*2;angle+=Math.PI/36){const tips=Array.from({length:5},(_,i)=>({x:cx+Math.cos(angle+i*Math.PI*2/5)*radius,y:cy+Math.sin(angle+i*Math.PI*2/5)*radius}));
+      for(const outline of [false,true]){
+        const vertices=outline?tips.flatMap((p,i)=>[p,{x:cx+Math.cos(angle+(i+.5)*Math.PI*2/5)*radius*.4,y:cy+Math.sin(angle+(i+.5)*Math.PI*2/5)*radius*.4}]):[tips[0],tips[2],tips[4],tips[1],tips[3]];
+        const edges=vertices.map((p,i)=>[p,vertices[(i+1)%vertices.length]]),nearest=p=>Math.min(...edges.map(([a,b])=>pointSegmentDistance(p,a,b)));
+        if(sampled.reduce((n,p)=>n+nearest(p),0)/sampled.length>radius*.095)continue;
+        const covered=edges.every(([a,b])=>[.2,.4,.6,.8].filter(t=>{const p={x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t};let d=Infinity;for(let i=1;i<points.length;i++)d=Math.min(d,pointSegmentDistance(p,points[i-1],points[i]));return d<radius*.15;}).length>=3);
+        if(covered)return true;
+      }
+    }return false;
+  }
+  function magicCircleResult(points){
+    if(!Array.isArray(points)||points.length<12||points.length>72||points.some(p=>!Number.isFinite(p.x)||!Number.isFinite(p.y)||Math.abs(p.x)>160||Math.abs(p.y)>170))return {ok:false,reason:'둘레원과 별을 한 획으로 충분히 그려 주세요.'};
+    let ringFound=!!circleStructure(points);
+    for(let split=5;split<points.length-5;split++)for(const reverse of [false,true]){const a=points.slice(0,split+1),b=points.slice(split);const ring=circleStructure(reverse?b:a);if(!ring)continue;ringFound=true;if(starStructure(reverse?a:b,ring))return {ok:true,reason:'별과 둘레원 완성',circle:ring};}
+    return {ok:false,reason:ringFound?'둘레원 안의 다섯 꼭짓점 별을 모두 연결하세요.':'별을 둘러싸는 원을 한 바퀴 닫아 주세요.'};
+  }
+  function validGateStroke(gate,points){return magicCircleResult(points).ok;}
+
   function completeGate(a,id,points){const gate=gateOf(id);if(!gate||world.gates[id].open||!regionCleared(gate.region)||hypot(a.x-gate.x,a.y-gate.y)>=185||!validGateStroke(gate,points)||!spendInk(a,gateInkCost(a,gate)))return false;
-    world.gates[id]={open:true,stroke:points.map(p=>({...p})),owner:actorId(a)};spawnRegion(gate.next);announce(`${gate.name} 완성 · ${REGIONS[gate.next].name}으로!`,2200);return true;
+    world.gates[id]={open:true,stroke:points.map(p=>({...p})),owner:actorId(a),openedAtMs:world.clockMs};spawnRegion(gate.next);announce(`${gate.name} 완성 · ${REGIONS[gate.next].name}으로!`,2200);return true;
   }
-  function progressionQuest(){const gate=GATES.find(g=>!world.gates[g.id].open);if(gate){const region=REGIONS[gate.region],kills=world.regionKills[gate.region];return {title:regionCleared(gate.region)?gate.name+' 그리기':region.name+' 공략',text:regionCleared(gate.region)?`동쪽 표시 지점 · E / 그리기 · 잉크 ${gateInkCost(player,gate)}`:`적 ${Math.min(kills,region.goal)}/${region.goal} · 다음 ${gate.id==='door'?'문':'다리'}를 열 준비`,value:Math.min(kills,region.goal),max:region.goal};}return {title:world.bossDefeated?'새 페이지를 완성했어요':'종이 채석장 공략',text:world.bossSpawned?'잉크 감시자를 쓰러뜨리세요':`적 ${world.regionKills[2]}/3 · 감시자에게 가는 길`,value:Math.min(world.regionKills[2],3),max:3};}
+  function progressionQuest(){const gate=GATES.find(g=>!world.gates[g.id].open);if(gate){const region=REGIONS[gate.region],kills=world.regionKills[gate.region];return {title:regionCleared(gate.region)?gate.name+' 그리기':region.name+' 공략',text:regionCleared(gate.region)?`동쪽 표시 지점 · E / 그리기 · 잉크 ${gateInkCost(player,gate)}`:`적 ${Math.min(kills,region.goal)}/${region.goal} · 다음 ${gate.id==='door'?'문':'다리'} 열 준비`,value:Math.min(kills,region.goal),max:region.goal};}return {title:world.bossDefeated?'새 페이지를 완성했어요':'종이 채석장 공략',text:world.bossSpawned?'잉크 감시자를 쓰러뜨리세요':`적 ${world.regionKills[2]}/3 · 감시자에게 가는 길`,value:Math.min(world.regionKills[2],3),max:3};}
+  // Fixed region composition, shared by collision, sketch rendering and the minimap.
+  // Seeded small props decorate the authored route; they never invent new traversal rules.
+  const REGION_TERRAIN=Object.freeze({
+    ponds:[{x:1780,y:295,rx:225,ry:155},{x:2350,y:325,rx:240,ry:145},{x:2020,y:1170,rx:265,ry:165},{x:2630,y:1120,rx:155,ry:135}],
+    ridges:[{x:3230,y:300,r:100},{x:3540,y:340,r:110},{x:3860,y:275,r:115},{x:3250,y:1175,r:90},{x:3600,y:1120,r:105},{x:4110,y:1180,r:100}],
+    clearings:[{x:1070,y:735,rx:260,ry:210,color:'#f2efdc'},{x:1890,y:750,rx:210,ry:180,color:'#ecebdd'},{x:2510,y:735,rx:210,ry:180,color:'#e9e9d9'},{x:3380,y:735,rx:220,ry:210,color:'#f0e9db'}],
+    route:[[490,735],[740,715],[930,650],[1100,735],[1320,735],[1450,735],[1620,760],[1890,750],[2190,650],[2510,735],[2760,735],[2900,735],[3170,810],[3380,735],[3680,690],[4010,708]],
+    landmarks:[{x:1020,y:1100,r:44,kind:'stump',label:'빈 붓 그루터기',region:0},{x:2230,y:415,r:34,kind:'bell',label:'가라앉은 종탑',region:1},{x:3490,y:480,r:42,kind:'crane',label:'종이 절단장',region:2},{x:3920,y:1030,r:42,kind:'crystal',label:'잉크 광맥',region:2}]
+  });
+  const MAP_ROUTE_POINTS=REGION_TERRAIN.route.map(([x,y])=>({x,y}));
+  function mapTerrainBlocked(x,y,r){return REGION_TERRAIN.ponds.some(p=>((x-p.x)/(p.rx+r))**2+((y-p.y)/(p.ry+r))**2<1)||REGION_TERRAIN.ridges.some(p=>hypot(x-p.x,y-p.y)<p.r+r);}
+  function nearMapRoute(x,y,width=100){for(let i=1;i<REGION_TERRAIN.route.length;i++){const a=REGION_TERRAIN.route[i-1],b=REGION_TERRAIN.route[i],dx=b[0]-a[0],dy=b[1]-a[1],t=clamp(((x-a[0])*dx+(y-a[1])*dy)/(dx*dx+dy*dy),0,1);if(hypot(x-a[0]-t*dx,y-a[1]-t*dy)<width)return true;}return false;}
+  function addMapProp(x,y,r,kind,region,solid=true){const prop={x,y,r,kind,region,variant:rand()};world.trees.push(prop);if(solid)addObstacle({x,y,r:r*.62,kind});}
+  function populateRegionMap(){
+    for(const [region,count]of [[0,95],[1,78],[2,72]])for(let i=0;i<count;i++){
+      const spec=REGIONS[region],x=spec.min+90+rand()*(spec.max-spec.min-180),y=90+rand()*(CFG.world.height-180);
+      if(hypot(x-485,y-740)<330||nearMapRoute(x,y,105)||REGION_TERRAIN.clearings.some(c=>hypot((x-c.x)/c.rx,(y-c.y)/c.ry)<1.1)||hypot(x-CFG.boss.x,y-CFG.boss.y)<290||GATES.some(g=>hypot(x-g.x,y-g.y)<205)||mapTerrainBlocked(x,y,25)||spec.spawns.some(s=>hypot(x-s[1],y-s[2])<90))continue;
+      addMapProp(x,y,region===0?30+rand()*22:region===1?20+rand()*18:24+rand()*24,region===0?'canopy':region===1?'reed':'slab',region,region!==1);
+    }
+    for(const landmark of REGION_TERRAIN.landmarks){world.trees.push({...landmark,variant:0});addObstacle({x:landmark.x,y:landmark.y,r:landmark.r*.65,kind:landmark.kind});}
+    for(let i=0;i<150;i++){const region=i%3,spec=REGIONS[region],x=spec.min+70+rand()*(spec.max-spec.min-140),y=50+rand()*(CFG.world.height-100);if(mapTerrainBlocked(x,y,5))continue;world.decals.push({x,y,kind:region===0?'flower':'grass',seed:rand()*10});}
+  }
+  function sketchPolygon(points,color,alpha=1){const center={x:points.reduce((n,p)=>n+p[0],0)/points.length,y:points.reduce((n,p)=>n+p[1],0)/points.length};for(let i=0;i<points.length;i++){const a=points[i],b=points[(i+1)%points.length];P.tri(center,{x:a[0],y:a[1]},{x:b[0],y:b[1]},color,alpha);}}
+  function sketchOutline(points,width,color,alpha=1){for(let i=0;i<points.length;i++){const a=points[i],b=points[(i+1)%points.length];P.line(a[0],a[1],b[0],b[1],width,color,alpha);}}
+  function regionGround(){
+    P.box(2200,730,4400,1460,'#f4efdf');
+    sketchPolygon([[0,0],[1470,0],[1370,270],[1510,600],[1370,1000],[1460,1460],[0,1460]],'#e7ecd9');
+    sketchPolygon([[1470,0],[2930,0],[2810,380],[2980,680],[2840,1130],[2900,1460],[1460,1460],[1370,1000],[1510,600],[1370,270]],'#e1e9e2');
+    sketchPolygon([[2930,0],[4400,0],[4400,1460],[2900,1460],[2840,1130],[2980,680],[2810,380]],'#ebe4d8');
+    for(const c of REGION_TERRAIN.clearings){P.oval(c.x,c.y,c.rx,c.ry,c.color,.9);P.oval(c.x+20,c.y+15,c.rx*.83,c.ry*.78,'#f7f0df',.34);}
+    for(const p of REGION_TERRAIN.ponds){if(!visible(p.x,p.y,p.rx+40))continue;P.oval(p.x,p.y,p.rx+16,p.ry+16,'#b8c9bb',.48);P.oval(p.x,p.y,p.rx,p.ry,'#aac3c3',.56);for(let k=0;k<5;k++){const yy=p.y+(k-2)*p.ry*.29,len=p.rx*Math.sqrt(1-((yy-p.y)/p.ry)**2)*.7;P.line(p.x-len,yy,p.x+len*.65,yy+3,1.4,'#7faaa9',.29);}for(let k=0;k<9;k++){const a=k*Math.PI*2/9,x=p.x+Math.cos(a)*(p.rx+12),y=p.y+Math.sin(a)*(p.ry+8);P.line(x,y,x-7,y-19,1.1,'#879e91',.42);P.line(x,y,x+5,y-24,1.1,'#879e91',.42);}}
+    for(const p of REGION_TERRAIN.ridges){if(!visible(p.x,p.y,p.r+50))continue;const points=[[p.x-p.r,p.y+20],[p.x-p.r*.8,p.y-p.r*.8],[p.x+p.r*.1,p.y-p.r],[p.x+p.r,p.y-p.r*.35],[p.x+p.r*.9,p.y+p.r*.65],[p.x-p.r*.55,p.y+p.r*.85]];sketchPolygon(points,'#c4bcad',.7);sketchOutline(points,2,'#a99f90',.48);for(let i=0;i<3;i++)P.line(p.x-p.r*.65,p.y+i*18,p.x+p.r*.7,p.y-15+i*18,1.3,'#a69b8d',.34);}
+    for(let i=0;i<5;i++){const x=3300+i*150;P.line(x,950,x+85,935,2,'#aa9e89',.24);P.line(x+10,965,x+95,950,1,'#aa9e89',.2);}
+    P.path(MAP_ROUTE_POINTS,78,'#cabc9d',.25);P.path(MAP_ROUTE_POINTS,60,'#f3e8d1',.82);P.path(MAP_ROUTE_POINTS,1.4,'#aa9c82',.32);
+    // Pencil edge marks give the route direction without competing with combat outlines.
+    for(let i=2;i<REGION_TERRAIN.route.length;i++){const a=REGION_TERRAIN.route[i];P.line(a[0]-8,a[1]-46,a[0]+9,a[1]-43,1,'#a99f87',.36);}
+  }
+  function drawRegionProp(t){if(!['canopy','reed','slab','stump','bell','crane','crystal'].includes(t.kind))return false;const {x,y,r,kind}=t;if(!visible(x,y,r+70))return true;
+    if(kind==='canopy'){P.oval(x,y+r*.6,r*.85,r*.25,'#aeb59b',.3);P.line(x,y+r*.6,x,y-8,7,'#a3987c',.6);for(const [dx,dy,s]of [[-.5,-.25,.7],[.4,-.45,.85],[0,-.95,.73]]){P.oval(x+dx*r,y+dy*r,r*s,r*s*.72,'#b2c5a1',.82);P.ring(x+dx*r,y+dy*r,r*s,'#8da48c',.28,1.2,12);}return true;}
+    if(kind==='reed'){for(let i=0;i<5;i++){const dx=(i-2)*r*.24;P.line(x+dx,y+12,x+dx+(i%2?6:-5),y-r*(.75+(i%3)*.18),1.7,'#91a491',.75);P.oval(x+dx+(i%2?6:-5),y-r*(.75+(i%3)*.18),2.4,7,'#acaa88',.7);}return true;}
+    if(kind==='slab'){const pts=[[x-r,y+8],[x-r*.5,y-r*.7],[x+r*.55,y-r*.75],[x+r,y-r*.1],[x+r*.6,y+r*.5],[x-r*.7,y+r*.48]];sketchPolygon(pts,'#c7bda8',.8);sketchOutline(pts,1.6,'#a59a87',.55);P.line(x-r*.3,y-r*.45,x+r*.65,y-r*.25,1.2,'#e7dec9',.8);return true;}
+    if(kind==='stump'){P.oval(x,y+10,r,r*.65,'#b8ab8c',.7);P.oval(x,y-5,r,r*.55,'#e0d1ac',.9);for(const scale of [.32,.62,.87])P.ring(x,y-5,r*scale,'#a79978',.42,1.5,15);P.line(x-r*.7,y+6,x-r*.6,y+28,2,'#a39677',.55);return true;}
+    if(kind==='bell'){P.box(x,y,48,68,'#b4b9aa',.8);P.tri({x:x-33,y:y-28},{x,y:y-65},{x:x+33,y:y-28},'#8eaaa3',.7);P.box(x,y-10,20,27,'#7f9b97',.7);P.oval(x,y+38,73,17,'#a7bfba',.5);P.line(x-60,y+39,x+50,y+39,1.2,'#89aaa4',.65);return true;}
+    if(kind==='crane'){P.line(x-42,y+25,x+45,y+25,6,'#aa9a7d',.7);P.line(x-25,y+25,x-25,y-70,7,'#b6a282',.9);P.line(x-25,y-65,x+52,y-65,5,'#b6a282',.9);P.line(x+43,y-65,x+43,y-10,1.8,'#928b7e',.7);P.box(x+43,y-7,17,19,'#c2b8a2',.9);P.line(x-25,y-15,x+26,y-65,2,'#9f937b',.6);return true;}
+    for(let i=0;i<3;i++){const dx=(i-1)*r*.42,yy=y+i%2*9;P.tri({x:x+dx-12,y:yy+19},{x:x+dx,y:yy-26-i*6},{x:x+dx+15,y:yy+16},'#aca5bb',.65);P.line(x+dx,yy-26-i*6,x+dx+3,yy+15,1.5,'#e8dfed',.8);}return true;
+  }
+  function drawMapLabels(){for(const landmark of REGION_TERRAIN.landmarks){if(!visible(landmark.x,landmark.y,150))continue;renderer.worldToScreenInto(landmark.x,landmark.y-landmark.r-75,anchorReuse);txtCtx.textAlign='center';txtCtx.font='600 11px system-ui';txtCtx.lineWidth=3;txtCtx.strokeStyle='#f5f0e1';txtCtx.strokeText(landmark.label,anchorReuse.x,anchorReuse.y);txtCtx.fillStyle='#7c8478';txtCtx.fillText(landmark.label,anchorReuse.x,anchorReuse.y);}}
   const actions=new ActionState(),gesture={drawId:null,points:[],length:0,startMs:0,trainingId:null,trainingPoints:[],lastCombatStroke:null};
   let player={x:475,y:735,vx:0,vy:0,moveX:0,moveY:0,faceX:1,faceY:0,r:CFG.player.radius,hp:CFG.player.hp,maxHp:CFG.player.hp,level:1,xp:0,xpNext:65,ink:100,inkDelayMs:0,investments:{...savedProfile.investments},power:1,dash:{leftMs:0,durationMs:0,elapsedMs:0,distance:0,charges:2,rechargeMs:0,dirX:1,dirY:0,originX:475,originY:735,rollMarkMs:0},nextCastAtMs:0,invulMs:0,healMsgMs:0,hits:0};
   restoreProfile(player,savedProfile);
@@ -1074,7 +1156,7 @@ dispose(){if(this.disposed)return;this.disposed=true;globalThis.document?.remove
   function actorOf(id){return id==='b'?guestPlayer:hostPlayer;}
   function withActor(actor,fn){const before=player;player=actor;try{return fn();}finally{player=before;}}
   const camera={x:0,y:0,zoom:1};
-  const world={regionKills:[0,0,0],gates:{door:{open:false,stroke:[],owner:null},bridge:{open:false,stroke:[],owner:null}},obstacles:[],grid:new Map(),decals:[],trees:[],houses:[],enemies:[],projectiles:[],hazards:[],casts:[],particles:[],floaters:[],pickups:[],fields:[],commands:[],castQueue:[],rollMarks:[],rollTarget:null,nextId:1,seed:0x31415,clockMs:0,kills:0,bossSpawned:false,bossDefeated:false,hitstopMs:0,lastHitstopClockMs:-1000,hitFlashMs:0,slowRatio:1,screenTextMs:0,screenText:'',effectShakeMs:0,mode:'playing',deathMs:0,lastResult:null};
+  const world={regionKills:[0,0,0],gates:{door:{open:false,stroke:[],owner:null,openedAtMs:0},bridge:{open:false,stroke:[],owner:null,openedAtMs:0}},obstacles:[],grid:new Map(),decals:[],trees:[],houses:[],enemies:[],projectiles:[],hazards:[],casts:[],particles:[],floaters:[],pickups:[],fields:[],commands:[],castQueue:[],rollMarks:[],rollTarget:null,nextId:1,seed:0x31415,clockMs:0,kills:0,bossSpawned:false,bossDefeated:false,hitstopMs:0,lastHitstopClockMs:-1000,hitFlashMs:0,slowRatio:1,screenTextMs:0,screenText:'',effectShakeMs:0,mode:'playing',deathMs:0,lastResult:null};
   const audioRecipes={
     draw:{category:'sfx',layers:[{kind:'tone',type:'sine',hz:610,end:910,ms:90,gain:.3}]},
     throw:{category:'sfx',layers:[{kind:'tone',type:'triangle',hz:410,end:950,ms:128,gain:.42},{kind:'noise',hz:2100,ms:65,gain:.17}]},
@@ -1095,14 +1177,12 @@ dispose(){if(this.disposed)return;this.disposed=true;globalThis.document?.remove
   const cellSize=160,gridKey=(x,y)=>`${Math.floor(x/cellSize)},${Math.floor(y/cellSize)}`;
   function addObstacle(o){world.obstacles.push(o);for(let gx=Math.floor((o.x-o.r)/cellSize);gx<=Math.floor((o.x+o.r)/cellSize);gx++)for(let gy=Math.floor((o.y-o.r)/cellSize);gy<=Math.floor((o.y+o.r)/cellSize);gy++){const key=`${gx},${gy}`;if(!world.grid.has(key))world.grid.set(key,[]);world.grid.get(key).push(o);}}
   function circleBounds(x,y,r){return x>=r&&y>=r&&x<=CFG.world.width-r&&y<=CFG.world.height-r;}
-  function touchesObstacle(x,y,r){if(!circleBounds(x,y,r)||gateBlocked(x,y,r))return true;const list=world.grid.get(gridKey(x,y))||[];for(const o of list){if(hypot(o.x-x,o.y-y)<o.r+r)return true;}return false;}
+  function touchesObstacle(x,y,r){if(!circleBounds(x,y,r)||gateBlocked(x,y,r)||mapTerrainBlocked(x,y,r))return true;const list=world.grid.get(gridKey(x,y))||[];for(const o of list){if(hypot(o.x-x,o.y-y)<o.r+r)return true;}return false;}
   function moveCollider(e,dx,dy,r){if(!touchesObstacle(e.x+dx,e.y,r))e.x+=dx;if(!touchesObstacle(e.x,e.y+dy,r))e.y+=dy;}
   function createWorld(){
     // Deterministic generated props. No hand-authored image assets, texture uploads, or runtime network.
     for(const h of [{x:275,y:540,w:173,h:127,type:'house'},{x:575,y:462,w:167,h:119,type:'library'},{x:360,y:960,w:162,h:112,type:'shop'}]){world.houses.push(h);addObstacle({x:h.x,y:h.y+16,r:h.w*.46,kind:'house'});}
-    for(let i=0;i<138;i++){const x=70+rand()*(CFG.world.width-140),y=70+rand()*(CFG.world.height-140);const nearTown=hypot(x-485,y-740)<320,nearRoad=Math.abs(y-(720+80*Math.sin((x-460)/260)))<90,nearBoss=hypot(x-CFG.boss.x,y-CFG.boss.y)<270,nearGate=GATES.some(g=>Math.abs(x-g.x)<200&&Math.abs(y-g.y)<210);
-      if(nearTown||nearRoad||nearBoss||nearGate)continue;const kind=rand()<.74?'tree':'rock',r=kind==='tree'?22+rand()*11:18+rand()*11;world.trees.push({x,y,r,kind,variant:rand()});addObstacle({x,y,r:r*.68,kind});}
-    for(let i=0;i<115;i++){const x=45+rand()*(CFG.world.width-90),y=45+rand()*(CFG.world.height-90),kind=rand()<.60?'flower':'grass';world.decals.push({x,y,kind,seed:rand()*10});}
+    populateRegionMap();
     spawnRegion(0);
   }
   const enemyDefs={chaser:{r:19,hp:55,speed:89,damage:11,color:'#a57673',name:'종이 사냥꾼',xp:18},spitter:{r:20,hp:48,speed:65,damage:9,color:'#8e8ba8',name:'잉크 투척수',xp:21},charger:{r:23,hp:85,speed:72,damage:18,color:'#c1966b',name:'낙서 돌격수',xp:27},boss:{r:56,hp:580,speed:55,damage:23,color:'#8d688e',name:'잉크 감시자',xp:190}};
@@ -1510,22 +1590,13 @@ if(e.hp<=0){e.dead=true;world.kills++;if(e.kind!=='boss')world.regionKills[e.reg
   const txtCanvas=document.createElement('canvas');txtCanvas.id='worldText';txtCanvas.setAttribute('aria-hidden','true');txtCanvas.style.cssText='position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:1';field.after(txtCanvas);
   const txtCtx=txtCanvas.getContext('2d');const textAnchor={x:0,y:0};let screenDpr=1,lastUiMs=0;
   function visible(x,y,r=80){const hx=vw/(camera.zoom*2)+r,hy=vh/(camera.zoom*2)+r;return Math.abs(x-camera.x)<hx&&Math.abs(y-camera.y)<hy;}
-  const ROAD=[[490,735],[740,715],[990,725],[1260,735],[1510,742],[1750,735],[2240,735],[2790,735],[2900,735],[3160,735],[3600,735],[4010,708]];
-  const TREE_LOBES=[[-.4,-.29,.70],[.45,-.24,.77],[0,-.65,.83],[0,-.12,.94]];
   function ground(){
-    P.box(CFG.world.width/2,CFG.world.height/2,CFG.world.width,CFG.world.height,'#f7f0df');
-    for(const r of REGIONS)P.box((r.min+r.max)/2,CFG.world.height/2,r.max-r.min,CFG.world.height,r.color,.6);
-    P.oval(484,740,368,318,'#f2e5ca',.72);P.oval(1780,739,530,460,'#e8eddc',.69);P.oval(1950,709,330,300,'#e3e1df',.42);
-    P.oval(CFG.boss.x,CFG.boss.y,CFG.boss.radius*.89,CFG.boss.radius*.89,'#e7deea',.42);
-    P.ring(CFG.boss.x,CFG.boss.y,CFG.boss.radius,'#afa0b0',.49,2.1,56);
-    P.ring(CFG.boss.x,CFG.boss.y,CFG.boss.radius*.70,'#a994ab',.18,2,44);
-    // Inscribed rays inside ancient arena, pale enough to stay below enemies in the visual hierarchy.
-    for(let k=0;k<10;k++){const a=k/10*Math.PI*2,ra=174,rb=224;P.line(CFG.boss.x+Math.cos(a)*ra,CFG.boss.y+Math.sin(a)*ra,CFG.boss.x+Math.cos(a)*rb,CFG.boss.y+Math.sin(a)*rb,3,'#c1a6c2',.27);}
-    P.path(ROAD,65,'#e3d7bf',1);P.path(ROAD,55,'#f5e8cf',1);
-    P.path(ROAD,2.4,'#b5a58a',.35);drawGateTerrain();
-    for(let x=0;x<=CFG.world.width;x+=105){if(!visible(x,camera.y,140))continue;for(let y=0;y<=CFG.world.height;y+=105){if(!visible(x,y,20))continue;P.line(x-3,y,x+3,y,.9,'#c3b8a5',.28);P.line(x,y-3,x,y+3,.9,'#c3b8a5',.28);}}
-    P.line(10,11,CFG.world.width-10,11,2,'#64757a',.32);P.line(CFG.world.width-10,11,CFG.world.width-10,CFG.world.height-10,2,'#64757a',.32);
-    P.line(CFG.world.width-10,CFG.world.height-10,10,CFG.world.height-10,2,'#64757a',.32);P.line(10,CFG.world.height-10,10,11,2,'#64757a',.32);
+    regionGround();
+    P.oval(484,740,368,318,'#f2e5ca',.62);
+    P.oval(CFG.boss.x,CFG.boss.y,CFG.boss.radius*.89,CFG.boss.radius*.89,'#e6dde8',.4);
+    P.ring(CFG.boss.x,CFG.boss.y,CFG.boss.radius,'#b4a7b4',.42,2,32);
+    P.ring(CFG.boss.x,CFG.boss.y,CFG.boss.radius*.7,'#b7a8b7',.2,1.4,24);
+    drawGateTerrain();
     // Village safety circle and the investment workbench.
     P.oval(504,735,98,81,'#dceade',.65);P.ring(504,735,92,'#86a68e',.52,1.8,28);
     P.dot(503,730,16,'#fafbf3');P.ring(503,730,17,'#789b89',.73,2,24);P.dot(503,730,7,'#a5c9a3',.8);
@@ -1545,16 +1616,7 @@ if(e.hp<=0){e.dead=true;world.kills++;if(e.kind!=='boss')world.regionKills[e.reg
     P.box(x,y+height*.33,31,43,'#5f7170');P.dot(x+9,y+height*.30,2.8,'#f8daa0');
     P.line(x-w*.49,y+height*.53,x+w*.49,y+height*.53,2,'#e8dac3');
   }
-  function drawTree(t){if(!visible(t.x,t.y,85))return;const {x,y,r,kind,variant}=t;if(kind==='rock'){
-      P.oval(x+2,y+9,r*.8,r*.36,'#8e8d81',.18);P.oval(x,y-r*.1,r*.83,r*.75,'#46585b');P.oval(x-1,y-r*.18,r*.75,r*.68,'#b7b6a7');
-      P.line(x-r*.50,y-r*.28,x-.7*r,y-r*.48,2,'#e7ded0',.85);P.line(x-r*.2,y-r*.64,x+r*.33,y-r*.24,1.5,'#f5f1dc',.7);return;}
-    P.oval(x,y+r*.75,r*.76,r*.22,'#8c9588',.25);P.box(x,y+r*.32,11,r*.8,'#6e7568');P.box(x,y+r*.29,7,r*.76,'#c4b79a');
-    const g=variant>.52?'#799b88':'#94ad88',h=variant>.52?'#97b59a':'#b3c49a';
-    for(const [ox,oy,sz] of TREE_LOBES){
-      P.oval(x+ox*r,y+oy*r,r*sz*1.07,r*sz*.96,'#546d66',.83);P.oval(x+ox*r,y+oy*r-2,r*sz*.93,r*sz*.82,g,.93);}
-    P.line(x-r*.27,y-r*.59,x-r*.08,y-r*.78,1.7,h,.77);
-    P.dot(x+r*.43,y-r*.57,2.4,'#f4d9a3',.57);
-  }
+  function drawTree(t){drawRegionProp(t);}
   // Procedural pencil grammar. Authoritative hitboxes remain untouched; this is GPU-only art.
   // Each creature keeps an ID-seeded silhouette; only subpixel contour offsets change at ~8 fps.
   const SKETCH={ink:'#384650',boilMs:135,hitFlashMs:175,contourWidth:2.55,echoWidth:1.15,hatchWidth:1.25};
@@ -1916,7 +1978,7 @@ if(e.hp<=0){e.dead=true;world.kills++;if(e.kind!=='boss')world.regionKills[e.reg
     txtCtx.globalAlpha=1;txtCtx.textAlign='left';if(visible(683,616,150)){renderer.worldToScreenInto(683,561,anchorReuse);txtCtx.textAlign='center';txtCtx.font='900 12px system-ui';txtCtx.lineWidth=3.4;txtCtx.strokeStyle='#fff8ee';txtCtx.strokeText('✎ 연필 공방 · E',anchorReuse.x,anchorReuse.y);txtCtx.fillStyle='#5e635c';txtCtx.fillText('✎ 연필 공방 · E',anchorReuse.x,anchorReuse.y);}
     if(visible(504,735,140)){renderer.worldToScreenInto(504,625,anchorReuse);txtCtx.textAlign='center';txtCtx.font='900 12px system-ui';txtCtx.lineWidth=3.4;txtCtx.strokeStyle='#fffaf0';txtCtx.strokeText('푸른 잉크 샘 · 회복',anchorReuse.x,anchorReuse.y);txtCtx.fillStyle='#568276';txtCtx.fillText('푸른 잉크 샘 · 회복',anchorReuse.x,anchorReuse.y);}
     if(world.bossSpawned&&!world.bossDefeated&&visible(CFG.boss.x,CFG.boss.y,100)){renderer.worldToScreenInto(CFG.boss.x,CFG.boss.y-112,anchorReuse);txtCtx.textAlign='center';txtCtx.font='900 13px system-ui';txtCtx.lineWidth=3.7;txtCtx.strokeStyle='#fffaf0';txtCtx.strokeText('잉크 감시자',anchorReuse.x,anchorReuse.y);txtCtx.fillStyle='#8c647e';txtCtx.fillText('잉크 감시자',anchorReuse.x,anchorReuse.y);}
-    txtCtx.globalAlpha=1;drawGateLabels();
+    txtCtx.globalAlpha=1;drawGateLabels();drawMapLabels();
   }
   let lastCameraAt=0;
   function cameraPose(){const z=vw<590?.80:vw<900?.88:1.03;camera.zoom=z;const hw=vw/(2*z),hh=vh/(2*z),targetX=clamp(player.x,Math.min(hw,CFG.world.width/2),Math.max(hw,CFG.world.width-hw)),targetY=clamp(player.y,Math.min(hh,CFG.world.height/2),Math.max(hh,CFG.world.height-hh));
@@ -1967,10 +2029,10 @@ if(e.hp<=0){e.dead=true;world.kills++;if(e.kind!=='boss')world.regionKills[e.reg
   }
 
   // Bounko tech-view pattern: family tabs -> a compact tree -> stable detail -> explicit investment.
-  let growthTab='ink',growthSelected='inkMax',environmentTarget=null,growthSignature='',estimateSignature='',estimatedShot=null;
+  let growthTab='ink',growthSelected='inkMax',environmentTarget=null,environmentFeedback='',growthSignature='',estimateSignature='',estimatedShot=null;
   function queueProgression(command){world.commands.push(command);wakeInputPreview();}
   function selectGrowth(tab,id){growthTab=tab;growthSelected=id;location.hash=`#/growth?tab=${tab}&item=${id}`;renderGrowth();}
-  function growthNode(id,name,status,selected){const b=document.createElement('button');b.type='button';b.className='growth-node';b.dataset.node=id;b.setAttribute('aria-pressed',String(selected));b.innerHTML='<b></b><small></small>';b.querySelector('b').textContent=name;b.querySelector('small').textContent=status;b.onclick=()=>selectGrowth(growthTab,id);return b;}
+  function growthNode(id,name,status,selected){const b=document.createElement('button');b.type='button';b.className='growth-node';b.dataset.node=id;b.setAttribute('aria-pressed',String(selected));b.innerHTML='<b></b><small></small><span class="growth-ranks" aria-hidden="true"></span>';const stat=STAT_DEFS.find(s=>s.id===id);if(stat){const fill=document.createElement('i');fill.style.width=(player.investments[id]/stat.max*100)+'%';b.querySelector('.growth-ranks').append(fill);}else b.querySelector('.growth-ranks').remove();b.querySelector('b').textContent=name;b.querySelector('small').textContent=status;b.onclick=()=>selectGrowth(growthTab,id);return b;}
   function renderGrowth(){if(ui?.modal!=='growth')return;
     const signature=JSON.stringify([growthTab,growthSelected,player.level,player.investments,world.regionKills,world.gates.door.open,world.gates.bridge.open]);if(signature===growthSignature)return;growthSignature=signature;
     $('growthPoints').textContent=`LV ${player.level} · 남은 포인트 ${availablePoints(player)}`;
@@ -1981,7 +2043,7 @@ if(e.hp<=0){e.dead=true;world.kills++;if(e.kind!=='boss')world.regionKills[e.reg
       for(const [i,item]of items.entries()){if(i){const link=document.createElement('span');link.className='growth-link';link.textContent='↓';tree.append(link);}tree.append(growthNode(...item,item[0]===growthSelected));}
       const current=items.find(x=>x[0]===growthSelected)||items[0],gate=gateOf(current[0]);
       $('growthDetailTitle').textContent=current[1];$('growthDetailText').textContent=gate?`${gate.instruction} 선행 조건: ${REGIONS[gate.region].name} 공략 ${world.regionKills[gate.region]}/${REGIONS[gate.region].goal}. 표시 지점에서 E / 그리기를 선택합니다.`:current[0]==='forest'?'지역 안에서 자유롭게 걷고 적 5마리를 물리치면 동쪽 종이벽에 문을 그릴 수 있습니다.':current[0]==='marsh'?'숲 공략과 문 완성이 선행 조건입니다. 습지 적 5마리를 물리치고 동쪽 끊어진 길에 다리를 그립니다.':'습지 공략과 다리 완성이 선행 조건입니다. 채석장의 적을 물리치면 잉크 감시자가 나타납니다.';
-      $('growthEffect').textContent=gate?`실제 잉크 비용 ${gateInkCost(player,gate)} · 통로 폭 ${gate.passage}`:current[2];$('investButton').hidden=true;
+      $('growthEffect').textContent=gate?`실제 잉크 비용 ${gateInkCost(player,gate)}`:current[2];$('investButton').hidden=true;
     }else{
       const list=STAT_DEFS.filter(s=>s.group===growthTab);for(const s of list)tree.append(growthNode(s.id,s.name,`${player.investments[s.id]} / ${s.max}${player.investments[s.id]===s.max?' · 완료':availablePoints(player)>0?' · 투자 가능':' · 포인트 필요'}`,s.id===growthSelected));
       const spec=list.find(s=>s.id===growthSelected)||list[0],rank=player.investments[spec.id];$('growthDetailTitle').textContent=spec.name;$('growthDetailText').textContent=`포인트 1개로 ${spec.unit} +${spec.step}. 최대 ${spec.max}회. 선택만으로 투자하지 않습니다.`;
@@ -1992,27 +2054,37 @@ if(e.hp<=0){e.dead=true;world.kills++;if(e.kind!=='boss')world.regionKills[e.reg
   }
   for(const b of $('growthTabs').children)b.onclick=()=>selectGrowth(b.dataset.tab,b.dataset.tab==='explore'?'forest':STAT_DEFS.find(s=>s.group===b.dataset.tab).id);
   $('growthButton').onclick=()=>goRoute('growth');$('investButton').onclick=()=>queueProgression({type:'invest',id:growthSelected});$('redistributeButton').onclick=()=>queueProgression({type:'redistribute'});
-  function armEnvironment(){if(!drawingAllowed())return;const g=nearbyGate(player);if(!g){if(hypot(player.x-683,player.y-615)<110)goRoute('growth');else showResult('환경 그리기는 표시된 문·다리 지점 가까이에서 시작합니다.',1700);return;}if(!regionCleared(g.region)){showResult(`${REGIONS[g.region].name} 공략 ${world.regionKills[g.region]}/${REGIONS[g.region].goal} 완료 후 그릴 수 있어요.`,1900);return;}dropDraw();environmentTarget=g.id;$('strokeStatus').textContent=g.instruction;showResult(`${g.name} · 잉크 ${gateInkCost(player,g)} · Esc로 취소`,1800);}
+  function armEnvironment(){if(!drawingAllowed())return;const g=nearbyGate(player);if(!g){if(hypot(player.x-683,player.y-615)<110)goRoute('growth');else showResult('환경 그리기는 표시된 문·다리 지점 가까이에서 시작합니다.',1700);return;}if(!regionCleared(g.region)){showResult(`${REGIONS[g.region].name} 공략 ${world.regionKills[g.region]}/${REGIONS[g.region].goal} 완료 후 그릴 수 있어요.`,1900);return;}dropDraw();environmentTarget=g.id;environmentFeedback='';$('strokeStatus').textContent=g.instruction;showResult(`${g.name} · 잉크 ${gateInkCost(player,g)} · Esc로 취소`,1800);}
+  $('cancelEnvironment').onclick=()=>dropDraw();
   $('environmentButton').onclick=()=>{focusGameplay();armEnvironment();};
   document.addEventListener('keydown',e=>{if(e.code==='Escape'&&environmentTarget)dropDraw();});
-  function updateProgressionHud(){const quest=progressionQuest();$('questTitle').textContent=quest.title;$('questText').textContent=quest.text;$('questProgress').max=quest.max;$('questProgress').value=quest.value;$('regionText').textContent=quest.title+' · '+quest.text;
-    $('inkText').textContent=`잉크 ${Math.floor(player.ink)} / ${player.maxInk}`;
-    const g=environmentTarget?gateOf(environmentTarget):nearbyGate(player);$('environmentButton').textContent=g?`${g.id==='door'?'문':'다리'} 그리기`:'환경 그리기';$('environmentButton').setAttribute('aria-pressed',String(!!environmentTarget));
+  function updateProgressionHud(){const quest=progressionQuest(),region=REGIONS[regionAt(player.x)];$('questTitle').textContent=quest.title;$('questText').textContent=quest.text;$('questProgress').max=quest.max;$('questProgress').value=quest.value;$('regionTitle').textContent=region.name;$('regionText').textContent=quest.text;$('regionProgress').value=quest.value;$('regionProgress').max=quest.max;
+    if(environmentTarget&&world.gates[environmentTarget].open){environmentTarget=null;environmentFeedback='';}
+    const g=environmentTarget?gateOf(environmentTarget):nearbyGate(player);$('environmentButton').textContent=g?`E · ${g.id==='door'?'문':'다리'} 마법진`:'E · 환경 마법진';$('environmentButton').setAttribute('aria-pressed',String(!!environmentTarget));
     let cost=environmentTarget?gateInkCost(player,g):0;
     if(!cost&&drawInput.points.length>=3&&drawInput.length>=16){const signature=drawInput.points.length+':'+drawInput.length+':'+selectedGlyph;if(signature!==estimateSignature){estimateSignature=signature;estimatedShot=makeShotData(drawInput.points);}cost=spellInkCost(player,estimatedShot);}else if(!drawInput.points.length){estimateSignature='';estimatedShot=null;}
-    $('inkEstimate').textContent=cost?`예상 잉크 ${cost.toFixed(1)}${player.ink<cost?` · ${cost.toFixed(1)} 필요 / 약 ${inkWait(player,cost).toFixed(1)}초 대기`:''}`:`회복 ${player.inkRegen}/초 · 소비 뒤 0.75초 대기`;
+    const shortage=cost>player.ink,fill=100*player.ink/player.maxInk,pending=100*Math.min(cost,player.ink)/player.maxInk;
+    $('inkText').textContent=`${Math.floor(player.ink)} / ${player.maxInk}`;$('inkFill').style.width=fill+'%';$('inkReservation').style.left=Math.max(0,fill-pending)+'%';$('inkReservation').style.width=pending+'%';
+    $('inkBar').setAttribute('aria-valuenow',String(Math.floor(player.ink)));$('inkBar').setAttribute('aria-valuemax',String(player.maxInk));$('inkMeter').dataset.state=shortage?'shortage':player.inkDelayMs>0?'waiting':player.ink<player.maxInk?'recovering':'ready';
+    $('inkRecovery').textContent=shortage?`부족 · 약 ${inkWait(player,cost).toFixed(1)}초`:player.inkDelayMs>0?`${(player.inkDelayMs/1000).toFixed(1)}초 뒤 회복`:player.ink<player.maxInk?`초당 +${player.inkRegen} 회복`:'가득 참';
+    $('inkEstimate').textContent=cost?`예상 소모 ${cost.toFixed(1)}${shortage?` · ${cost.toFixed(1)} 필요`:''}`:`공격과 환경 그림에 함께 사용 · 회복 ${player.inkRegen}/초`;
+    $('drawMode').textContent=environmentTarget?'관문 마법진':'한 획 마법';
+    if(environmentTarget)$('strokeStatus').textContent=environmentFeedback||'원 한 바퀴 → 다섯 꼭짓점 별 → 놓기';
+    $('cancelEnvironment').hidden=!environmentTarget;
     persistProgression();renderGrowth();
   }
-  function drawGateTerrain(){for(const g of GATES){
-    const state=world.gates[g.id],barrierColor=g.id==='door'?'#d7c2a6':'#abc7ce';
-    P.box(g.x,CFG.world.height/2,g.width,CFG.world.height,barrierColor,.78);
-    if(state.open)P.box(g.x,g.y,g.width+8,g.passage,g.id==='door'?'#f5e8cf':'#d6bd91',1);
-    else{P.box(g.x,g.y,g.width-12,g.passage,g.id==='door'?'#faf0d9':'#6b969f',.92);P.ring(g.x,g.y,44,regionCleared(g.region)?'#467c68':'#9a8774',.8,3,20);}
-    P.line(g.x-g.width/2,0,g.x-g.width/2,CFG.world.height,2,'#677877',.5);P.line(g.x+g.width/2,0,g.x+g.width/2,CFG.world.height,2,'#677877',.5);
-    if(state.open){for(let i=1;i<state.stroke.length;i++){const a=state.stroke[i-1],b=state.stroke[i];P.line(g.x+a.x,g.y+a.y,g.x+b.x,g.y+b.y,4,'#365e61',.95);}}
+  function drawGateTerrain(){for(const g of GATES){const state=world.gates[g.id],progress=state.open?clamp((world.clockMs-state.openedAtMs)/650,0,1):0;
+    if(g.id==='door'){for(let y=0;y<CFG.world.height;y+=130){const end=Math.min(y+130,CFG.world.height),low=g.y-g.passage/2,high=g.y+g.passage/2,parts=state.open?[[y,Math.min(end,low)],[Math.max(y,high),end]]:[[y,end]];for(const [a,b]of parts){if(b<=a)continue;const dx=((y/130)%3-1)*4,pts=[[g.x-g.width/2,a],[g.x+g.width/2,a],[g.x+g.width/2+dx,b],[g.x-g.width/2,b]];sketchPolygon(pts,'#ddcfae',.85);sketchOutline(pts,1.5,'#b2a38a',.38);if(b-a>45)P.line(g.x-37,a+30,g.x+40,a+35,1,'#b4a88d',.25);}}}
+    else{P.box(g.x,730,g.width,1460,'#aac5c6',.68);P.line(g.x-g.width/2,0,g.x-g.width/2,1460,2,'#91aaa2',.45);P.line(g.x+g.width/2,0,g.x+g.width/2,1460,2,'#91aaa2',.45);for(let y=80;y<1460;y+=125)P.line(g.x-39,y,g.x+36,y+7,1.2,'#83aaa9',.35);}
+    if(state.open){P.box(g.x,g.y,g.width+8,g.passage,g.id==='door'?'#f3e8cf':'#dfc79e',progress);
+      if(g.id==='door'){P.line(g.x-55,g.y+85,g.x-55,g.y-84,4,'#8ca599',progress);P.line(g.x-55,g.y-84,g.x+55,g.y-84,4,'#8ca599',progress);P.line(g.x+55,g.y-84,g.x+55,g.y+85,4,'#8ca599',progress);}
+      else for(let x=g.x-60;x<=g.x+60;x+=20){P.box(x,g.y,17,g.passage-12,'#ceba94',progress);P.line(x-8,g.y-84,x-8,g.y+84,1.4,'#9c9279',progress*.5);}
+      drawStroke(state.stroke,g.x,g.y,0,1,'#688d87',.25+(1-progress)*.5,2.4,progress);
+      if(progress<1)P.ring(g.x,g.y,65+progress*30,'#729f92',(1-progress)*.5,2,24);
+    }else{P.ring(g.x,g.y,68,regionCleared(g.region)?'#81a89a':'#b0ab94',.47,2,24);const seal=glyphReferences.paths.starcircle.map(([x,y])=>({x:x*80,y:y*80}));drawStroke(seal,g.x,g.y,0,1,'#8da391',.35,1.5);}
   }}
-  function drawGateLabels(){for(const g of GATES){if(!visible(g.x,g.y,220))continue;renderer.worldToScreenInto(g.x,g.y-115,anchorReuse);txtCtx.textAlign='center';txtCtx.font='900 12px system-ui';txtCtx.lineWidth=4;txtCtx.strokeStyle='#fffaf0';const text=world.gates[g.id].open?g.name+' · 완성':g.name+' · '+(regionCleared(g.region)?'E / 그리기':REGIONS[g.region].name+' 공략 필요');txtCtx.strokeText(text,anchorReuse.x,anchorReuse.y);txtCtx.fillStyle='#345c60';txtCtx.fillText(text,anchorReuse.x,anchorReuse.y);}}
-  function drawEnvironmentGuide(){if(!environmentTarget)return;const g=gateOf(environmentTarget),raw=g.id==='door'?[[-40,60],[-40,-55],[0,-70],[40,-55],[40,60]]:[[-65,0],[65,0]],points=raw.map(([x,y])=>{const s={x:0,y:0};renderer.worldToScreenInto(g.x+x,g.y+y,s);return s;});drawCtx.save();drawCtx.setLineDash([5,5]);drawCtx.lineWidth=3;drawCtx.strokeStyle='#538b81';drawCtx.beginPath();points.forEach((p,i)=>i?drawCtx.lineTo(p.x,p.y):drawCtx.moveTo(p.x,p.y));drawCtx.stroke();drawCtx.setLineDash([]);for(const p of [points[0],points.at(-1)]){drawCtx.beginPath();drawCtx.arc(p.x,p.y,7,0,Math.PI*2);drawCtx.stroke();}drawCtx.restore();}
+  function drawGateLabels(){for(const g of GATES){if(!visible(g.x,g.y,220))continue;renderer.worldToScreenInto(g.x,g.y-116,anchorReuse);txtCtx.textAlign='center';txtCtx.font='800 12px system-ui';txtCtx.lineWidth=4;txtCtx.strokeStyle='#fffaf0';const text=world.gates[g.id].open?g.name+' · 완성':g.name+' · '+(regionCleared(g.region)?'별+원 마법진':REGIONS[g.region].name+' 공략 필요');txtCtx.strokeText(text,anchorReuse.x,anchorReuse.y);txtCtx.fillStyle='#4f6e63';txtCtx.fillText(text,anchorReuse.x,anchorReuse.y);}}
+  function drawEnvironmentGuide(){if(!environmentTarget)return;const g=gateOf(environmentTarget),points=glyphReferences.paths.starcircle.map(([x,y])=>{const s={x:0,y:0};renderer.worldToScreenInto(g.x+x*80,g.y+y*80,s);return s;});drawCtx.save();drawCtx.globalAlpha=.33;drawCtx.lineWidth=2;drawCtx.strokeStyle='#447d74';drawCtx.setLineDash([5,4]);drawCtx.beginPath();points.forEach((p,i)=>i?drawCtx.lineTo(p.x,p.y):drawCtx.moveTo(p.x,p.y));drawCtx.stroke();drawCtx.setLineDash([]);drawCtx.beginPath();drawCtx.arc(points[0].x,points[0].y,6,0,Math.PI*2);drawCtx.stroke();drawCtx.restore();}
   // Device collection: BLOOM GameKit createDOMInput + ActionState, one writer for commands.
   const ui={modal:null,returnFocus:null};
   const drawInput={pointer:null,points:[],length:0,finished:null,previewUntilMs:0,aim:0,center:null,origin:null,environmentPoints:[]};
@@ -2031,12 +2103,12 @@ if(e.hp<=0){e.dead=true;world.kills++;if(e.kind!=='boss')world.regionKills[e.reg
     if(hypot(dx,dy)>=24)drawInput.aim=Math.atan2(dy,dx);
     drawInput.center=center;drawInput.origin=origin;
   }
-  function dropDraw(keepEnvironment=false){if(!keepEnvironment)environmentTarget=null;drawInput.environmentPoints=[];drawInput.pointer=null;drawInput.points.length=0;drawInput.length=0;drawInput.finished=null;drawInput.previewUntilMs=0;drawInput.center=null;drawInput.origin=null;gesture.drawId=null;setSlowUi(false);$('strokeStatus').textContent='전장에 한 획 · 놓는 순간 방향 확정';}
+  function dropDraw(keepEnvironment=false){if(!keepEnvironment){environmentTarget=null;environmentFeedback='';}drawInput.environmentPoints=[];drawInput.pointer=null;drawInput.points.length=0;drawInput.length=0;drawInput.finished=null;drawInput.previewUntilMs=0;drawInput.center=null;drawInput.origin=null;gesture.drawId=null;setSlowUi(false);$('strokeStatus').textContent='전장에 한 획 · 놓는 순간 방향 확정';}
   function finishDraw(){
     if(!drawingAllowed()){dropDraw();return;}
     updateDrawingAim();const points=drawInput.points.slice(),length=drawInput.length,aim=drawInput.aim,environment=environmentTarget,envPoints=drawInput.environmentPoints.slice();dropDraw();focusGameplay();
     if(points.length<3||length<16){showResult('조금 더 길게 한 획을 그려 주세요',1100);return;}
-    if(environment){const g=gateOf(environment),stride=Math.max(1,Math.ceil(envPoints.length/34)),sampled=envPoints.filter((_,i)=>i%stride===0);if(sampled.at(-1)!==envPoints.at(-1))sampled.push(envPoints.at(-1));if(!validGateStroke(g,sampled)){showResult(g.instruction+' · 무효 획은 무료입니다.',1900);return;}queueProgression({type:'gate',id:environment,points:sampled});drawInput.finished=points;drawInput.previewUntilMs=performance.now()+350;return;}
+    if(environment){const g=gateOf(environment),sampled=simplifyGateStroke(envPoints),result=magicCircleResult(sampled);environmentTarget=environment;if(!result.ok){environmentFeedback=result.reason;showResult(result.reason+' · 잉크 소비 없음',2400);return;}environmentFeedback='별과 둘레원 확인 · 완성 명령 처리 중';queueProgression({type:'gate',id:environment,points:sampled});drawInput.finished=points;drawInput.previewUntilMs=performance.now()+350;return;}
     gesture.lastCombatStroke=points.map(p=>({...p}));drawInput.finished=points;drawInput.previewUntilMs=performance.now()+220;
     try{const shot=normalizeCommand({type:'cast',shot:{...makeShotData(points),aim}}).shot;world.commands.push({type:'cast',shot});wakeInputPreview();$('lastSpell').textContent=`${shot.name} · 피해 ${Math.round(shot.baseDamage*player.power)}`;$('strokeStatus').textContent='방향 확정 · 마법 준비 중';
       if(shot.kind==='normal')showResult('일반 낙서 · 그린 방향으로 발사',950);
@@ -2044,7 +2116,7 @@ if(e.hp<=0){e.dead=true;world.kills++;if(e.kind!=='boss')world.regionKills[e.reg
   function collectCombatDrawing(e){
     if(e.type==='down'&&drawInput.pointer===null&&drawingAllowed()){
       focusGameplay();dropDraw(true);drawInput.pointer=e.pointerId;gesture.drawId=e.pointerId;gesture.startMs=world.clockMs;
-      const actor=displayedDrawingActor();drawInput.aim=Math.atan2(actor.faceY,actor.faceX);setSlowUi(true);appendEnvironmentPoint(e);appendDrawPoint(sampleFromPointer(e));updateDrawingAim();$('strokeStatus').textContent='이동으로 조준 · 놓으면 발사';
+      const actor=displayedDrawingActor();drawInput.aim=Math.atan2(actor.faceY,actor.faceX);setSlowUi(true);appendEnvironmentPoint(e);appendDrawPoint(sampleFromPointer(e));updateDrawingAim();environmentFeedback='';$('strokeStatus').textContent=environmentTarget?'둘레원 한 바퀴 → 다섯 꼭짓점 별':'이동으로 조준 · 놓으면 발사';
     }else if(drawInput.pointer===e.pointerId){
       if(!drawingAllowed()||e.type==='cancel'){dropDraw();return;}
       if(e.type==='move'||e.type==='up'){appendEnvironmentPoint(e);appendDrawPoint(sampleFromPointer(e));updateDrawingAim();if(e.type==='up')finishDraw();}
@@ -2180,7 +2252,11 @@ if(e.hp<=0){e.dead=true;world.kills++;if(e.kind!=='boss')world.regionKills[e.reg
     previewDataset();}
   function paintMinimap(){const w=mini.width/dpr,h=mini.height/dpr;miniCtx.setTransform(dpr,0,0,dpr,0,0);miniCtx.clearRect(0,0,w,h);miniCtx.fillStyle='#f5eddf';miniCtx.fillRect(0,0,w,h);
     const xx=x=>x/CFG.world.width*w, yy=y=>y/CFG.world.height*h;
-    miniCtx.strokeStyle='#d1bca2';miniCtx.lineWidth=5;miniCtx.beginPath();miniCtx.moveTo(xx(490),yy(735));miniCtx.lineTo(xx(CFG.boss.x),yy(CFG.boss.y));miniCtx.stroke();
+    for(const [i,r]of REGIONS.entries()){miniCtx.fillStyle=['#dbe5cc','#ccddda','#e3d8c6'][i];miniCtx.fillRect(xx(r.min),0,xx(r.max-r.min),h);}
+    miniCtx.fillStyle='#91b2b6';for(const p of REGION_TERRAIN.ponds){miniCtx.beginPath();miniCtx.ellipse(xx(p.x),yy(p.y),xx(p.rx),yy(p.ry),0,0,Math.PI*2);miniCtx.fill();}
+    for(const g of GATES){miniCtx.fillStyle=world.gates[g.id].open?'#549688':'#b78a59';miniCtx.fillRect(xx(g.x)-2,yy(g.y)-4,4,8);}
+    miniCtx.strokeStyle='#bcb18f';miniCtx.lineWidth=2;miniCtx.beginPath();REGION_TERRAIN.route.forEach(([x,y],i)=>i?miniCtx.lineTo(xx(x),yy(y)):miniCtx.moveTo(xx(x),yy(y)));miniCtx.stroke();
+
     miniCtx.fillStyle='#9eae9a';for(const t of world.trees)miniCtx.fillRect(xx(t.x),yy(t.y),1.8,1.8);
     miniCtx.fillStyle='#9c7c6a';for(const b of world.houses)miniCtx.fillRect(xx(b.x)-3,yy(b.y)-2.5,6,5);
     miniCtx.strokeStyle='#9a6e96';miniCtx.beginPath();miniCtx.arc(xx(CFG.boss.x),yy(CFG.boss.y),Math.max(5,CFG.boss.radius/CFG.world.width*w),0,Math.PI*2);miniCtx.stroke();
@@ -2552,7 +2628,7 @@ if(e.hp<=0){e.dead=true;world.kills++;if(e.kind!=='boss')world.regionKills[e.reg
   const MP_SEED=0x31415,MP_INPUT_SIZE=2;
   const MP_PROFILE={mode:'rollback',tickRate:30,baseInputDelayTicks:1,rollbackWindowTicks:16,
     stateHistorySize:64,maxCatchupSteps:8,checksumInterval:30,maxSnapshotBytes:2*1024*1024,
-    maxHistoryBytes:16*1024*1024,maxCommandBytes:2048,maxPendingCommands:64,
+    maxHistoryBytes:16*1024*1024,maxCommandBytes:4096,maxPendingCommands:64,
     adaptiveInputDelay:true,inputScheduling:'network',inputSafetyMarginMs:8,inputJitterMultiplier:2};
   const MP_TEXT=new TextEncoder(),MP_READER=new TextDecoder('utf-8',{fatal:true});
   const MP_EMPTY=new Uint8Array(MP_INPUT_SIZE);
@@ -2587,7 +2663,7 @@ if(e.hp<=0){e.dead=true;world.kills++;if(e.kind!=='boss')world.regionKills[e.reg
       for(const name of canonicalArrays)if(!Array.isArray(w[name])||w[name].length>({enemies:75,projectiles:65,hazards:150,casts:8,pickups:120,fields:350,castQueue:8}[name]))return false;
       // Recovery must preserve the released direction; missing/invalid aim is not an old-schema fallback.
       for(const name of ['casts','castQueue'])if(w[name].some(c=>!validShotAim(c?.shot?.aim)))return false;
-      if(!Array.isArray(w.regionKills)||w.regionKills.length!==3||w.regionKills.some(n=>!Number.isSafeInteger(n)||n<0)||!w.gates||GATES.some(g=>!w.gates[g.id]||typeof w.gates[g.id].open!=='boolean'||!Array.isArray(w.gates[g.id].stroke)||w.gates[g.id].open&&!validGateStroke(g,w.gates[g.id].stroke)))return false;
+      if(!Array.isArray(w.regionKills)||w.regionKills.length!==3||w.regionKills.some(n=>!Number.isSafeInteger(n)||n<0)||!w.gates||GATES.some(g=>!w.gates[g.id]||typeof w.gates[g.id].open!=='boolean'||!Number.isFinite(w.gates[g.id].openedAtMs)||w.gates[g.id].openedAtMs<0||!Array.isArray(w.gates[g.id].stroke)||w.gates[g.id].open&&!validGateStroke(g,w.gates[g.id].stroke)))return false;
       for(const a of data.actors)if(!validProfile(a)||!Number.isFinite(a.ink)||a.ink<0||a.ink>derivedStats(a.investments).maxInk+1e-6||!Number.isFinite(a.inkDelayMs)||a.inkDelayMs<0||a.inkDelayMs>750||!a||!Number.isFinite(a.x)||!Number.isFinite(a.y)||!Number.isFinite(a.hp)||!a.dash||!Number.isFinite(a.dash.charges))return false;
       if(typeof data.shared!=='boolean')return false;
       return true;

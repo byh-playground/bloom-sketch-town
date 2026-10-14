@@ -43,22 +43,13 @@
   const txtCanvas=document.createElement('canvas');txtCanvas.id='worldText';txtCanvas.setAttribute('aria-hidden','true');txtCanvas.style.cssText='position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:1';field.after(txtCanvas);
   const txtCtx=txtCanvas.getContext('2d');const textAnchor={x:0,y:0};let screenDpr=1,lastUiMs=0;
   function visible(x,y,r=80){const hx=vw/(camera.zoom*2)+r,hy=vh/(camera.zoom*2)+r;return Math.abs(x-camera.x)<hx&&Math.abs(y-camera.y)<hy;}
-  const ROAD=[[490,735],[740,715],[990,725],[1260,735],[1510,742],[1750,735],[2240,735],[2790,735],[2900,735],[3160,735],[3600,735],[4010,708]];
-  const TREE_LOBES=[[-.4,-.29,.70],[.45,-.24,.77],[0,-.65,.83],[0,-.12,.94]];
   function ground(){
-    P.box(CFG.world.width/2,CFG.world.height/2,CFG.world.width,CFG.world.height,'#f7f0df');
-    for(const r of REGIONS)P.box((r.min+r.max)/2,CFG.world.height/2,r.max-r.min,CFG.world.height,r.color,.6);
-    P.oval(484,740,368,318,'#f2e5ca',.72);P.oval(1780,739,530,460,'#e8eddc',.69);P.oval(1950,709,330,300,'#e3e1df',.42);
-    P.oval(CFG.boss.x,CFG.boss.y,CFG.boss.radius*.89,CFG.boss.radius*.89,'#e7deea',.42);
-    P.ring(CFG.boss.x,CFG.boss.y,CFG.boss.radius,'#afa0b0',.49,2.1,56);
-    P.ring(CFG.boss.x,CFG.boss.y,CFG.boss.radius*.70,'#a994ab',.18,2,44);
-    // Inscribed rays inside ancient arena, pale enough to stay below enemies in the visual hierarchy.
-    for(let k=0;k<10;k++){const a=k/10*Math.PI*2,ra=174,rb=224;P.line(CFG.boss.x+Math.cos(a)*ra,CFG.boss.y+Math.sin(a)*ra,CFG.boss.x+Math.cos(a)*rb,CFG.boss.y+Math.sin(a)*rb,3,'#c1a6c2',.27);}
-    P.path(ROAD,65,'#e3d7bf',1);P.path(ROAD,55,'#f5e8cf',1);
-    P.path(ROAD,2.4,'#b5a58a',.35);drawGateTerrain();
-    for(let x=0;x<=CFG.world.width;x+=105){if(!visible(x,camera.y,140))continue;for(let y=0;y<=CFG.world.height;y+=105){if(!visible(x,y,20))continue;P.line(x-3,y,x+3,y,.9,'#c3b8a5',.28);P.line(x,y-3,x,y+3,.9,'#c3b8a5',.28);}}
-    P.line(10,11,CFG.world.width-10,11,2,'#64757a',.32);P.line(CFG.world.width-10,11,CFG.world.width-10,CFG.world.height-10,2,'#64757a',.32);
-    P.line(CFG.world.width-10,CFG.world.height-10,10,CFG.world.height-10,2,'#64757a',.32);P.line(10,CFG.world.height-10,10,11,2,'#64757a',.32);
+    regionGround();
+    P.oval(484,740,368,318,'#f2e5ca',.62);
+    P.oval(CFG.boss.x,CFG.boss.y,CFG.boss.radius*.89,CFG.boss.radius*.89,'#e6dde8',.4);
+    P.ring(CFG.boss.x,CFG.boss.y,CFG.boss.radius,'#b4a7b4',.42,2,32);
+    P.ring(CFG.boss.x,CFG.boss.y,CFG.boss.radius*.7,'#b7a8b7',.2,1.4,24);
+    drawGateTerrain();
     // Village safety circle and the investment workbench.
     P.oval(504,735,98,81,'#dceade',.65);P.ring(504,735,92,'#86a68e',.52,1.8,28);
     P.dot(503,730,16,'#fafbf3');P.ring(503,730,17,'#789b89',.73,2,24);P.dot(503,730,7,'#a5c9a3',.8);
@@ -78,16 +69,7 @@
     P.box(x,y+height*.33,31,43,'#5f7170');P.dot(x+9,y+height*.30,2.8,'#f8daa0');
     P.line(x-w*.49,y+height*.53,x+w*.49,y+height*.53,2,'#e8dac3');
   }
-  function drawTree(t){if(!visible(t.x,t.y,85))return;const {x,y,r,kind,variant}=t;if(kind==='rock'){
-      P.oval(x+2,y+9,r*.8,r*.36,'#8e8d81',.18);P.oval(x,y-r*.1,r*.83,r*.75,'#46585b');P.oval(x-1,y-r*.18,r*.75,r*.68,'#b7b6a7');
-      P.line(x-r*.50,y-r*.28,x-.7*r,y-r*.48,2,'#e7ded0',.85);P.line(x-r*.2,y-r*.64,x+r*.33,y-r*.24,1.5,'#f5f1dc',.7);return;}
-    P.oval(x,y+r*.75,r*.76,r*.22,'#8c9588',.25);P.box(x,y+r*.32,11,r*.8,'#6e7568');P.box(x,y+r*.29,7,r*.76,'#c4b79a');
-    const g=variant>.52?'#799b88':'#94ad88',h=variant>.52?'#97b59a':'#b3c49a';
-    for(const [ox,oy,sz] of TREE_LOBES){
-      P.oval(x+ox*r,y+oy*r,r*sz*1.07,r*sz*.96,'#546d66',.83);P.oval(x+ox*r,y+oy*r-2,r*sz*.93,r*sz*.82,g,.93);}
-    P.line(x-r*.27,y-r*.59,x-r*.08,y-r*.78,1.7,h,.77);
-    P.dot(x+r*.43,y-r*.57,2.4,'#f4d9a3',.57);
-  }
+  function drawTree(t){drawRegionProp(t);}
   // Procedural pencil grammar. Authoritative hitboxes remain untouched; this is GPU-only art.
   // Each creature keeps an ID-seeded silhouette; only subpixel contour offsets change at ~8 fps.
   const SKETCH={ink:'#384650',boilMs:135,hitFlashMs:175,contourWidth:2.55,echoWidth:1.15,hatchWidth:1.25};
@@ -449,7 +431,7 @@
     txtCtx.globalAlpha=1;txtCtx.textAlign='left';if(visible(683,616,150)){renderer.worldToScreenInto(683,561,anchorReuse);txtCtx.textAlign='center';txtCtx.font='900 12px system-ui';txtCtx.lineWidth=3.4;txtCtx.strokeStyle='#fff8ee';txtCtx.strokeText('✎ 연필 공방 · E',anchorReuse.x,anchorReuse.y);txtCtx.fillStyle='#5e635c';txtCtx.fillText('✎ 연필 공방 · E',anchorReuse.x,anchorReuse.y);}
     if(visible(504,735,140)){renderer.worldToScreenInto(504,625,anchorReuse);txtCtx.textAlign='center';txtCtx.font='900 12px system-ui';txtCtx.lineWidth=3.4;txtCtx.strokeStyle='#fffaf0';txtCtx.strokeText('푸른 잉크 샘 · 회복',anchorReuse.x,anchorReuse.y);txtCtx.fillStyle='#568276';txtCtx.fillText('푸른 잉크 샘 · 회복',anchorReuse.x,anchorReuse.y);}
     if(world.bossSpawned&&!world.bossDefeated&&visible(CFG.boss.x,CFG.boss.y,100)){renderer.worldToScreenInto(CFG.boss.x,CFG.boss.y-112,anchorReuse);txtCtx.textAlign='center';txtCtx.font='900 13px system-ui';txtCtx.lineWidth=3.7;txtCtx.strokeStyle='#fffaf0';txtCtx.strokeText('잉크 감시자',anchorReuse.x,anchorReuse.y);txtCtx.fillStyle='#8c647e';txtCtx.fillText('잉크 감시자',anchorReuse.x,anchorReuse.y);}
-    txtCtx.globalAlpha=1;drawGateLabels();
+    txtCtx.globalAlpha=1;drawGateLabels();drawMapLabels();
   }
   let lastCameraAt=0;
   function cameraPose(){const z=vw<590?.80:vw<900?.88:1.03;camera.zoom=z;const hw=vw/(2*z),hh=vh/(2*z),targetX=clamp(player.x,Math.min(hw,CFG.world.width/2),Math.max(hw,CFG.world.width-hw)),targetY=clamp(player.y,Math.min(hh,CFG.world.height/2),Math.max(hh,CFG.world.height-hh));
