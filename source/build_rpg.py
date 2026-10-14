@@ -15,7 +15,7 @@ for name in ['simloop','interpolation','rollback','transport']:
  assert hashlib.sha256(data).hexdigest()==expected, name+' bundle hash mismatch'
  urls[name]='data:text/javascript;base64,'+base64.b64encode(data).decode()
 sdk='const GAMEKIT_URLS='+json.dumps(urls)+';\nconst [gamekitSimloop,gamekitInterpolation]=await Promise.all([import(GAMEKIT_URLS.simloop),import(GAMEKIT_URLS.interpolation)]);\nconst {createLoop,createDeadlineScheduler}=gamekitSimloop;\nconst {InterpolationTimeline}=gamekitInterpolation;\n'+sdk
-parts=''.join((root/f'game_part{i}.js').read_text(encoding='utf-8') for i in range(1,7))
+parts=''.join((root/name).read_text(encoding='utf-8') for name in ['game_part1.js','progression.js','game_part2.js','game_part3.js','progression-ui.js','game_part4.js','game_part5.js','game_part6.js'])
 out=(root/'layout.html').read_text(encoding='utf-8').replace('__CNN_DATA__',cnn).replace('__GLYPH_REFS__',refs).replace('__GAME_JS__',sdk+parts)
 path=root.parent/'index.html'
 path.write_text(out,encoding='utf-8',newline='')

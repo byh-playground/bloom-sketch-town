@@ -1,6 +1,6 @@
   // Device collection: BLOOM GameKit createDOMInput + ActionState, one writer for commands.
   const ui={modal:null,returnFocus:null};
-  const drawInput={pointer:null,points:[],length:0,finished:null,previewUntilMs:0,aim:0,center:null,origin:null};
+  const drawInput={pointer:null,points:[],length:0,finished:null,previewUntilMs:0,aim:0,center:null,origin:null,environmentPoints:[]};
   const sampleFromPointer=o=>({x:clamp(o.x,0,vw),y:clamp(o.y,0,vh)});
   function appendDrawPoint(p){const prev=drawInput.points.at(-1);if(prev){const d=hypot(p.x-prev.x,p.y-prev.y);if(d<1.25)return;drawInput.length+=d;}if(drawInput.points.length<1200)drawInput.points.push(p);}
   function setSlowUi(on){on=on&&!mp.connected;$('slowFx').classList.toggle('visible',on);$('slowIndicator').classList.toggle('visible',on);}
@@ -16,29 +16,34 @@
     if(hypot(dx,dy)>=24)drawInput.aim=Math.atan2(dy,dx);
     drawInput.center=center;drawInput.origin=origin;
   }
-  function dropDraw(){drawInput.pointer=null;drawInput.points.length=0;drawInput.length=0;drawInput.finished=null;drawInput.previewUntilMs=0;drawInput.center=null;drawInput.origin=null;gesture.drawId=null;setSlowUi(false);$('strokeStatus').textContent='전장에 한 획 · 놓는 순간 방향 확정';}
+  function dropDraw(keepEnvironment=false){if(!keepEnvironment)environmentTarget=null;drawInput.environmentPoints=[];drawInput.pointer=null;drawInput.points.length=0;drawInput.length=0;drawInput.finished=null;drawInput.previewUntilMs=0;drawInput.center=null;drawInput.origin=null;gesture.drawId=null;setSlowUi(false);$('strokeStatus').textContent='전장에 한 획 · 놓는 순간 방향 확정';}
   function finishDraw(){
     if(!drawingAllowed()){dropDraw();return;}
-    updateDrawingAim();const points=drawInput.points.slice(),length=drawInput.length,aim=drawInput.aim;dropDraw();focusGameplay();
+    updateDrawingAim();const points=drawInput.points.slice(),length=drawInput.length,aim=drawInput.aim,environment=environmentTarget,envPoints=drawInput.environmentPoints.slice();dropDraw();focusGameplay();
     if(points.length<3||length<16){showResult('조금 더 길게 한 획을 그려 주세요',1100);return;}
+    if(environment){const g=gateOf(environment),stride=Math.max(1,Math.ceil(envPoints.length/34)),sampled=envPoints.filter((_,i)=>i%stride===0);if(sampled.at(-1)!==envPoints.at(-1))sampled.push(envPoints.at(-1));if(!validGateStroke(g,sampled)){showResult(g.instruction+' · 무효 획은 무료입니다.',1900);return;}queueProgression({type:'gate',id:environment,points:sampled});drawInput.finished=points;drawInput.previewUntilMs=performance.now()+350;return;}
     gesture.lastCombatStroke=points.map(p=>({...p}));drawInput.finished=points;drawInput.previewUntilMs=performance.now()+220;
-    try{const shot={...makeShotData(points),aim};world.commands.push({type:'cast',shot});wakeInputPreview();$('lastSpell').textContent=`${shot.name} · 피해 ${Math.round(shot.baseDamage*player.power)}`;$('strokeStatus').textContent='방향 확정 · 마법 준비 중';
+    try{const shot=normalizeCommand({type:'cast',shot:{...makeShotData(points),aim}}).shot;world.commands.push({type:'cast',shot});wakeInputPreview();$('lastSpell').textContent=`${shot.name} · 피해 ${Math.round(shot.baseDamage*player.power)}`;$('strokeStatus').textContent='방향 확정 · 마법 준비 중';
       if(shot.kind==='normal')showResult('일반 낙서 · 그린 방향으로 발사',950);
     }catch(error){console.error(error);showResult('마법 분석 실패 · 다시 그려 보세요',950);}}
   function collectCombatDrawing(e){
     if(e.type==='down'&&drawInput.pointer===null&&drawingAllowed()){
-      focusGameplay();dropDraw();drawInput.pointer=e.pointerId;gesture.drawId=e.pointerId;gesture.startMs=world.clockMs;
-      const actor=displayedDrawingActor();drawInput.aim=Math.atan2(actor.faceY,actor.faceX);setSlowUi(true);appendDrawPoint(sampleFromPointer(e));updateDrawingAim();$('strokeStatus').textContent='이동으로 조준 · 놓으면 발사';
+      focusGameplay();dropDraw(true);drawInput.pointer=e.pointerId;gesture.drawId=e.pointerId;gesture.startMs=world.clockMs;
+      const actor=displayedDrawingActor();drawInput.aim=Math.atan2(actor.faceY,actor.faceX);setSlowUi(true);appendEnvironmentPoint(e);appendDrawPoint(sampleFromPointer(e));updateDrawingAim();$('strokeStatus').textContent='이동으로 조준 · 놓으면 발사';
     }else if(drawInput.pointer===e.pointerId){
       if(!drawingAllowed()||e.type==='cancel'){dropDraw();return;}
-      if(e.type==='move'||e.type==='up'){appendDrawPoint(sampleFromPointer(e));updateDrawingAim();if(e.type==='up')finishDraw();}
+      if(e.type==='move'||e.type==='up'){appendEnvironmentPoint(e);appendDrawPoint(sampleFromPointer(e));updateDrawingAim();if(e.type==='up')finishDraw();}
     }
   }
-  const keyboardBindings={KeyW:'up',ArrowUp:'up',KeyA:'left',ArrowLeft:'left',KeyS:'down',ArrowDown:'down',KeyD:'right',ArrowRight:'right',Space:'dash',KeyE:'interact'};
+  function appendEnvironmentPoint(e){if(!environmentTarget)return;const g=gateOf(environmentTarget),p={x:0,y:0};renderer.screenToWorldInto(e.x,e.y,p);drawInput.environmentPoints.push({x:+(p.x-g.x).toFixed(2),y:+(p.y-g.y).toFixed(2)});}
+  const keyboardBindings={KeyW:'up',ArrowUp:'up',KeyA:'left',ArrowLeft:'left',KeyS:'down',ArrowDown:'down',KeyD:'right',ArrowRight:'right',Space:'dash'};
   // A single captured battlefield pointer owns ink. UI/stick pointers never enter this target.
   const fieldInput=createDOMInput({target:field,state:actions,keys:keyboardBindings,pointerButtons:{0:'paint'},touchAction:'none',onPointer:collectCombatDrawing,onRelease:dropDraw});
   // Registered after the GameKit device listener, so the edge already belongs to ActionState.
   for(const type of ['keydown','keyup'])document.addEventListener(type,e=>{if(!e.repeat&&keyboardBindings[e.code]&&!ui.modal)wakeInputPreview();});
+  // Environment mode is a local input choice, available before the next 30TPS boundary.
+  // Only its completed gate command is authoritative and consumes ink.
+  document.addEventListener('keydown',e=>{if(e.code==='KeyE'&&!e.repeat&&!ui.modal&&!e.target.closest('input,textarea,select,button')){e.preventDefault();armEnvironment();}});
   const movementStick={pointer:null,x:0,y:0};
   function resetMovementStick(){movementStick.pointer=null;movementStick.x=movementStick.y=0;$('moveKnob').style.transform='translate(0px,0px)';}
   const stickInput=createDOMInput({target:$('moveStick'),state:actions,pointerButtons:{0:'moveStick'},excludeTarget:false,touchAction:'none',onPointer(e){
@@ -55,12 +60,13 @@
   $('rollButton').addEventListener('click',e=>{if(e.detail===0){actions.pulse('dash');wakeInputPreview();}});
   $('soundButton').addEventListener('click',async()=>{audioOn=!audioOn;sound.setMuted(!audioOn);$('soundButton').setAttribute('aria-pressed',String(audioOn));$('soundButton').textContent=audioOn?'♪ 켬':'♪ 끔';if(audioOn){await sound.unlock();sfx('select');}});
   function showResult(message,durationMs=1250){if(resimulatingGame)return;const c=$('resultChip');c.textContent=message;c.classList.add('show');ui.resultUntil=performance.now()+durationMs;}
-  function changeModal(name){const open=name==='training'||name==='help'||name==='multi';ui.modal=open?name:null;for(const id of ['trainingModal','helpModal','multiplayerModal'])$(id).classList.toggle('open',open&&id===(name==='training'?'trainingModal':name==='help'?'helpModal':'multiplayerModal'));
+  function changeModal(name){const open=name==='training'||name==='help'||name==='multi'||name==='growth';ui.modal=open?name:null;for(const id of ['trainingModal','helpModal','multiplayerModal','growthModal'])$(id).classList.toggle('open',open&&id===(name==='training'?'trainingModal':name==='help'?'helpModal':name==='growth'?'growthModal':'multiplayerModal'));
     if(open){fieldInput.releaseAll('modal');stickInput.releaseAll('modal');rollButtonInput.releaseAll('modal');dropDraw();if(name==='training'){updateTrainingView();drawTrainingPad();}}
     else{drawInput.pointer=null;focusGameplay();}
+    if(name==='growth')renderGrowth();
     $('trainingButton').setAttribute('aria-expanded',String(name==='training'));$('helpButton').setAttribute('aria-expanded',String(name==='help'));
   }
-  function applyRoute(){const route=location.hash.split('?')[0];changeModal(route==='#/training'?'training':route==='#/help'?'help':route==='#/multi'?'multi':null);if(loop)loop.resetTiming();}
+  function applyRoute(){const route=location.hash.split('?')[0];if(route==='#/growth'){const params=new URLSearchParams(location.hash.split('?')[1]||'');const tab=params.get('tab'),item=params.get('item');if(['ink','combat','explore'].includes(tab))growthTab=tab;if(item&&(STAT_DEFS.some(s=>s.id===item&&s.group===growthTab)||growthTab==='explore'&&['forest','door','marsh','bridge','quarry'].includes(item)))growthSelected=item;else growthSelected=growthTab==='explore'?'forest':STAT_DEFS.find(s=>s.group===growthTab).id;}changeModal(route==='#/training'?'training':route==='#/help'?'help':route==='#/multi'?'multi':route==='#/growth'?'growth':null);if(loop)loop.resetTiming();}
   function goRoute(name){const url=name?`#/${name}`:'#/play';if(location.hash===url){applyRoute();return;}location.hash=url;}
   $('multiplayerButton').addEventListener('click',()=>goRoute('multi'));
   $('trainingButton').addEventListener('click',()=>goRoute('training'));
@@ -77,9 +83,9 @@
     if(drawInput.pointer!==null&&!drawingAllowed())dropDraw();
     if(drawInput.pointer!==null)updateDrawingAim();
     const points=drawInput.pointer!==null?drawInput.points:drawInput.previewUntilMs>performance.now()?drawInput.finished:null;
-    drawCtx.setTransform(drawDpr,0,0,drawDpr,0,0);drawCtx.clearRect(0,0,vw,vh);if(!points?.length)return;
+    drawCtx.setTransform(drawDpr,0,0,drawDpr,0,0);drawCtx.clearRect(0,0,vw,vh);drawEnvironmentGuide();if(!points?.length)return;
     drawCtx.save();drawCtx.lineCap='round';drawCtx.lineJoin='round';
-    if(drawInput.pointer!==null&&drawInput.origin){
+    if(drawInput.pointer!==null&&drawInput.origin&&!environmentTarget){
       const o=drawInput.origin,c=drawInput.center,a=drawInput.aim,tip={x:o.x+Math.cos(a)*88,y:o.y+Math.sin(a)*88};
       drawCtx.strokeStyle='#315f68';drawCtx.lineWidth=2;drawCtx.setLineDash([5,5]);drawCtx.beginPath();drawCtx.moveTo(o.x,o.y);drawCtx.lineTo(c.x,c.y);drawCtx.stroke();drawCtx.setLineDash([]);
       drawCtx.beginPath();drawCtx.moveTo(o.x,o.y);drawCtx.lineTo(tip.x,tip.y);drawCtx.moveTo(tip.x-12*Math.cos(a-.5),tip.y-12*Math.sin(a-.5));drawCtx.lineTo(tip.x,tip.y);drawCtx.lineTo(tip.x-12*Math.cos(a+.5),tip.y-12*Math.sin(a+.5));drawCtx.stroke();
