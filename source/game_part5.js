@@ -8,7 +8,7 @@
     previewDataset();}
   function paintMinimap(){const w=mini.width/dpr,h=mini.height/dpr;miniCtx.setTransform(dpr,0,0,dpr,0,0);miniCtx.clearRect(0,0,w,h);miniCtx.fillStyle='#f5eddf';miniCtx.fillRect(0,0,w,h);
     const xx=x=>x/CFG.world.width*w, yy=y=>y/CFG.world.height*h;
-    miniCtx.strokeStyle='#d1bca2';miniCtx.lineWidth=5;miniCtx.beginPath();miniCtx.moveTo(xx(490),yy(735));miniCtx.lineTo(xx(1948),yy(708));miniCtx.stroke();
+    miniCtx.strokeStyle='#d1bca2';miniCtx.lineWidth=5;miniCtx.beginPath();miniCtx.moveTo(xx(490),yy(735));miniCtx.lineTo(xx(CFG.boss.x),yy(CFG.boss.y));miniCtx.stroke();
     miniCtx.fillStyle='#9eae9a';for(const t of world.trees)miniCtx.fillRect(xx(t.x),yy(t.y),1.8,1.8);
     miniCtx.fillStyle='#9c7c6a';for(const b of world.houses)miniCtx.fillRect(xx(b.x)-3,yy(b.y)-2.5,6,5);
     miniCtx.strokeStyle='#9a6e96';miniCtx.beginPath();miniCtx.arc(xx(CFG.boss.x),yy(CFG.boss.y),Math.max(5,CFG.boss.radius/CFG.world.width*w),0,Math.PI*2);miniCtx.stroke();
@@ -16,10 +16,8 @@
     if(mp.shared){const other=player===hostPlayer?guestPlayer:hostPlayer;miniCtx.beginPath();miniCtx.arc(xx(other.x),yy(other.y),3.9,0,Math.PI*2);miniCtx.fillStyle='#639ac4';miniCtx.fill();}
     const px=xx(player.x),py=yy(player.y);miniCtx.beginPath();miniCtx.arc(px,py,5,0,Math.PI*2);miniCtx.fillStyle='#fff';miniCtx.fill();miniCtx.lineWidth=2;miniCtx.strokeStyle='#396c6b';miniCtx.stroke();miniCtx.beginPath();miniCtx.arc(px,py,2.5,0,Math.PI*2);miniCtx.fillStyle='#396c6b';miniCtx.fill();
   }
-  function updateHud(){const pct=100*player.hp/player.maxHp;$('hpFill').style.width=`${clamp(pct,0,100)}%`;$('hpText').textContent=`HP ${Math.ceil(player.hp)} / ${player.maxHp}`;$('inkText').textContent=`잉크 ${player.ink}`;$('level').textContent=`LV ${player.level}`;$('xpFill').style.width=`${100*player.xp/player.xpNext}%`;
-    if(world.bossDefeated){$('questTitle').textContent='마을의 새로운 페이지';$('questText').textContent='잉크 감시자를 물리쳤어요! 마을 공방에서 붓끝을 강화해 보세요.';$('questProgress').value=5;}
-    else if(world.bossSpawned){$('questTitle').textContent='보스 · 잉크 감시자';$('questText').textContent='길을 따라 동쪽 고대 원형장으로 가서 감시자를 쓰러뜨리세요.';$('questProgress').value=5;}
-    else{$('questTitle').textContent='첫 탐험 · 잉크 숲 조사';$('questText').textContent=`몬스터 ${Math.min(world.kills,world.questGoal)}/${world.questGoal} · 동쪽 숲에서 적을 찾아 한 획 마법으로 물리치세요.`;$('questProgress').value=Math.min(world.kills,5);}
+  function updateHud(){const pct=100*player.hp/player.maxHp;$('hpFill').style.width=`${clamp(pct,0,100)}%`;$('hpText').textContent=`HP ${Math.ceil(player.hp)} / ${player.maxHp}`;$('level').textContent=`LV ${player.level}`;$('xpFill').style.width=`${100*player.xp/player.xpNext}%`;
+    updateProgressionHud();
     const boss=world.enemies.find(e=>e.kind==='boss'&&!e.dead);$('bossBar').style.display=boss?'block':'none';if(boss)$('bossFill').style.width=`${100*boss.hp/boss.maxHp}%`;
     const predicted=mp.connected&&mp.localPresentation&&mp.localPoseSource
       ?mp.localPresentation.modelFor(mp.localPoseSource,performance.now()):null;
@@ -34,9 +32,9 @@
   }
   // One 30TPS simulation scheduler, separated from RAF presentation at the display refresh rate.
   // GameKit InterpolationTimeline owns both solo and multiplayer presentation. Online RoomSession owns rollback.
-  const SOLO_INPUT=new Uint8Array(2),localMovementInput=new Uint8Array(2),sampleDash={},sampleInteract={},sampleDirections={up:{},down:{},left:{},right:{}};
+  const SOLO_INPUT=new Uint8Array(2),localMovementInput=new Uint8Array(2),sampleDash={},sampleDirections={up:{},down:{},left:{},right:{}};
   function gatherLocalCommands(){
-    const dash=actions.sampleInto('dash',sampleDash),interact=actions.sampleInto('interact',sampleInteract);
+    const dash=actions.sampleInto('dash',sampleDash);
     let dx=movementStick.x,dy=movementStick.y;
     for(const [name,slot] of Object.entries(sampleDirections)){
       actions.sampleInto(name,slot);
@@ -47,7 +45,6 @@
     localMovementInput[0]=Math.round(dx*127)&255;localMovementInput[1]=Math.round(dy*127)&255;
     if(!ui.modal){
       if(dash.pressed)world.commands.push({type:'rollVector',dx:length>.1?dx:player.faceX,dy:length>.1?dy:player.faceY,distance:rollMaxDistance()});
-      if(interact.pressed)world.commands.push({type:'interact'});
     }
     actions.consume();
   }
@@ -341,7 +338,7 @@
     movementState(){return {x:player.moveX,y:player.moveY,speed:CFG.player.walkSpeed};},rollState(){return {...player.dash};},slowState(){return {ratio:world.slowRatio,drawing:drawInput.pointer!==null,hitstopMs:world.hitstopMs};},
     advanceSession(){const result=gameSession.advance(SOLO_INPUT);if(result.status==='advanced')capturePresentation();return result;},pauseRendering(){pauseGameLoops();},resumeRendering(){resumeGameLoops();},pausePainting(){stopPainting();},resumePainting(){startPainting();},renderFrame(){loop.render();},selectGlyph(kind){selectGlyph(kind);},
     renderNow(){renderInterpolated();},
-    combatFixture(kind='boss',x=680,y=730){world.enemies.length=0;world.projectiles.length=0;world.casts.length=0;world.castQueue.length=0;world.hazards.length=0;world.fields.length=0;world.spawnMs=1e8;return spawnEnemy(kind,x,y).id;},
+    combatFixture(kind='boss',x=680,y=730){world.enemies.length=0;world.projectiles.length=0;world.casts.length=0;world.castQueue.length=0;world.hazards.length=0;world.fields.length=0;return spawnEnemy(kind,x,y).id;},
     ricochetState(){return world.projectiles.map(p=>({id:p.id,kind:p.kind,bouncesLeft:p.bouncesLeft,bouncesTotal:p.bouncesTotal,bounceCount:p.bounceCount,state:p.state,ageMs:p.ageMs,x:p.x,y:p.y}));},
     castQueueLength(){return world.castQueue.length;},effectsSnapshot(){return world.fields.map(f=>({kind:f.kind,ageMs:f.ageMs,lifeMs:f.lifeMs}));},
 
@@ -361,5 +358,10 @@
 
     presentationInfo(){const now=performance.now(),view=poseReady?mp.interpolation.sample(presentationId(player,'hero'),0,now):null;const ok=!!view;return {ready:poseReady,tracked:mp.interpolation.size,snapshots:presentationSnapshots,simulationX:player.x,simulationY:player.y,renderX:ok?view.x:player.x,renderY:ok?view.y:player.y,clock:world.clockMs,paintClock:paintClockMs};},
     modelReport(){return packed.report;},modelClasses(){return CNN_LABELS.slice();},sketchMetrics(){return {grammar:'procedural-pencil',boilMs:SKETCH.boilMs,alive:world.enemies.filter(e=>!e.dead).length,erasedFragments:world.particles.filter(p=>p.kind==='erasedStroke').length};},
+    progressionState(){return {actor:structuredClone(player),gates:structuredClone(world.gates),regionKills:[...world.regionKills],points:availablePoints(player),environment:environmentTarget};},
+    progressionFixture(region=0){world.enemies.length=0;world.hazards.length=0;world.regionKills[region]=REGIONS[region].goal;player.x=GATES[region]?.x-110||3100;player.y=735;resetPresentation();capturePresentation();},
+    progressionCombatFixture(region=0){const x=GATES[region].x-190;world.projectiles.length=0;world.casts.length=0;world.castQueue.length=0;world.hazards.length=0;world.fields.length=0;world.enemies=world.enemies.filter(e=>!e.dead&&e.region===region);world.enemies.forEach((e,i)=>{e.x=x+i*14;e.y=735+(i%2)*12;e.hp=1;e.stunMs=15000;});player.x=x-140;player.y=735;resetPresentation();capturePresentation();},
+    setInk(value){player.ink=clamp(value,0,player.maxInk);},
+    awardXp(value){awardXp(value);},
     snapshot(){return {slowRatio:world.slowRatio,hitstopMs:world.hitstopMs,tick:gameSession.tick,player:{x:player.x,y:player.y,hp:player.hp,level:player.level,ink:player.ink},mode:world.mode,kills:world.kills,bossSpawned:world.bossSpawned,bossDefeated:world.bossDefeated,enemyCount:world.enemies.filter(e=>!e.dead).length,projectileCount:world.projectiles.length,castCount:world.casts.length,castQueueCount:world.castQueue.length,roll:{charges:player.dash.charges,rechargeMs:player.dash.rechargeMs,activeMs:player.dash.leftMs},modal:ui.modal,worldWidth:CFG.world.width,worldHeight:CFG.world.height,drawPhase:drawInput.pointer!==null?'drawing':'idle',lastResult:world.lastResult,rendererState:renderer.state};}
   };
