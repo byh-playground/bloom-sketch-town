@@ -8,7 +8,11 @@
     previewDataset();}
   function paintMinimap(){const w=mini.width/dpr,h=mini.height/dpr;miniCtx.setTransform(dpr,0,0,dpr,0,0);miniCtx.clearRect(0,0,w,h);miniCtx.fillStyle='#f5eddf';miniCtx.fillRect(0,0,w,h);
     const xx=x=>x/CFG.world.width*w, yy=y=>y/CFG.world.height*h;
-    miniCtx.strokeStyle='#d1bca2';miniCtx.lineWidth=5;miniCtx.beginPath();miniCtx.moveTo(xx(490),yy(735));miniCtx.lineTo(xx(CFG.boss.x),yy(CFG.boss.y));miniCtx.stroke();
+    for(const [i,r]of REGIONS.entries()){miniCtx.fillStyle=['#dbe5cc','#ccddda','#e3d8c6'][i];miniCtx.fillRect(xx(r.min),0,xx(r.max-r.min),h);}
+    miniCtx.fillStyle='#91b2b6';for(const p of REGION_TERRAIN.ponds){miniCtx.beginPath();miniCtx.ellipse(xx(p.x),yy(p.y),xx(p.rx),yy(p.ry),0,0,Math.PI*2);miniCtx.fill();}
+    for(const g of GATES){miniCtx.fillStyle=world.gates[g.id].open?'#549688':'#b78a59';miniCtx.fillRect(xx(g.x)-2,yy(g.y)-4,4,8);}
+    miniCtx.strokeStyle='#bcb18f';miniCtx.lineWidth=2;miniCtx.beginPath();REGION_TERRAIN.route.forEach(([x,y],i)=>i?miniCtx.lineTo(xx(x),yy(y)):miniCtx.moveTo(xx(x),yy(y)));miniCtx.stroke();
+
     miniCtx.fillStyle='#9eae9a';for(const t of world.trees)miniCtx.fillRect(xx(t.x),yy(t.y),1.8,1.8);
     miniCtx.fillStyle='#9c7c6a';for(const b of world.houses)miniCtx.fillRect(xx(b.x)-3,yy(b.y)-2.5,6,5);
     miniCtx.strokeStyle='#9a6e96';miniCtx.beginPath();miniCtx.arc(xx(CFG.boss.x),yy(CFG.boss.y),Math.max(5,CFG.boss.radius/CFG.world.width*w),0,Math.PI*2);miniCtx.stroke();

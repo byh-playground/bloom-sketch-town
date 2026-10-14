@@ -1,7 +1,7 @@
   const $=id=>document.getElementById(id);
   const clamp=(v,a,b)=>Math.min(b,Math.max(a,v)),mix=(a,b,t)=>a+(b-a)*t,hypot=Math.hypot;
   const art={normal:'#293846',line:'#344e58',circle:'#799c91',triangle:'#d08c63',square:'#8f8b80',flame:'#ce704e',water:'#519cbd',lightning:'#558fbc',star:'#d8a34a',shuriken:'#9887b0',starcircle:'#cd995c'};
-  const CFG=Object.freeze({version:'0.15.0',baseHz:60,renderHz:60,inputHz:60,tickMs:1000/30,maxCatchup:8,world:{width:4400,height:1460},player:{hp:120,radius:16,walkSpeed:140,roll:{capacity:2,rechargeMs:650,rangeDiameters:3,durationMinMs:110,durationMaxMs:270,travelSpeed:765,projectileInvulMs:145}},boss:{x:4010,y:706,radius:255},castLimit:4,maxParticles:360});
+  const CFG=Object.freeze({version:'0.16.0',baseHz:60,renderHz:60,inputHz:60,tickMs:1000/30,maxCatchup:8,world:{width:4400,height:1460},player:{hp:120,radius:16,walkSpeed:140,roll:{capacity:2,rechargeMs:650,rangeDiameters:3,durationMinMs:110,durationMaxMs:270,travelSpeed:765,projectileInvulMs:145}},boss:{x:4010,y:706,radius:255},castLimit:4,maxParticles:360});
   $('gameVersion').textContent=`v${CFG.version} · RPG`;
   const DRAWING_STATS=Object.freeze({width:280,height:150,penWidth:3.8,recognitionSize:150});
   const field=$('field'),renderer=new Renderer2D(field,{batchVertices:32768}),draw=$('draw'),drawCtx=draw.getContext('2d'),trainingPad=$('trainingPad'),trainingCtx=trainingPad.getContext('2d');
@@ -271,7 +271,7 @@
     if(!referenceRules[kind])return;
     selectedGlyph=kind;
     for(const b of $('ribbon').querySelectorAll('button'))b.setAttribute('aria-pressed',String(b.dataset.kind===kind));
-    $('drawTip').textContent=`${shapeNames[kind]} ${Math.round(effectiveReferenceThreshold(kind)*100)}%↑ · CNN 1위 필수`;
+    $('drawTip').textContent=`${shapeNames[kind]} · 예시를 따라 한 획`;
   }
   $('ribbon').innerHTML=glyphKinds.map(k=>`<button class="glyph" data-kind="${k}" aria-label="${shapeNames[k]} · ${shapeDesc[k]} 대표 그림 보기" aria-pressed="false">${shapeSvg(k)}<span>${shapeNames[k]}</span></button>`).join('');
   $('helpReferences').innerHTML=glyphKinds.map(k=>`<div class="help-ref">${shapeSvg(k)}<div>${shapeNames[k]}</div></div>`).join('');

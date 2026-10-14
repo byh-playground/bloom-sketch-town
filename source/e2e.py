@@ -439,33 +439,109 @@ def local_server():
         thread.join(timeout=3)
 
 
-async def draw_gate(page, kind, *, mobile=False, cancel=False, invalid=False):
-    # Follow the actual world-space guide with the game's ordinary battlefield pointer.
+async def draw_gate(page, kind, *, mobile=False, cancel=False, invalid=False, glyph='starcircle', variant='normal',release_barrier=None,before_release=None):
+    # Actual one-stroke UI input. The outer circle and star use the existing game reference.
     x = 1450 if kind == 'door' else 2900
-    raw = [[-40,60],[-40,-55],[0,-70],[40,-55],[40,60]] if kind == 'door' else [[-65,0],[0,0],[65,0]]
-    if invalid:
-        raw=[[-15,0],[0,0],[15,0]]
-    points = await page.evaluate("""data => data.raw.map(([dx,dy]) =>
-      __sketchRpgDebug.screenAt(data.x+dx,735+dy))""", {'raw':raw,'x':x})
+    data=await page.evaluate("""data => {
+      const sample=__sketchRpgDebug.sample(data.glyph,266,266),box={minX:Math.min(...sample.map(p=>p.x)),maxX:Math.max(...sample.map(p=>p.x)),minY:Math.min(...sample.map(p=>p.y)),maxY:Math.max(...sample.map(p=>p.y))};
+      let raw=sample.map(p=>({x:p.x-(box.minX+box.maxX)/2,y:p.y-(box.minY+box.maxY)/2}));
+      if(data.glyph==='line'||data.invalid)raw=[{x:-55,y:0},{x:0,y:0},{x:55,y:0}];
+      if(data.glyph==='scribble')raw=Array.from({length:40},(_,i)=>({x:Math.sin(i*2.3)*63,y:Math.cos(i*1.7)*63}));
+      if(data.glyph==='starcircle'&&data.variant!=='coarse')raw=raw.filter((_,i)=>i%3===0||i>=raw.length-6);
+      if(data.variant==='reverse')raw.reverse();
+      if(data.variant==='small-rotate')raw=raw.map(p=>({x:(p.x*Math.cos(.53)-p.y*Math.sin(.53))*.78,y:(p.x*Math.sin(.53)+p.y*Math.cos(.53))*.78}));
+      if(data.variant==='coarse')raw=raw.filter((_,i)=>i%3===0||i>=raw.length-6).map((p,i)=>({x:p.x+Math.sin(i)*.7,y:p.y+Math.cos(i)*.7}));
+      return raw.map(p=>__sketchRpgDebug.screenAt(data.x+p.x,735+p.y));
+    }""",{'x':x,'glyph':glyph,'variant':variant,'invalid':invalid})
     if mobile:
         await page.locator('#environmentButton').tap()
-        await page.wait_for_function('kind=>__sketchRpgDebug.progressionState().environment===kind',arg=kind,timeout=2000)
-        cdp = await page.context.new_cdp_session(page)
-        await cdp.send('Input.dispatchTouchEvent', {'type':'touchStart','touchPoints':[{**points[0],'id':7}]})
-        for point in points[1:]:
-            await cdp.send('Input.dispatchTouchEvent', {'type':'touchMove','touchPoints':[{**point,'id':7}]})
-        await cdp.send('Input.dispatchTouchEvent', {'type':'touchCancel' if cancel else 'touchEnd','touchPoints':[]})
     else:
         await page.locator('#field').focus()
         await page.keyboard.press('e')
-        await page.wait_for_function('kind=>__sketchRpgDebug.progressionState().environment===kind',arg=kind,timeout=2000)
-        await page.mouse.move(points[0]['x'],points[0]['y'])
+    await page.wait_for_function('kind=>__sketchRpgDebug.progressionState().environment===kind',arg=kind,timeout=2000)
+    if mobile:
+        cdp=await page.context.new_cdp_session(page)
+        await cdp.send('Input.dispatchTouchEvent',{'type':'touchStart','touchPoints':[{**data[0],'id':7}]})
+        for point in data[1:]:
+            await cdp.send('Input.dispatchTouchEvent',{'type':'touchMove','touchPoints':[{**point,'id':7}]})
+        if release_barrier:
+            await release_barrier.wait()
+        if before_release:
+            await before_release()
+        await cdp.send('Input.dispatchTouchEvent',{'type':'touchCancel' if cancel else 'touchEnd','touchPoints':[]})
+    else:
+        await page.mouse.move(data[0]['x'],data[0]['y'])
         await page.mouse.down()
-        for point in points[1:]:
-            await page.mouse.move(point['x'],point['y'],steps=5)
+        for point in data[1:]:
+            await page.mouse.move(point['x'],point['y'])
+        if release_barrier:
+            await release_barrier.wait()
+        if before_release:
+            await before_release()
         if cancel:
             await page.keyboard.press('Escape')
         await page.mouse.up()
+
+
+async def run_magic_ux(browser,suite):
+    with local_server() as url:
+        context,page,issues=await create_page(browser,width=1280,height=900)
+        try:
+            await page.goto(url)
+            await page.wait_for_function('window.__sketchRpgDebug?.rendererStats().vertices>0')
+            await page.evaluate('__sketchRpgDebug.progressionFixture(0)')
+            await page.wait_for_timeout(150)
+            fixture=await page.evaluate('Array.from(__sketchRpgDebug.canonicalSnapshot())')
+            for glyph in ('line','scribble','circle','star'):
+                await draw_gate(page,'door',glyph=glyph)
+                await page.wait_for_timeout(100)
+                state=await page.evaluate('__sketchRpgDebug.progressionState()')
+                suite.check('actual gate UI rejects '+glyph+' with no ink cost',not state['gates']['door']['open'] and state['actor']['ink']==100 and state['actor']['inkDelayMs']==0,await page.locator('#resultChip').inner_text())
+            for variant in ('normal','reverse','small-rotate','coarse'):
+                await page.evaluate('bytes=>__sketchRpgDebug.canonicalRestore(new Uint8Array(bytes))',fixture)
+                await page.wait_for_timeout(130)
+                await draw_gate(page,'door',variant=variant)
+                await page.wait_for_function('__sketchRpgDebug.progressionState().gates.door.open',timeout=3000)
+                state=await page.evaluate('__sketchRpgDebug.progressionState()')
+                suite.check('actual star-circle gate UI accepts '+variant+' and spends once',abs(state['actor']['ink']-75)<.01 and len(state['gates']['door']['stroke'])>10,state['gates']['door']['owner'])
+            await context.close()
+            context,page,issues=await create_page(browser,width=390,height=844,mobile=True)
+            await page.goto(url)
+            await page.wait_for_function('window.__sketchRpgDebug?.rendererStats().vertices>0')
+            await page.evaluate('bytes=>__sketchRpgDebug.canonicalRestore(new Uint8Array(bytes))',fixture)
+            await page.evaluate('__sketchRpgDebug.moveTo(1340,735)')
+            await page.wait_for_timeout(130)
+            await page.locator('#environmentButton').click()
+            await page.evaluate('__sketchRpgDebug.setInk(5)')
+            await page.wait_for_function("document.getElementById('inkMeter').dataset.state==='shortage'",timeout=2000)
+            bar=await page.locator('#inkBar').bounding_box()
+            suite.check('390px ink bar is always visible with shortage and projected spend',bar['height']>=10 and bar['x']>=0 and bar['x']+bar['width']<=390 and await page.locator('#inkMeter').get_attribute('data-state')=='shortage' and '25.0' in await page.locator('#inkEstimate').inner_text(),{'bar':bar,'state':await page.locator('#inkMeter').get_attribute('data-state'),'estimate':await page.locator('#inkEstimate').inner_text()})
+            suite.check('390px ink meter and minimap/objective do not overlap',await page.evaluate("""() => {const a=inkMeter.getBoundingClientRect(),b=document.querySelector('.region-status').getBoundingClientRect(),c=document.querySelector('.mini-map').getBoundingClientRect();return a.bottom<b.top&&b.right<c.left;}"""))
+            await page.screenshot(path=str(ARTIFACTS/'ink-shortage-mobile.png'))
+            await draw_gate(page,'door',glyph='circle',mobile=True)
+            await page.wait_for_timeout(200)
+            retry=await page.evaluate("({environment:__sketchRpgDebug.progressionState().environment,status:document.getElementById('strokeStatus').innerText,message:document.getElementById('resultChip').innerText})")
+            suite.check('mobile incorrect circle keeps faint guide and retry reason',retry['environment']=='door' and '다섯' in retry['status'],retry)
+            await page.screenshot(path=str(ARTIFACTS/'magic-retry-mobile.png'))
+            await page.evaluate('__sketchRpgDebug.setInk(100)')
+            await draw_gate(page,'door',mobile=True,variant='reverse')
+            await page.wait_for_function('__sketchRpgDebug.progressionState().gates.door.open',timeout=3000)
+            suite.check('actual mobile star-circle creates the completed door',True)
+            await page.wait_for_timeout(720)
+            await page.screenshot(path=str(ARTIFACTS/'magic-door-mobile.png'))
+            await page.locator('#growthButton').click()
+            suite.check('390px investment keeps graphical ranks and explicit purchase',await page.locator('.growth-ranks').count()==3 and await page.locator('#investButton').is_visible())
+            await page.screenshot(path=str(ARTIFACTS/'growth-ux-mobile.png'))
+            await page.locator('#growthModal [data-close]').click()
+            await page.evaluate('__sketchRpgDebug.moveTo(1780,485)')
+            await page.keyboard.down('w')
+            await page.wait_for_timeout(500)
+            await page.keyboard.up('w')
+            state=await page.evaluate('__sketchRpgDebug.snapshot().player')
+            suite.check('authored wetland water silhouette blocks actual walking',state['y']>=460 and state['y']<485,state)
+            suite.check('new HUD/magic/map flow has no JavaScript error',not issues,issues)
+        finally:
+            await context.close()
 
 
 async def run_progression(browser, suite: E2E):
@@ -509,7 +585,9 @@ async def run_progression(browser, suite: E2E):
             cancelled=await page.evaluate('__sketchRpgDebug.progressionState()')
             suite.check('cancelled door stroke leaves gate closed without consuming ink',not cancelled['gates']['door']['open'] and cancelled['actor']['inkDelayMs']==0)
             await page.evaluate('__sketchRpgDebug.setInk(0)')
-            await draw_gate(page,'door')
+            # Recovery continues during a longer magic-circle stroke. Arrange low ink
+            # at the release boundary so the acceptance condition is unambiguous.
+            await draw_gate(page,'door',before_release=lambda:page.evaluate('__sketchRpgDebug.setInk(0)'))
             await page.wait_for_timeout(120)
             rejected=await page.evaluate('__sketchRpgDebug.progressionState()')
             message=await page.locator('#resultChip').inner_text()
@@ -533,7 +611,7 @@ async def run_progression(browser, suite: E2E):
             before=await page.evaluate('__sketchRpgDebug.progressionState().actor.ink')
             await draw_gate(page,'bridge',invalid=True)
             invalid=await page.evaluate('__sketchRpgDebug.progressionState()')
-            suite.check('incomplete bridge endpoints are rejected without spending ink',not invalid['gates']['bridge']['open'] and invalid['actor']['ink']>=before and '무료' in await page.locator('#resultChip').inner_text())
+            suite.check('incomplete bridge endpoints are rejected without spending ink',not invalid['gates']['bridge']['open'] and invalid['actor']['ink']>=before and '소비 없음' in await page.locator('#resultChip').inner_text())
             await draw_gate(page,'bridge')
             await page.wait_for_function('__sketchRpgDebug.progressionState().gates.bridge.open',timeout=3000)
             suite.check('marsh clear then drawn endpoint connection opens quarry',True)
@@ -662,7 +740,7 @@ async def run_real_p2p(browser, suite: E2E):
                 boundary=min(s['confirmedTick'] for s in states)
                 hashes=await asyncio.gather(*(p.evaluate("t=>window.__sketchRpgDebug.stateHash(t)",boundary) for p in (host,guest)))
                 suite.check("late duplicated RTC input reconciles to equal confirmed hash",hashes[0] is not None and hashes[0]==hashes[1],{'tick':boundary,'hashes':hashes,'rollbacks':[s['stats'].get('rollbacks',0) for s in states]})
-                suite.check("both peers use pinned protocol 3 bundle",all(s['gamekitSHA']=='72b09b260edf9650353017acb49c06873fe9f5a1' and s['namespace']=='sketch-town-coop-0.15.0' and s['simulationVersion'].startswith('sketch-town-0.15.0-') and s['inputScheduling']=='network' and s['inputHz']==60 for s in states))
+                suite.check("both peers use pinned protocol 3 bundle",all(s['gamekitSHA']=='72b09b260edf9650353017acb49c06873fe9f5a1' and s['namespace']=='sketch-town-coop-0.16.0' and s['simulationVersion'].startswith('sketch-town-0.16.0-') and s['inputScheduling']=='network' and s['inputHz']==60 for s in states))
                 for sender,actor in ((host,'a'),(guest,'b')):
                     for page in (host,guest):
                         await page.evaluate("""() => {window.castFrames=[];window.shotFrames=[];window.aimFrames=[];const end=performance.now()+1400;
@@ -715,7 +793,8 @@ async def run_real_p2p(browser, suite: E2E):
             await guest.wait_for_timeout(200)
             for page in (host,guest):
                 await page.wait_for_function('__sketchRpgDebug.progressionState().actor.ink>=__sketchRpgDebug.progressionState().actor.maxInk-0.01',timeout=5000)
-            await asyncio.gather(draw_gate(host,'door'),draw_gate(guest,'door',mobile=True))
+            release=asyncio.Barrier(2)
+            await asyncio.gather(draw_gate(host,'door',release_barrier=release),draw_gate(guest,'door',mobile=True,release_barrier=release))
             await asyncio.gather(*(p.wait_for_function('__sketchRpgDebug.progressionState().gates.door.open',timeout=5000) for p in (host,guest)))
             state=await host.evaluate('JSON.parse(new TextDecoder().decode(__sketchRpgDebug.canonicalSnapshot()))')
             deficit=sum(a['maxInk']-a['ink'] for a in state['actors'])
@@ -754,7 +833,7 @@ async def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--headed", action="store_true", help="use with xvfb-run when testing headed SwiftShader")
     parser.add_argument("--live-p2p", action="store_true", help="require actual public Nostr + WebRTC connection, never mock")
-    parser.add_argument("--flow", choices=['all','progression','online'], default='all', help="select a fixed user workflow within this single entrypoint")
+    parser.add_argument("--flow", choices=['all','progression','online','ux'], default='all', help="select a fixed user workflow within this single entrypoint")
     args = parser.parse_args()
     ARTIFACTS.mkdir(exist_ok=True)
     suite = E2E(headed=args.headed, live_p2p=args.live_p2p)
@@ -773,6 +852,8 @@ async def main():
                     if args.flow=='all':
                         await run_desktop(browser, suite, html)
                         await run_mobile(browser, suite, html)
+                    if args.flow in ('all','ux'):
+                        await run_magic_ux(browser,suite)
                     if args.flow in ('all','progression'):
                         await run_progression(browser, suite)
                     if args.live_p2p or args.flow=='online':

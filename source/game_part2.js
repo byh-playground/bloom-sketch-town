@@ -10,7 +10,7 @@
   function actorOf(id){return id==='b'?guestPlayer:hostPlayer;}
   function withActor(actor,fn){const before=player;player=actor;try{return fn();}finally{player=before;}}
   const camera={x:0,y:0,zoom:1};
-  const world={regionKills:[0,0,0],gates:{door:{open:false,stroke:[],owner:null},bridge:{open:false,stroke:[],owner:null}},obstacles:[],grid:new Map(),decals:[],trees:[],houses:[],enemies:[],projectiles:[],hazards:[],casts:[],particles:[],floaters:[],pickups:[],fields:[],commands:[],castQueue:[],rollMarks:[],rollTarget:null,nextId:1,seed:0x31415,clockMs:0,kills:0,bossSpawned:false,bossDefeated:false,hitstopMs:0,lastHitstopClockMs:-1000,hitFlashMs:0,slowRatio:1,screenTextMs:0,screenText:'',effectShakeMs:0,mode:'playing',deathMs:0,lastResult:null};
+  const world={regionKills:[0,0,0],gates:{door:{open:false,stroke:[],owner:null,openedAtMs:0},bridge:{open:false,stroke:[],owner:null,openedAtMs:0}},obstacles:[],grid:new Map(),decals:[],trees:[],houses:[],enemies:[],projectiles:[],hazards:[],casts:[],particles:[],floaters:[],pickups:[],fields:[],commands:[],castQueue:[],rollMarks:[],rollTarget:null,nextId:1,seed:0x31415,clockMs:0,kills:0,bossSpawned:false,bossDefeated:false,hitstopMs:0,lastHitstopClockMs:-1000,hitFlashMs:0,slowRatio:1,screenTextMs:0,screenText:'',effectShakeMs:0,mode:'playing',deathMs:0,lastResult:null};
   const audioRecipes={
     draw:{category:'sfx',layers:[{kind:'tone',type:'sine',hz:610,end:910,ms:90,gain:.3}]},
     throw:{category:'sfx',layers:[{kind:'tone',type:'triangle',hz:410,end:950,ms:128,gain:.42},{kind:'noise',hz:2100,ms:65,gain:.17}]},
@@ -31,14 +31,12 @@
   const cellSize=160,gridKey=(x,y)=>`${Math.floor(x/cellSize)},${Math.floor(y/cellSize)}`;
   function addObstacle(o){world.obstacles.push(o);for(let gx=Math.floor((o.x-o.r)/cellSize);gx<=Math.floor((o.x+o.r)/cellSize);gx++)for(let gy=Math.floor((o.y-o.r)/cellSize);gy<=Math.floor((o.y+o.r)/cellSize);gy++){const key=`${gx},${gy}`;if(!world.grid.has(key))world.grid.set(key,[]);world.grid.get(key).push(o);}}
   function circleBounds(x,y,r){return x>=r&&y>=r&&x<=CFG.world.width-r&&y<=CFG.world.height-r;}
-  function touchesObstacle(x,y,r){if(!circleBounds(x,y,r)||gateBlocked(x,y,r))return true;const list=world.grid.get(gridKey(x,y))||[];for(const o of list){if(hypot(o.x-x,o.y-y)<o.r+r)return true;}return false;}
+  function touchesObstacle(x,y,r){if(!circleBounds(x,y,r)||gateBlocked(x,y,r)||mapTerrainBlocked(x,y,r))return true;const list=world.grid.get(gridKey(x,y))||[];for(const o of list){if(hypot(o.x-x,o.y-y)<o.r+r)return true;}return false;}
   function moveCollider(e,dx,dy,r){if(!touchesObstacle(e.x+dx,e.y,r))e.x+=dx;if(!touchesObstacle(e.x,e.y+dy,r))e.y+=dy;}
   function createWorld(){
     // Deterministic generated props. No hand-authored image assets, texture uploads, or runtime network.
     for(const h of [{x:275,y:540,w:173,h:127,type:'house'},{x:575,y:462,w:167,h:119,type:'library'},{x:360,y:960,w:162,h:112,type:'shop'}]){world.houses.push(h);addObstacle({x:h.x,y:h.y+16,r:h.w*.46,kind:'house'});}
-    for(let i=0;i<138;i++){const x=70+rand()*(CFG.world.width-140),y=70+rand()*(CFG.world.height-140);const nearTown=hypot(x-485,y-740)<320,nearRoad=Math.abs(y-(720+80*Math.sin((x-460)/260)))<90,nearBoss=hypot(x-CFG.boss.x,y-CFG.boss.y)<270,nearGate=GATES.some(g=>Math.abs(x-g.x)<200&&Math.abs(y-g.y)<210);
-      if(nearTown||nearRoad||nearBoss||nearGate)continue;const kind=rand()<.74?'tree':'rock',r=kind==='tree'?22+rand()*11:18+rand()*11;world.trees.push({x,y,r,kind,variant:rand()});addObstacle({x,y,r:r*.68,kind});}
-    for(let i=0;i<115;i++){const x=45+rand()*(CFG.world.width-90),y=45+rand()*(CFG.world.height-90),kind=rand()<.60?'flower':'grass';world.decals.push({x,y,kind,seed:rand()*10});}
+    populateRegionMap();
     spawnRegion(0);
   }
   const enemyDefs={chaser:{r:19,hp:55,speed:89,damage:11,color:'#a57673',name:'종이 사냥꾼',xp:18},spitter:{r:20,hp:48,speed:65,damage:9,color:'#8e8ba8',name:'잉크 투척수',xp:21},charger:{r:23,hp:85,speed:72,damage:18,color:'#c1966b',name:'낙서 돌격수',xp:27},boss:{r:56,hp:580,speed:55,damage:23,color:'#8d688e',name:'잉크 감시자',xp:190}};

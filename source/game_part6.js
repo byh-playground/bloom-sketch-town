@@ -13,7 +13,7 @@
   const MP_SEED=0x31415,MP_INPUT_SIZE=2;
   const MP_PROFILE={mode:'rollback',tickRate:30,baseInputDelayTicks:1,rollbackWindowTicks:16,
     stateHistorySize:64,maxCatchupSteps:8,checksumInterval:30,maxSnapshotBytes:2*1024*1024,
-    maxHistoryBytes:16*1024*1024,maxCommandBytes:2048,maxPendingCommands:64,
+    maxHistoryBytes:16*1024*1024,maxCommandBytes:4096,maxPendingCommands:64,
     adaptiveInputDelay:true,inputScheduling:'network',inputSafetyMarginMs:8,inputJitterMultiplier:2};
   const MP_TEXT=new TextEncoder(),MP_READER=new TextDecoder('utf-8',{fatal:true});
   const MP_EMPTY=new Uint8Array(MP_INPUT_SIZE);
@@ -48,7 +48,7 @@
       for(const name of canonicalArrays)if(!Array.isArray(w[name])||w[name].length>({enemies:75,projectiles:65,hazards:150,casts:8,pickups:120,fields:350,castQueue:8}[name]))return false;
       // Recovery must preserve the released direction; missing/invalid aim is not an old-schema fallback.
       for(const name of ['casts','castQueue'])if(w[name].some(c=>!validShotAim(c?.shot?.aim)))return false;
-      if(!Array.isArray(w.regionKills)||w.regionKills.length!==3||w.regionKills.some(n=>!Number.isSafeInteger(n)||n<0)||!w.gates||GATES.some(g=>!w.gates[g.id]||typeof w.gates[g.id].open!=='boolean'||!Array.isArray(w.gates[g.id].stroke)||w.gates[g.id].open&&!validGateStroke(g,w.gates[g.id].stroke)))return false;
+      if(!Array.isArray(w.regionKills)||w.regionKills.length!==3||w.regionKills.some(n=>!Number.isSafeInteger(n)||n<0)||!w.gates||GATES.some(g=>!w.gates[g.id]||typeof w.gates[g.id].open!=='boolean'||!Number.isFinite(w.gates[g.id].openedAtMs)||w.gates[g.id].openedAtMs<0||!Array.isArray(w.gates[g.id].stroke)||w.gates[g.id].open&&!validGateStroke(g,w.gates[g.id].stroke)))return false;
       for(const a of data.actors)if(!validProfile(a)||!Number.isFinite(a.ink)||a.ink<0||a.ink>derivedStats(a.investments).maxInk+1e-6||!Number.isFinite(a.inkDelayMs)||a.inkDelayMs<0||a.inkDelayMs>750||!a||!Number.isFinite(a.x)||!Number.isFinite(a.y)||!Number.isFinite(a.hp)||!a.dash||!Number.isFinite(a.dash.charges))return false;
       if(typeof data.shared!=='boolean')return false;
       return true;

@@ -1,0 +1,483 @@
+{
+  "version": "0.16.0",
+  "base": "de8bbc5f2ce920bbd3a38da0fd5fd47355a3f540",
+  "status": "PASS",
+  "checksPassed": 35,
+  "html_sha256": "053ed36964b01358e90f09e5fbba215397f133e9aeca435e26838bdf87c14c2d",
+  "runtime_js_sha256": "9a5882ef0ac36144ca0b0897b24a9b10085e2db98013106b6cc42c49c8185825",
+  "commands": [
+    "python source/e2e.py --flow ux",
+    "python source/e2e.py --flow progression",
+    "python source/e2e.py --flow online --live-p2p"
+  ],
+  "runs": [
+    {
+      "suite": "Sketch Town real Chromium E2E (single entrypoint)",
+      "html_sha256": "dbbdcc6b810dcc0d0adef41eceefbc539d60a5fe128f11a0d96ff37d19bbab82",
+      "flow": "ux",
+      "renderer_backend": "WebGL1 / ANGLE SwiftShader (existing E2E flags; no mock renderer)",
+      "headless": true,
+      "live_p2p_requested": false,
+      "chromium": "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
+      "browser_version": "155.0.4283.45",
+      "elapsed_seconds": 64.16,
+      "status": "PASS",
+      "checks": [
+        {
+          "name": "actual gate UI rejects line with no ink cost",
+          "status": "PASS",
+          "detail": "봉인 종이벽 · 문 · 잉크 25 · Esc로 취소"
+        },
+        {
+          "name": "actual gate UI rejects scribble with no ink cost",
+          "status": "PASS",
+          "detail": "별을 둘러싸는 원을 한 바퀴 닫아 주세요. · 잉크 소비 없음"
+        },
+        {
+          "name": "actual gate UI rejects circle with no ink cost",
+          "status": "PASS",
+          "detail": "둘레원 안의 다섯 꼭짓점 별을 모두 연결하세요. · 잉크 소비 없음"
+        },
+        {
+          "name": "actual gate UI rejects star with no ink cost",
+          "status": "PASS",
+          "detail": "둘레원과 별을 한 획으로 충분히 그려 주세요. · 잉크 소비 없음"
+        },
+        {
+          "name": "actual star-circle gate UI accepts normal and spends once",
+          "status": "PASS",
+          "detail": "a"
+        },
+        {
+          "name": "actual star-circle gate UI accepts reverse and spends once",
+          "status": "PASS",
+          "detail": "a"
+        },
+        {
+          "name": "actual star-circle gate UI accepts small-rotate and spends once",
+          "status": "PASS",
+          "detail": "a"
+        },
+        {
+          "name": "actual star-circle gate UI accepts coarse and spends once",
+          "status": "PASS",
+          "detail": "a"
+        },
+        {
+          "name": "390px ink bar is always visible with shortage and projected spend",
+          "status": "PASS",
+          "detail": {
+            "bar": {
+              "x": 18,
+              "y": 82.25,
+              "width": 214,
+              "height": 12
+            },
+            "state": "shortage",
+            "estimate": "예상 소모 25.0 · 25.0 필요"
+          }
+        },
+        {
+          "name": "390px ink meter and minimap/objective do not overlap",
+          "status": "PASS"
+        },
+        {
+          "name": "mobile incorrect circle keeps faint guide and retry reason",
+          "status": "PASS",
+          "detail": {
+            "environment": "door",
+            "status": "둘레원 안의 다섯 꼭짓점 별을 모두 연결하세요.",
+            "message": "둘레원 안의 다섯 꼭짓점 별을 모두 연결하세요. · 잉크 소비 없음"
+          }
+        },
+        {
+          "name": "actual mobile star-circle creates the completed door",
+          "status": "PASS"
+        },
+        {
+          "name": "390px investment keeps graphical ranks and explicit purchase",
+          "status": "PASS"
+        },
+        {
+          "name": "authored wetland water silhouette blocks actual walking",
+          "status": "PASS",
+          "detail": {
+            "x": 1788.3623265185206,
+            "y": 470.1989360112982,
+            "hp": 111,
+            "level": 1,
+            "ink": 82.33333333333331
+          }
+        },
+        {
+          "name": "new HUD/magic/map flow has no JavaScript error",
+          "status": "PASS",
+          "detail": []
+        },
+        {
+          "name": "public internet WebRTC connection",
+          "status": "NOT_RUN",
+          "reason": "not requested; rerun with --live-p2p (same single E2E)"
+        }
+      ],
+      "errors": []
+    },
+    {
+      "suite": "Sketch Town real Chromium E2E (single entrypoint)",
+      "html_sha256": "dbbdcc6b810dcc0d0adef41eceefbc539d60a5fe128f11a0d96ff37d19bbab82",
+      "flow": "progression",
+      "renderer_backend": "WebGL1 / ANGLE SwiftShader (existing E2E flags; no mock renderer)",
+      "headless": true,
+      "live_p2p_requested": false,
+      "chromium": "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
+      "browser_version": "155.0.4283.45",
+      "elapsed_seconds": 39.38,
+      "status": "PASS",
+      "checks": [
+        {
+          "name": "growth selection only inspects; level 1 has one point",
+          "status": "PASS"
+        },
+        {
+          "name": "explicit investment uses one point and shows derived maximum",
+          "status": "PASS"
+        },
+        {
+          "name": "free redistribution never restores current HP or ink",
+          "status": "PASS"
+        },
+        {
+          "name": "restart preserves saved investment and remaining points",
+          "status": "PASS"
+        },
+        {
+          "name": "real attack clears forest before the visible paper-wall door",
+          "status": "PASS"
+        },
+        {
+          "name": "cancelled door stroke leaves gate closed without consuming ink",
+          "status": "PASS"
+        },
+        {
+          "name": "valid drawing with insufficient ink explains needed amount and wait",
+          "status": "PASS",
+          "detail": {
+            "state": {
+              "actor": {
+                "x": 1340,
+                "y": 735,
+                "vx": 0,
+                "vy": 0,
+                "moveX": 0,
+                "moveY": 0,
+                "faceX": 1,
+                "faceY": 0,
+                "r": 16,
+                "hp": 120,
+                "maxHp": 120,
+                "level": 2,
+                "xp": 40,
+                "xpNext": 96,
+                "ink": 1.3333333333333333,
+                "inkDelayMs": 0,
+                "investments": {
+                  "inkMax": 1,
+                  "inkRegen": 0,
+                  "inkDiscount": 0,
+                  "attack": 0,
+                  "hp": 0
+                },
+                "power": 1,
+                "dash": {
+                  "leftMs": 0,
+                  "durationMs": 0,
+                  "elapsedMs": 0,
+                  "distance": 0,
+                  "charges": 2,
+                  "rechargeMs": 0,
+                  "dirX": 1,
+                  "dirY": 0,
+                  "originX": 475,
+                  "originY": 735,
+                  "rollMarkMs": 0
+                },
+                "nextCastAtMs": 6758.084085555375,
+                "invulMs": 0,
+                "healMsgMs": 0,
+                "hits": 0,
+                "maxInk": 115,
+                "inkRegen": 8,
+                "inkCostRate": 1
+              },
+              "gates": {
+                "door": {
+                  "open": false,
+                  "stroke": [],
+                  "owner": null,
+                  "openedAtMs": 0
+                },
+                "bridge": {
+                  "open": false,
+                  "stroke": [],
+                  "owner": null,
+                  "openedAtMs": 0
+                }
+              },
+              "regionKills": [
+                5,
+                0,
+                0
+              ],
+              "points": 1,
+              "environment": "door"
+            },
+            "message": "잉크 25.0 필요 · 현재 0.0 · 약 3.1초 회복 대기"
+          }
+        },
+        {
+          "name": "basic regeneration enables door and preserves the actual stroke",
+          "status": "PASS"
+        },
+        {
+          "name": "completed door changes collision and permits walking into marsh",
+          "status": "PASS"
+        },
+        {
+          "name": "incomplete bridge endpoints are rejected without spending ink",
+          "status": "PASS"
+        },
+        {
+          "name": "marsh clear then drawn endpoint connection opens quarry",
+          "status": "PASS"
+        },
+        {
+          "name": "390px exploration tree shows actual prerequisite gates",
+          "status": "PASS"
+        },
+        {
+          "name": "390px stat detail keeps separate investment action visible",
+          "status": "PASS"
+        },
+        {
+          "name": "region/ink/investment workflow has no JavaScript errors",
+          "status": "PASS",
+          "detail": []
+        },
+        {
+          "name": "public internet WebRTC connection",
+          "status": "NOT_RUN",
+          "reason": "not requested; rerun with --live-p2p (same single E2E)"
+        }
+      ],
+      "errors": []
+    },
+    {
+      "suite": "Sketch Town real Chromium E2E (single entrypoint)",
+      "html_sha256": "dbbdcc6b810dcc0d0adef41eceefbc539d60a5fe128f11a0d96ff37d19bbab82",
+      "flow": "online",
+      "renderer_backend": "WebGL1 / ANGLE SwiftShader (existing E2E flags; no mock renderer)",
+      "headless": true,
+      "live_p2p_requested": true,
+      "chromium": "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
+      "browser_version": "155.0.4283.45",
+      "elapsed_seconds": 44.55,
+      "status": "PASS",
+      "checks": [
+        {
+          "name": "actual public Nostr + WebRTC join + GameKit rollback admission",
+          "status": "PASS"
+        },
+        {
+          "name": "start-before-join personal investments survive authoritative admission",
+          "status": "PASS"
+        },
+        {
+          "name": "simultaneous PC/mobile door completion consumes exactly one personal gate cost",
+          "status": "PASS",
+          "detail": {
+            "deficit": 25,
+            "gate": {
+              "open": true,
+              "stroke": [
+                {
+                  "x": 0,
+                  "y": -65.38
+                },
+                {
+                  "x": 13.59,
+                  "y": -63.95
+                },
+                {
+                  "x": 26.59,
+                  "y": -59.73
+                },
+                {
+                  "x": 38.43,
+                  "y": -52.89
+                },
+                {
+                  "x": 48.59,
+                  "y": -43.75
+                },
+                {
+                  "x": 56.62,
+                  "y": -32.69
+                },
+                {
+                  "x": 62.18,
+                  "y": -20.2
+                },
+                {
+                  "x": 65.02,
+                  "y": -6.83
+                },
+                {
+                  "x": 65.02,
+                  "y": 6.83
+                },
+                {
+                  "x": 62.18,
+                  "y": 20.2
+                },
+                {
+                  "x": 56.62,
+                  "y": 32.69
+                },
+                {
+                  "x": 48.59,
+                  "y": 43.75
+                },
+                {
+                  "x": 38.43,
+                  "y": 52.89
+                },
+                {
+                  "x": 26.59,
+                  "y": 59.73
+                },
+                {
+                  "x": 13.59,
+                  "y": 63.95
+                },
+                {
+                  "x": 0,
+                  "y": 65.38
+                },
+                {
+                  "x": -13.59,
+                  "y": 63.95
+                },
+                {
+                  "x": -26.59,
+                  "y": 59.73
+                },
+                {
+                  "x": -38.43,
+                  "y": 52.89
+                },
+                {
+                  "x": -48.59,
+                  "y": 43.75
+                },
+                {
+                  "x": -56.62,
+                  "y": 32.69
+                },
+                {
+                  "x": -62.18,
+                  "y": 20.2
+                },
+                {
+                  "x": -65.02,
+                  "y": 6.83
+                },
+                {
+                  "x": -65.02,
+                  "y": -6.83
+                },
+                {
+                  "x": -62.18,
+                  "y": -20.2
+                },
+                {
+                  "x": -56.62,
+                  "y": -32.69
+                },
+                {
+                  "x": -48.59,
+                  "y": -43.75
+                },
+                {
+                  "x": -38.43,
+                  "y": -52.89
+                },
+                {
+                  "x": -26.59,
+                  "y": -59.73
+                },
+                {
+                  "x": -13.59,
+                  "y": -63.95
+                },
+                {
+                  "x": 0,
+                  "y": -65.38
+                },
+                {
+                  "x": 38.43,
+                  "y": 52.89
+                },
+                {
+                  "x": -62.18,
+                  "y": -20.2
+                },
+                {
+                  "x": 62.18,
+                  "y": -20.2
+                },
+                {
+                  "x": -38.43,
+                  "y": 52.89
+                },
+                {
+                  "x": 0,
+                  "y": -65.38
+                }
+              ],
+              "owner": "a",
+              "openedAtMs": 25066.66666666647
+            }
+          }
+        },
+        {
+          "name": "actual reconnect restores shared gate and retains personal investments",
+          "status": "PASS"
+        },
+        {
+          "name": "gate/ink/investment checkpoint finishes with equal confirmed RTC state",
+          "status": "PASS",
+          "detail": {
+            "tick": 840,
+            "hashes": [
+              2671639010,
+              2671639010
+            ]
+          }
+        },
+        {
+          "name": "no JS errors in either online browser",
+          "status": "PASS",
+          "detail": []
+        }
+      ],
+      "errors": []
+    }
+  ],
+  "notes": [
+    "FAQ text was synchronized after the flow runs. The generated standalone runtime bytes remain identical; the final HTML/caption/maps were rendered again.",
+    "Map before/after images use identical viewport and camera fixtures. Future-region views are render inspection, not a claim of normal progression; the separate progression flow walks through both completed gates.",
+    "Negative cases line/scribble/circle/star and positive normal/reversed/rotated-small/coarse drawings use real DOM pointer input. Position, HP and low-ink-at-release fixtures bound the user flow.",
+    "Existing E2E ANGLE SwiftShader WebGL backend, no fake renderer/transport. Hardware GPU, physical mobile devices, external NAT and endurance/balance remain unverified.",
+    "Legacy full-suite checks were not repeated; required changed flows include actual public Nostr/RTC with simultaneous PC/touch gate commands and final confirmed hash equality."
+  ]
+}
