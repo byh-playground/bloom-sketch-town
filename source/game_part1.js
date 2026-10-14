@@ -1,9 +1,9 @@
   const $=id=>document.getElementById(id);
   const clamp=(v,a,b)=>Math.min(b,Math.max(a,v)),mix=(a,b,t)=>a+(b-a)*t,hypot=Math.hypot;
   const art={normal:'#293846',line:'#344e58',circle:'#799c91',triangle:'#d08c63',square:'#8f8b80',flame:'#ce704e',water:'#519cbd',lightning:'#558fbc',star:'#d8a34a',shuriken:'#9887b0',starcircle:'#cd995c'};
-  const CFG=Object.freeze({version:'0.13.2',baseHz:60,renderHz:60,inputHz:60,tickMs:1000/30,maxCatchup:8,world:{width:2380,height:1460},player:{hp:120,radius:16,walkSpeed:140,roll:{capacity:2,rechargeMs:650,rangeDiameters:3,durationMinMs:110,durationMaxMs:270,travelSpeed:765,projectileInvulMs:145}},boss:{x:1948,y:706,radius:255},spawnLimit:17,castLimit:4,maxParticles:360});
+  const CFG=Object.freeze({version:'0.14.0',baseHz:60,renderHz:60,inputHz:60,tickMs:1000/30,maxCatchup:8,world:{width:2380,height:1460},player:{hp:120,radius:16,walkSpeed:140,roll:{capacity:2,rechargeMs:650,rangeDiameters:3,durationMinMs:110,durationMaxMs:270,travelSpeed:765,projectileInvulMs:145}},boss:{x:1948,y:706,radius:255},spawnLimit:17,castLimit:4,maxParticles:360});
   $('gameVersion').textContent=`v${CFG.version} · RPG`;
-  let PW=280,PH=150; // recognizer owns DRAW-PAD CSS pixels, not world / GPU coordinates.
+  const DRAWING_STATS=Object.freeze({width:280,height:150,penWidth:3.8,recognitionSize:150});
   const field=$('field'),renderer=new Renderer2D(field,{batchVertices:32768}),draw=$('draw'),drawCtx=draw.getContext('2d'),trainingPad=$('trainingPad'),trainingCtx=trainingPad.getContext('2d');
   const mini=$('map'),miniCtx=mini.getContext('2d');
   let vw=innerWidth,vh=innerHeight,dpr=1,drawDpr=1,trainingDpr=1,tw=330,th=200;
@@ -46,23 +46,44 @@
     if(join<0)return pts;
     const cut=forward.slice(join);return start?cut:cut.reverse();
   }
+  function strokeBounds(points){
+    let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+    for(const p of points){minX=Math.min(minX,p.x);minY=Math.min(minY,p.y);maxX=Math.max(maxX,p.x);maxY=Math.max(maxY,p.y);}
+    return {minX,minY,maxX,maxY,width:maxX-minX,height:maxY-minY};
+  }
+  function canonicalLoop(points){
+    // The same closed outline has one sampling origin/direction, independent of pen start.
+    const loop=points.slice();if(hypot(loop[0].x-loop.at(-1).x,loop[0].y-loop.at(-1).y)<1e-6)loop.pop();
+    let start=0;for(let i=1;i<loop.length;i++)if(loop[i].x<loop[start].x||(loop[i].x===loop[start].x&&loop[i].y<loop[start].y))start=i;
+    const n=loop.length,forward=loop[(start+1)%n],back=loop[(start+n-1)%n];
+    const direction=forward.x<back.x||(forward.x===back.x&&forward.y<=back.y)?1:-1;
+    const out=Array.from({length:n},(_,i)=>loop[(start+direction*i+n)%n]);out.push({...out[0]});return out;
+  }
   function preprocessStroke(raw){
     if(!raw?.length)return [];
-    let pts=resample(raw,3.1);if(pts.length<5)return pts;
-    const full=strokeLength(pts);let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
-    for(const p of pts){minX=Math.min(minX,p.x);minY=Math.min(minY,p.y);maxX=Math.max(maxX,p.x);maxY=Math.max(maxY,p.y);}
-    const diag=hypot(maxX-minX,maxY-minY);
-    const limit=Math.min(full*.105,diag*.17);
-    if(limit>=6){pts=clipTail(pts,true,limit);pts=clipTail(pts,false,limit);}
-    // Very gentle de-jitter; keep square/lightning corner angles.
-    if(pts.length>4){const smoothed=[pts[0]];for(let i=1;i<pts.length-1;i++)smoothed.push({
-      x:pts[i].x*.83+(pts[i-1].x+pts[i+1].x)*.085,
-      y:pts[i].y*.83+(pts[i-1].y+pts[i+1].y)*.085});smoothed.push(pts.at(-1));pts=smoothed;}
-    const length=strokeLength(pts),first=pts[0],last=pts.at(-1),gap=hypot(first.x-last.x,first.y-last.y);
-    // A nearly closed hand-drawn loop should be closed in the recognition copy only.
-    // Do not close lightning/line: their perimeter is insufficient for a closed contour.
-    if(pts.length>10 && length>diag*1.85 && gap<diag*.195 && gap>1){pts=[...pts,{...first}];}
-    return pts;
+    const box=strokeBounds(raw),cx=(box.minX+box.maxX)/2,cy=(box.minY+box.maxY)/2;
+    const scale=DRAWING_STATS.recognitionSize/Math.max(1e-6,box.width,box.height);
+    // Normalize BEFORE pixel-sized tail/resampling thresholds. Restore CSS units for combat stats.
+    let input=raw.map(p=>({x:(p.x-cx)*scale,y:(p.y-cy)*scale}));
+    const diagonal=hypot(box.width,box.height)*scale;
+    const loop=input.length>=4&&strokeLength(input)>diagonal*1.85&&hypot(input[0].x-input.at(-1).x,input[0].y-input.at(-1).y)<diagonal*.195;
+    if(loop)input=canonicalLoop(input);
+    let pts=resample(input,3.1);
+    if(pts.length>=5){
+      const full=strokeLength(pts),limit=Math.min(full*.105,diagonal*.17);
+      if(!loop&&limit>=6){pts=clipTail(pts,true,limit);pts=clipTail(pts,false,limit);}
+      // Periodic smoothing treats every point in a closed outline identically.
+      if(pts.length>4){
+        if(loop&&hypot(pts[0].x-pts.at(-1).x,pts[0].y-pts.at(-1).y)<1e-6)pts.pop();
+        const n=pts.length;
+        pts=pts.map((p,i)=>{
+          if(!loop&&(i===0||i===n-1))return p;
+          const a=pts[(i+n-1)%n],b=pts[(i+1)%n];return {x:p.x*.83+(a.x+b.x)*.085,y:p.y*.83+(a.y+b.y)*.085};
+        });
+      }
+      if(loop)pts.push({...pts[0]});
+    }
+    return pts.map(p=>({x:p.x/scale+cx,y:p.y/scale+cy}));
   }
   function geometry(raw){const points=preprocessStroke(raw);let length=0,minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity,cross=0;
     for(let i=0;i<points.length;i++){const a=points[i],b=points[(i+1)%points.length];minX=Math.min(minX,a.x);minY=Math.min(minY,a.y);maxX=Math.max(maxX,a.x);maxY=Math.max(maxY,a.y);
@@ -73,8 +94,8 @@
     // A pointed tip is the smaller interior angle of two local segments.
     // Sample a little apart to prevent hand jitter from being counted as thousands of corners.
     let tip=0,sharpCorners=0;
-    const stride=Math.max(3,Math.round(12/3.3));
-    for(let i=stride;i<points.length-stride;i++){const p0=points[i-stride],p1=points[i],p2=points[i+stride];
+    const stride=Math.max(3,Math.round(12/3.3)),count=closed?points.length-1:points.length;
+    for(let i=closed?0:stride;i<(closed?count:count-stride);i++){const p0=points[(i-stride+count)%count],p1=points[i],p2=points[(i+stride)%count];
       const ax=p0.x-p1.x,ay=p0.y-p1.y,bx=p2.x-p1.x,by=p2.y-p1.y;
       const dot=(ax*bx+ay*by)/Math.max(.001,hypot(ax,ay)*hypot(bx,by));
       const interior=Math.acos(clamp(dot,-1,1));
@@ -98,20 +119,23 @@
   const areaCanvas=document.createElement('canvas');areaCanvas.width=160;areaCanvas.height=100;
   const areaCtx=areaCanvas.getContext('2d',{willReadFrequently:true});
   function measureFilledArea(points,closed){
-    const {width:w,height:h}=areaCanvas;
+    const {width:w,height:h}=areaCanvas,box=strokeBounds(points),pad=DRAWING_STATS.penWidth*2;
+    const viewW=Math.max(DRAWING_STATS.width,box.width+pad),viewH=Math.max(DRAWING_STATS.height,box.height+pad);
+    const sx=w/viewW,sy=h/viewH,cx=(box.minX+box.maxX)/2,cy=(box.minY+box.maxY)/2;
     areaCtx.setTransform(1,0,0,1,0,0);areaCtx.clearRect(0,0,w,h);
-    areaCtx.setTransform(w/Math.max(1,PW),0,0,h/Math.max(1,PH),0,0);
-    areaCtx.beginPath();points.forEach((p,i)=>{i?areaCtx.lineTo(p.x,p.y):areaCtx.moveTo(p.x,p.y);});
+    // Fit oversized strokes and translate every stroke to the same raster origin; never clip at screen edges.
+    areaCtx.setTransform(sx,0,0,sy,w/2,h/2);
+    areaCtx.beginPath();points.forEach((p,i)=>{i?areaCtx.lineTo(p.x-cx,p.y-cy):areaCtx.moveTo(p.x-cx,p.y-cy);});
     if(closed){areaCtx.closePath();areaCtx.fillStyle='#fff';areaCtx.fill('evenodd');}
     let inside=0;
     if(closed){const rgba=areaCtx.getImageData(0,0,w,h).data;for(let i=3;i<rgba.length;i+=4)inside+=rgba[i]/255;}
     // Stroke is measured separately with actual fixed pen width, never bounding-box area.
-    areaCtx.clearRect(0,0,w,h);areaCtx.beginPath();points.forEach((p,i)=>{i?areaCtx.lineTo(p.x,p.y):areaCtx.moveTo(p.x,p.y);});
-    areaCtx.lineWidth=3.8;areaCtx.lineCap='round';areaCtx.lineJoin='round';areaCtx.strokeStyle='#fff';areaCtx.stroke();
+    areaCtx.save();areaCtx.setTransform(1,0,0,1,0,0);areaCtx.clearRect(0,0,w,h);areaCtx.restore();areaCtx.beginPath();points.forEach((p,i)=>{i?areaCtx.lineTo(p.x-cx,p.y-cy):areaCtx.moveTo(p.x-cx,p.y-cy);});
+    areaCtx.lineWidth=DRAWING_STATS.penWidth;areaCtx.lineCap='round';areaCtx.lineJoin='round';areaCtx.strokeStyle='#fff';areaCtx.stroke();
     const rgba=areaCtx.getImageData(0,0,w,h).data;let ink=0;for(let i=3;i<rgba.length;i+=4)ink+=rgba[i]/255;
-    const areaPx2=(inside+ink*.08)*(PW*PH)/(w*h);
-    const comparisonArea=Math.PI*Math.pow(Math.min(PW,PH)*.5,2);
-    // Ratio to a drawable inscribed circle is stable even when the pad aspect changes.
+    const areaPx2=(inside+ink*.08)*(viewW*viewH)/(w*h);
+    const comparisonArea=Math.PI*Math.pow(Math.min(DRAWING_STATS.width,DRAWING_STATS.height)*.5,2);
+    // The original 280×150 balance baseline is fixed, independent of layout or device pixels.
     const areaPower=clamp(areaPx2/Math.max(1,comparisonArea),0,1.5);
     return {areaPx2,areaPower,inkCoverage:ink/(w*h)};
   }
@@ -129,11 +153,11 @@
     const base=referenceRules[kind]?.threshold||.7;
     return kind===selected?Math.max(.47,base-REFERENCE_ASSIST_DROP):base;
   }
-  const LOOP_REFERENCE_CLASSES=new Set(['circle','triangle','square','water','star','shuriken']);
+  const LOOP_REFERENCE_CLASSES=new Set(['circle','triangle','square','water','star','shuriken','starcircle']);
   function normalizeStroke(raw,count=64){
     const pts=preprocessStroke(raw);if(!pts.length)return Array.from({length:count},()=>({x:0,y:0}));
     const gap=hypot(pts[0].x-pts.at(-1).x,pts[0].y-pts.at(-1).y);
-    const periodic=pts.length>8&&gap<Math.max(2,strokeLength(pts)*.035);
+    const periodic=pts.length>8&&gap<Math.max(1e-6,strokeLength(pts)*.035);
     const picked=[];for(let i=0;i<count;i++){
       // For loops exclude the duplicated endpoint; start point can be anywhere.
       const idx=Math.round(i*(pts.length-1)/(periodic?count:Math.max(1,count-1)));
@@ -235,7 +259,7 @@
   }
 
   // One-stroke references and the learned classifier share the same canonical stroke templates.
-  function samplePoints(kind,width=PW,height=PH){
+  function samplePoints(kind,width=DRAWING_STATS.width,height=DRAWING_STATS.height){
     const path=glyphReferences.paths[kind];if(!path)return [];
     const centerX=width*.5,centerY=height*.51,scale=Math.min(width*.30,height*.39);
     return path.map(([x,y])=>({x:centerX+x*scale,y:centerY+y*scale}));

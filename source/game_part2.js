@@ -44,16 +44,6 @@
   function announce(text,time=1700){world.screenText=text;world.screenTextMs=time;if(!resimulatingGame){$('screenMessage').textContent=text;$('screenMessage').classList.add('show');}}
   createWorld();
 
-  const heldSample={held:false,pressed:false,released:false};
-  function down(action){return actions.sampleInto(action,heldSample).held;}
-  function playerInputs(){const x=(down('right')?1:0)-(down('left')?1:0),y=(down('down')?1:0)-(down('up')?1:0),m=hypot(x,y);return m>1?{x:x/m,y:y/m}:{x,y};}
-  function queueRollTo(x,y){
-    // Tap direction is relative to the local GameKit presentation pose, not a stale 30TPS position.
-    const rendered=mp.connected&&mp.localPresentation&&mp.localPoseSource
-      ?mp.localPresentation.modelFor(mp.localPoseSource,performance.now()):null;
-    const dx=x-(rendered?.x??player.x),dy=y-(rendered?.y??player.y),dist=hypot(dx,dy);
-    if(dist<12)return;world.commands.push({type:'rollVector',dx:dx/dist,dy:dy/dist,distance:Math.min(dist,rollMaxDistance())});wakeInputPreview();
-  }
   function rollEase(t){return t+.10*Math.sin(Math.PI*t);}
   // The canonical actor movement kernel is shared by authority and GameKit's detached preview fork.
   // Neither helper reads input devices, queues effects, changes world simulation, or plays audio.
@@ -124,7 +114,7 @@
     if(!Number.isFinite(length)||length<.00001||!Number.isFinite(distance)||distance<12||distance>maxDistance+.01)return false;
     return withActor(actor,()=>beginRoll(actor.x+dx/length*distance,actor.y+dy/length*distance));
   }
-  function takeDamage(amount,fromX,fromY){if(player.invulMs>0||world.mode!=='playing')return false;player.hp=Math.max(0,player.hp-Math.round(amount));player.invulMs=520;player.hits++;world.effectShakeMs=180;floating(player.x,player.y-32,`-${Math.round(amount)}`,'#bb604f');burst(player.x,player.y,'#d07962',10,83);sfx('hit');if(fromX!=null){const d=hypot(player.x-fromX,player.y-fromY)||1;moveCollider(player,(player.x-fromX)/d*17,(player.y-fromY)/d*17,player.r);}if(player.hp<=0){if(mp.shared){player.koMs=1150;announce('동료의 잉크가 번졌다 · 잠시 뒤 부활!',1100);}else{world.mode='down';world.deathMs=1150;announce('먹물이 번졌다… 마을로 돌아갑니다',1100);}}return true;}
+  function takeDamage(amount,fromX,fromY){if(player.invulMs>0||world.mode!=='playing')return false;player.hp=Math.max(0,player.hp-Math.round(amount));player.invulMs=520;player.hits++;world.effectShakeMs=180;floating(player.x,player.y-32,`-${Math.round(amount)}`,'#bb604f');burst(player.x,player.y,'#d07962',10,83);sfx('hit');if(fromX!=null){const d=hypot(player.x-fromX,player.y-fromY)||1;moveCollider(player,(player.x-fromX)/d*17,(player.y-fromY)/d*17,player.r);}if(player.hp<=0){if(!resimulatingGame&&player===(mp.role==='join'?guestPlayer:hostPlayer))dropDraw();if(mp.shared){player.koMs=1150;announce('동료의 잉크가 번졌다 · 잠시 뒤 부활!',1100);}else{world.mode='down';world.deathMs=1150;announce('먹물이 번졌다… 마을로 돌아갑니다',1100);}}return true;}
   function reviveActor(actor){withActor(actor,()=>{player.x=actor===guestPlayer?536:480;player.y=actor===guestPlayer?756:735;player.hp=Math.ceil(player.maxHp*.75);player.invulMs=1600;player.koMs=0;player.dash.leftMs=0;player.dash.charges=CFG.player.roll.capacity;player.dash.rechargeMs=0;player.nextCastAtMs=0;});}
   function revive(){player.x=480;player.y=735;player.hp=Math.ceil(player.maxHp*.75);player.invulMs=1600;player.dash.leftMs=0;player.dash.charges=CFG.player.roll.capacity;player.dash.rechargeMs=0;player.nextCastAtMs=0;world.hazards.length=0;world.projectiles.length=0;world.casts.length=0;world.castQueue.length=0;world.rollMarks.length=0;world.mode='playing';}
   function awardXp(value){player.xp+=value;while(player.xp>=player.xpNext){player.xp-=player.xpNext;player.level++;player.xpNext=Math.round(player.xpNext*1.32+10);player.maxHp+=16;player.hp=Math.min(player.maxHp,player.hp+24);player.power*=1.075;announce(`레벨 ${player.level} · 붓끝이 강해졌다!`,1550);sfx('level');}}
@@ -239,8 +229,7 @@ if(e.hp<=0){e.dead=true;world.kills++;burst(e.x,e.y,enemyDefs[e.kind].color,9,10
   }
   function submitSpell(shot){if(world.castQueue.filter(c=>c.owner===actorId(player)).length>=3)return false;world.castQueue.push({shot,owner:actorId(player)});return true;}
   function fireProjectile(c){
-    const shot=c.shot,target=nearestEnemy(950);
-    let dx=player.faceX,dy=player.faceY;if(target){dx=target.x-player.x;dy=target.y-player.y;}const m=hypot(dx,dy)||1;dx/=m;dy/=m;
+    const shot=c.shot,dx=Math.cos(shot.aim),dy=Math.sin(shot.aim);
     const special=shot.kind!=='normal'&&shot.kind!=='line',bulk=clamp(shot.areaPower,0,1);
     const bounces=special?Math.min(9,Math.max(3,3+Math.floor(bulk*4)+(shot.kind==='lightning'||shot.kind==='shuriken'?2:0)+(shot.kind==='starcircle'?2:0))):0;
     const speed=special?clamp(590-bulk*110+(shot.kind==='lightning'||shot.kind==='shuriken'?90:0),445,710):830;
@@ -249,7 +238,7 @@ if(e.hp<=0){e.dead=true;world.kills++;burst(e.x,e.y,enemyDefs[e.kind].color,9,10
       vx:dx*speed,vy:dy*speed,speed,angle:Math.atan2(dy,dx),shape:shot.shape,color:shot.color,kind:shot.kind,
       areaPower:shot.areaPower,baseDamage:shot.baseDamage*player.power,impact:shot.impact,pen:shot.pen,r:radius,
       hitAt:new Map(),bouncesLeft:bounces,bouncesTotal:bounces,bounceCount:0,lastHitId:null,
-      state:'flight',targetId:target?.id||null,orbitMs:0,orbitDurationMs:0,orbitCenter:null,orbitAngle:0,
+      state:'flight',targetId:null,orbitMs:0,orbitDurationMs:0,orbitCenter:null,orbitAngle:0,
       lifeMs:special?clamp(2750+bounces*440,3250,7900):840,ageMs:0};
     if(world.projectiles.length>=55)world.projectiles.shift();world.projectiles.push(p);
     burst(p.x,p.y,p.color,5,42);sfx('throw');
@@ -278,7 +267,9 @@ if(e.hp<=0){e.dead=true;world.kills++;burst(e.x,e.y,enemyDefs[e.kind].color,9,10
     p.state='orbit';p.orbitCenter={x:hit.x,y:hit.y,r:hit.r,id:hit.id};
     p.orbitDurationMs=next.id===hit.id?245:105;
     p.orbitMs=p.orbitDurationMs;
-    p.orbitAngle=Math.atan2(p.y-hit.y,p.x-hit.x)+.32;
+    // Start the orbit at the actual hit position; a new radius/+0.32 angle snapped the center sideways.
+    p.orbitStartRadius=hypot(p.x-hit.x,p.y-hit.y);
+    p.orbitAngle=Math.atan2(p.y-hit.y,p.x-hit.x);
     p.baseDamage*=p.kind==='shuriken'?.91:.89;
     world.fields.push({kind:'arc',x:hit.x,y:hit.y,ex:next.x,ey:next.y,ageMs:0,lifeMs:225,color:p.color});sfx('bounce');
     return false;
@@ -326,7 +317,7 @@ if(e.hp<=0){e.dead=true;world.kills++;burst(e.x,e.y,enemyDefs[e.kind].color,9,10
     return ricochet(p,e);
   }
   function advanceHoming(p,dt){
-    if(p.kind==='normal'||p.kind==='line')return;
+    if(p.kind==='normal'||p.kind==='line'||p.bounceCount===0)return;
     const target=world.enemies.find(e=>e.id===p.targetId&&!e.dead) || nearestEnemy(850,p.x,p.y);
     if(!target)return;
     p.targetId=target.id;
@@ -338,10 +329,11 @@ if(e.hp<=0){e.dead=true;world.kills++;burst(e.x,e.y,enemyDefs[e.kind].color,9,10
   }
   function advanceOrbit(p,dt){
     const c=p.orbitCenter,center=world.enemies.find(e=>e.id===c.id&&!e.dead)||c;
+    p.orbitMs=Math.max(0,p.orbitMs-dt);
     const progress=clamp((p.orbitDurationMs-p.orbitMs)/p.orbitDurationMs,0,1);
-    const radius=center.r+p.r+8+progress*42,theta=p.orbitAngle+progress*Math.PI*(p.targetId===c.id?1.6:.72);
+    const radius=mix(p.orbitStartRadius,center.r+p.r+50,progress),theta=p.orbitAngle+progress*Math.PI*(p.targetId===c.id?1.6:.72);
     p.x=center.x+Math.cos(theta)*radius;p.y=center.y+Math.sin(theta)*radius;
-    p.angle=theta+Math.PI/2;p.orbitMs-=dt;
+    p.angle=theta+Math.PI/2;
     if(p.orbitMs<=0){
       const target=world.enemies.find(e=>e.id===p.targetId&&!e.dead) || nearestEnemy(1080,p.x,p.y);
       if(!target)return false;

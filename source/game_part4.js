@@ -1,23 +1,42 @@
   // Device collection: BLOOM GameKit createDOMInput + ActionState, one writer for commands.
   const ui={modal:null,returnFocus:null};
-  const drawInput={pointer:null,points:[],length:0,finished:null,previewUntilMs:0};
-  const sampleFromPointer=(o)=>({x:clamp(o.x,0,PW),y:clamp(o.y,0,PH)});
+  const drawInput={pointer:null,points:[],length:0,finished:null,previewUntilMs:0,aim:0,center:null,origin:null};
+  const sampleFromPointer=o=>({x:clamp(o.x,0,vw),y:clamp(o.y,0,vh)});
   function appendDrawPoint(p){const prev=drawInput.points.at(-1);if(prev){const d=hypot(p.x-prev.x,p.y-prev.y);if(d<1.25)return;drawInput.length+=d;}if(drawInput.points.length<1200)drawInput.points.push(p);}
-  function setSlowUi(on){$('slowFx').classList.toggle('visible',on);$('slowIndicator').classList.toggle('visible',on);}
+  function setSlowUi(on){on=on&&!mp.connected;$('slowFx').classList.toggle('visible',on);$('slowIndicator').classList.toggle('visible',on);}
   function focusGameplay(){if(!ui.modal&&document.activeElement!==field)field.focus({preventScroll:true});}
-  function dropDraw(){drawInput.pointer=null;drawInput.points.length=0;drawInput.length=0;gesture.drawId=null;setSlowUi(false);$('strokeStatus').textContent='획을 완성하면 자동 조준 공격';}
-  function finishDraw(){const points=drawInput.points.slice(),length=drawInput.length;dropDraw();focusGameplay();if(points.length<3||length<16){showResult('조금 더 길게 한 획을 그려 주세요',1100);return;}
-    gesture.lastCombatStroke=points.map(p=>({...p}));drawInput.finished=points;drawInput.previewUntilMs=performance.now()+400;
-    try{const shot=makeShotData(points);world.commands.push({type:'cast',shot});wakeInputPreview();$('lastSpell').textContent=`${shot.name} · 피해 ${Math.round(shot.baseDamage*player.power)}`;$('strokeStatus').textContent=shot.kind==='normal'?'대표 그림과 유사도가 부족해 기본 탄환으로 발사':'성공! 그린 순서로 잉크가 완성돼요';
-      if(shot.kind==='normal')showResult('일반 낙서 · 특수 그림 유사도 기준 미달',950);
+  function drawingAllowed(){return !ui.modal&&world.mode==='playing'&&player.hp>0&&!(player.koMs>0);}
+  function displayedDrawingActor(){return renderViewCache.get(player)||player;}
+  function updateDrawingAim(){
+    if(!drawInput.points.length)return;
+    let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+    for(const p of drawInput.points){minX=Math.min(minX,p.x);maxX=Math.max(maxX,p.x);minY=Math.min(minY,p.y);maxY=Math.max(maxY,p.y);}
+    const actor=displayedDrawingActor(),origin={x:0,y:0};renderer.worldToScreenInto(actor.x,actor.y,origin);
+    const center={x:(minX+maxX)/2,y:(minY+maxY)/2},dx=center.x-origin.x,dy=center.y-origin.y;
+    if(hypot(dx,dy)>=24)drawInput.aim=Math.atan2(dy,dx);
+    drawInput.center=center;drawInput.origin=origin;
+  }
+  function dropDraw(){drawInput.pointer=null;drawInput.points.length=0;drawInput.length=0;drawInput.finished=null;drawInput.previewUntilMs=0;drawInput.center=null;drawInput.origin=null;gesture.drawId=null;setSlowUi(false);$('strokeStatus').textContent='전장에 한 획 · 놓는 순간 방향 확정';}
+  function finishDraw(){
+    if(!drawingAllowed()){dropDraw();return;}
+    updateDrawingAim();const points=drawInput.points.slice(),length=drawInput.length,aim=drawInput.aim;dropDraw();focusGameplay();
+    if(points.length<3||length<16){showResult('조금 더 길게 한 획을 그려 주세요',1100);return;}
+    gesture.lastCombatStroke=points.map(p=>({...p}));drawInput.finished=points;drawInput.previewUntilMs=performance.now()+220;
+    try{const shot={...makeShotData(points),aim};world.commands.push({type:'cast',shot});wakeInputPreview();$('lastSpell').textContent=`${shot.name} · 피해 ${Math.round(shot.baseDamage*player.power)}`;$('strokeStatus').textContent='방향 확정 · 마법 준비 중';
+      if(shot.kind==='normal')showResult('일반 낙서 · 그린 방향으로 발사',950);
     }catch(error){console.error(error);showResult('마법 분석 실패 · 다시 그려 보세요',950);}}
+  function collectCombatDrawing(e){
+    if(e.type==='down'&&drawInput.pointer===null&&drawingAllowed()){
+      focusGameplay();dropDraw();drawInput.pointer=e.pointerId;gesture.drawId=e.pointerId;gesture.startMs=world.clockMs;
+      const actor=displayedDrawingActor();drawInput.aim=Math.atan2(actor.faceY,actor.faceX);setSlowUi(true);appendDrawPoint(sampleFromPointer(e));updateDrawingAim();$('strokeStatus').textContent='이동으로 조준 · 놓으면 발사';
+    }else if(drawInput.pointer===e.pointerId){
+      if(!drawingAllowed()||e.type==='cancel'){dropDraw();return;}
+      if(e.type==='move'||e.type==='up'){appendDrawPoint(sampleFromPointer(e));updateDrawingAim();if(e.type==='up')finishDraw();}
+    }
+  }
   const keyboardBindings={KeyW:'up',ArrowUp:'up',KeyA:'left',ArrowLeft:'left',KeyS:'down',ArrowDown:'down',KeyD:'right',ArrowRight:'right',Space:'dash',KeyE:'interact'};
-  // Battlefield clicks retain the optional one-shot roll; walking belongs to keys/stick.
-  // GameKit DOM input retains pointer capture; a release only ends the gesture, never delays the roll.
-  const fieldInput=createDOMInput({target:field,state:actions,keys:keyboardBindings,pointerButtons:{0:'rollAim'},touchAction:'none',onPointer(e){
-    if(ui.modal||e.type!=='down')return;
-    const target={x:0,y:0};renderer.screenToWorldInto(e.x,e.y,target);queueRollTo(target.x,target.y);
-  }});
+  // A single captured battlefield pointer owns ink. UI/stick pointers never enter this target.
+  const fieldInput=createDOMInput({target:field,state:actions,keys:keyboardBindings,pointerButtons:{0:'paint'},touchAction:'none',onPointer:collectCombatDrawing,onRelease:dropDraw});
   // Registered after the GameKit device listener, so the edge already belongs to ActionState.
   for(const type of ['keydown','keyup'])document.addEventListener(type,e=>{if(!e.repeat&&keyboardBindings[e.code]&&!ui.modal)wakeInputPreview();});
   const movementStick={pointer:null,x:0,y:0};
@@ -34,16 +53,10 @@
   },onRelease(){resetMovementStick();wakeInputPreview();}});
   const rollButtonInput=createDOMInput({target:$('rollButton'),state:actions,pointerButtons:{0:'dash'},excludeTarget:false,touchAction:'none',onPointer(e){if(e.type==='down'){focusGameplay();wakeInputPreview();}}});
   $('rollButton').addEventListener('click',e=>{if(e.detail===0){actions.pulse('dash');wakeInputPreview();}});
-  const paintInput=createDOMInput({target:draw,state:actions,pointerButtons:{0:'paint'},touchAction:'none',onPointer(e){if(ui.modal)return;
-    if(e.type==='down'&&drawInput.pointer===null){focusGameplay();drawInput.pointer=e.pointerId;drawInput.points=[];drawInput.length=0;gesture.drawId=e.pointerId;gesture.startMs=world.clockMs;setSlowUi(true);appendDrawPoint(sampleFromPointer(e));$('strokeStatus').textContent='그리는 중 · 손을 떼면 마법 사용';}
-    else if(drawInput.pointer===e.pointerId&&e.type==='move'){appendDrawPoint(sampleFromPointer(e));}
-    else if(drawInput.pointer===e.pointerId&&e.type==='up'){appendDrawPoint(sampleFromPointer(e));finishDraw();}
-    else if(drawInput.pointer===e.pointerId&&e.type==='cancel'){dropDraw();}
-  },onRelease(){dropDraw();}});
   $('soundButton').addEventListener('click',async()=>{audioOn=!audioOn;sound.setMuted(!audioOn);$('soundButton').setAttribute('aria-pressed',String(audioOn));$('soundButton').textContent=audioOn?'♪ 켬':'♪ 끔';if(audioOn){await sound.unlock();sfx('select');}});
   function showResult(message,durationMs=1250){if(resimulatingGame)return;const c=$('resultChip');c.textContent=message;c.classList.add('show');ui.resultUntil=performance.now()+durationMs;}
   function changeModal(name){const open=name==='training'||name==='help'||name==='multi';ui.modal=open?name:null;for(const id of ['trainingModal','helpModal','multiplayerModal'])$(id).classList.toggle('open',open&&id===(name==='training'?'trainingModal':name==='help'?'helpModal':'multiplayerModal'));
-    if(open){fieldInput.releaseAll('modal');paintInput.releaseAll('modal');stickInput.releaseAll('modal');rollButtonInput.releaseAll('modal');dropDraw();if(name==='training'){updateTrainingView();drawTrainingPad();}}
+    if(open){fieldInput.releaseAll('modal');stickInput.releaseAll('modal');rollButtonInput.releaseAll('modal');dropDraw();if(name==='training'){updateTrainingView();drawTrainingPad();}}
     else{drawInput.pointer=null;focusGameplay();}
     $('trainingButton').setAttribute('aria-expanded',String(name==='training'));$('helpButton').setAttribute('aria-expanded',String(name==='help'));
   }
@@ -60,7 +73,20 @@
   function strokePad(canvas,context,w,h,ratio,points,guide){context.setTransform(ratio,0,0,ratio,0,0);context.clearRect(0,0,w,h);context.save();context.lineJoin='round';context.lineCap='round';if(guide&&guide.length>1){context.setLineDash([4,6]);context.lineWidth=2.3;context.strokeStyle='#d4b78e';context.globalAlpha=points?.length?.18:.48;context.beginPath();guide.forEach((p,i)=>i?context.lineTo(p.x,p.y):context.moveTo(p.x,p.y));context.stroke();context.setLineDash([]);}
     context.lineWidth=1;context.strokeStyle='#eadcc8';context.beginPath();context.moveTo(w*.5,h*.17);context.lineTo(w*.5,h*.83);context.moveTo(w*.17,h*.5);context.lineTo(w*.83,h*.5);context.stroke();
     if(points?.length>1){context.lineWidth=4.4;context.strokeStyle='#34484e';context.beginPath();points.forEach((p,i)=>i?context.lineTo(p.x,p.y):context.moveTo(p.x,p.y));context.stroke();context.lineWidth=1.4;context.strokeStyle='#fff7dd';context.stroke();const end=points.at(-1);context.beginPath();context.arc(end.x,end.y,4.2,0,Math.PI*2);context.fillStyle='#d9a057';context.fill();}context.restore();}
-  function renderDrawPad(){const show=drawInput.pointer!==null?drawInput.points:drawInput.previewUntilMs>performance.now()?drawInput.finished:null;strokePad(draw,drawCtx,PW,PH,drawDpr,show,samplePoints(selectedGlyph));}
+  function renderDrawPad(){
+    if(drawInput.pointer!==null&&!drawingAllowed())dropDraw();
+    if(drawInput.pointer!==null)updateDrawingAim();
+    const points=drawInput.pointer!==null?drawInput.points:drawInput.previewUntilMs>performance.now()?drawInput.finished:null;
+    drawCtx.setTransform(drawDpr,0,0,drawDpr,0,0);drawCtx.clearRect(0,0,vw,vh);if(!points?.length)return;
+    drawCtx.save();drawCtx.lineCap='round';drawCtx.lineJoin='round';
+    if(drawInput.pointer!==null&&drawInput.origin){
+      const o=drawInput.origin,c=drawInput.center,a=drawInput.aim,tip={x:o.x+Math.cos(a)*88,y:o.y+Math.sin(a)*88};
+      drawCtx.strokeStyle='#315f68';drawCtx.lineWidth=2;drawCtx.setLineDash([5,5]);drawCtx.beginPath();drawCtx.moveTo(o.x,o.y);drawCtx.lineTo(c.x,c.y);drawCtx.stroke();drawCtx.setLineDash([]);
+      drawCtx.beginPath();drawCtx.moveTo(o.x,o.y);drawCtx.lineTo(tip.x,tip.y);drawCtx.moveTo(tip.x-12*Math.cos(a-.5),tip.y-12*Math.sin(a-.5));drawCtx.lineTo(tip.x,tip.y);drawCtx.lineTo(tip.x-12*Math.cos(a+.5),tip.y-12*Math.sin(a+.5));drawCtx.stroke();
+      drawCtx.beginPath();drawCtx.arc(c.x,c.y,6,0,Math.PI*2);drawCtx.stroke();
+    }
+    drawCtx.beginPath();points.forEach((p,i)=>i?drawCtx.lineTo(p.x,p.y):drawCtx.moveTo(p.x,p.y));drawCtx.lineWidth=6;drawCtx.strokeStyle='#fff7dd';drawCtx.stroke();drawCtx.lineWidth=3.5;drawCtx.strokeStyle='#34484e';drawCtx.stroke();drawCtx.restore();
+  }
   function updateTrainingView(){const g=$('datasetGallery');const n=dataset.entries.length;g.innerHTML=n?dataset.entries.slice(-45).map((entry,i)=>{const points=normalizeStroke(entry.points,64),d=points.map((p,j)=>(j?'L':'M')+(42+p.x*24).toFixed(1)+' '+(39+p.y*24).toFixed(1)).join(' ');return `<div class="sample-thumb"><svg viewBox="0 0 84 78"><path d="${d}"/></svg><b>${shapeNames[entry.label]}</b></div>`;}).join(''):'<div style="grid-column:1/-1;color:#7b877e;font-size:12px;padding:10px">아직 수집한 그림이 없어요. 한 획씩 그려 주세요.</div>';
     $('trainingCount').textContent=`원본 ${n}개 · 증강은 별도 학습 과정에서만 · 라벨 ${new Set(dataset.entries.map(e=>e.label)).size}종`;
     $('deleteLast').disabled=n===0;$('clearSamples').disabled=n===0;$('exportSheet').disabled=n===0;

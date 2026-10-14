@@ -3,7 +3,8 @@
   // Signaling uses public Nostr relays; RTC carries only GameKit's framed inputs,
   // membership control and validated join/recovery checkpoints. No live world broadcast.
   const GAMEKIT_SHA='72b09b260edf9650353017acb49c06873fe9f5a1';
-  const MP_NAMESPACE='sketch-town-coop-0131';
+  // Release identity also isolates peers whose cast/checkpoint contracts differ.
+  const MP_NAMESPACE='sketch-town-coop-'+CFG.version;
   const MP_SIMULATION_VERSION='sketch-town-'+CFG.version+'-'+GAMEKIT_SHA;
   const MP_ROLLBACK_URL=GAMEKIT_URLS.rollback;
   const MP_TRANSPORT_URL=GAMEKIT_URLS.transport;
@@ -34,17 +35,19 @@
   function encodeState(){
     const worldState={};for(const key of canonicalKeys)worldState[key]=world[key];
     for(const name of canonicalArrays){worldState[name]=name==='projectiles'?world.projectiles.map(p=>({...p,hitAt:[...p.hitAt]})):world[name];}
-    const state={version:1,world:worldState,actors:[hostPlayer,guestPlayer].map(a=>({...a,dash:{...a.dash}})),
+    const state={version:CFG.version,world:worldState,actors:[hostPlayer,guestPlayer].map(a=>({...a,dash:{...a.dash}})),
       // Only participant presence, not browser/connection state, influences game physics.
       shared:mp.shared};
     return MP_TEXT.encode(JSON.stringify(state));
   }
   function validateState(snapshot){
     try{if(snapshot.byteLength<20||snapshot.byteLength>MP_PROFILE.maxSnapshotBytes)return false;
-      const data=JSON.parse(MP_READER.decode(snapshot));if(data.version!==1||!data.world||!Array.isArray(data.actors)||data.actors.length!==2)return false;
+      const data=JSON.parse(MP_READER.decode(snapshot));if(data.version!==CFG.version||!data.world||!Array.isArray(data.actors)||data.actors.length!==2)return false;
       const w=data.world;
       if(!Number.isSafeInteger(w.nextId)||w.nextId<1||!Number.isSafeInteger(w.seed)||w.seed<0||!Number.isFinite(w.clockMs)||w.clockMs<0)return false;
       for(const name of canonicalArrays)if(!Array.isArray(w[name])||w[name].length>({enemies:75,projectiles:65,hazards:150,casts:8,pickups:120,fields:350,castQueue:8}[name]))return false;
+      // Recovery must preserve the released direction; missing/invalid aim is not an old-schema fallback.
+      for(const name of ['casts','castQueue'])if(w[name].some(c=>!validShotAim(c?.shot?.aim)))return false;
       for(const a of data.actors)if(!a||!Number.isFinite(a.x)||!Number.isFinite(a.y)||!Number.isFinite(a.hp)||!a.dash||!Number.isFinite(a.dash.charges))return false;
       if(typeof data.shared!=='boolean')return false;
       return true;
@@ -65,10 +68,13 @@
     clearVisualEffects();world.rollMarks.length=0;world.rollTarget=null;
     mp.poseReset=true;
   }
+  function validShotAim(aim){return Number.isFinite(aim)&&aim>=-Math.PI&&aim<=Math.PI;}
   function normalizeCommand(cmd){
-    if(cmd.type==='cast'&&cmd.shot?.shape?.length){
+    if(cmd.type==='cast'&&Array.isArray(cmd.shot?.shape)&&cmd.shot.shape.length){
       const s=cmd.shot;
-      return {type:'cast',shot:{kind:s.kind,name:s.name,color:s.color,baseDamage:+s.baseDamage.toFixed(3),
+      if(!validShotAim(s.aim))return null;
+      // Preserve the released radians exactly, rather than re-aiming or quantizing at submission/replay.
+      return {type:'cast',shot:{kind:s.kind,name:s.name,color:s.color,aim:s.aim,baseDamage:+s.baseDamage.toFixed(3),
         areaPower:+s.areaPower.toFixed(5),impact:+s.impact.toFixed(5),pen:+s.pen.toFixed(5),
         geo:{length:+s.geo.length.toFixed(3)},
         shape:s.shape.filter((_,i)=>i%Math.max(1,Math.ceil(s.shape.length/28))===0).slice(0,28).map(p=>({x:+p.x.toFixed(2),y:+p.y.toFixed(2)}))}};
@@ -93,7 +99,7 @@
     }else if(command?.type==='interact')withActor(actor,()=>triggerVillageUpgrade());
     else if(command?.type==='cast'){
       const shot=command.shot;
-      if(!shot||!['normal',...glyphKinds].includes(shot.kind)||!Number.isFinite(shot.baseDamage)||shot.baseDamage<0||shot.baseDamage>250||!Number.isFinite(shot.areaPower)||shot.areaPower<0||shot.areaPower>1.6||!Number.isFinite(shot.geo?.length)||shot.geo.length<0||shot.geo.length>3500||!Array.isArray(shot.shape)||shot.shape.length<2||shot.shape.length>28||shot.shape.some(p=>!Number.isFinite(p.x)||!Number.isFinite(p.y)||Math.abs(p.x)>150||Math.abs(p.y)>150))return;
+      if(!shot||!validShotAim(shot.aim)||!['normal',...glyphKinds].includes(shot.kind)||!Number.isFinite(shot.baseDamage)||shot.baseDamage<0||shot.baseDamage>250||!Number.isFinite(shot.areaPower)||shot.areaPower<0||shot.areaPower>1.6||!Number.isFinite(shot.geo?.length)||shot.geo.length<0||shot.geo.length>3500||!Array.isArray(shot.shape)||shot.shape.length<2||shot.shape.length>28||shot.shape.some(p=>!Number.isFinite(p?.x)||!Number.isFinite(p?.y)||Math.abs(p.x)>150||Math.abs(p.y)>150))return;
       withActor(actor,()=>submitSpell(shot));
     }
   }
@@ -214,7 +220,7 @@
   mpUi();
   Object.assign(window.__sketchRpgDebug,{
     multiplayerState(){return {role:mp.role,connected:mp.connected,ready:mp.ready,code:mp.code,
-      gamekitSHA:GAMEKIT_SHA,inputHz:CFG.inputHz,inputScheduling:mp.session?.profile.inputScheduling,
+      gamekitSHA:GAMEKIT_SHA,namespace:MP_NAMESPACE,simulationVersion:MP_SIMULATION_VERSION,inputHz:CFG.inputHz,inputScheduling:mp.session?.profile.inputScheduling,
       sessionMode:mp.session?.profile.mode||null,tickRate:mp.session?.profile.tickRate||30,previewEnabled:!!mp.inputPreview,
       tick:mp.session?.tick??gameSession.tick,confirmedTick:mp.session?.confirmedTick??null,
       players:mp.session?.players.length||1,shared:mp.shared,network:mp.session?.metrics||null,stats:{...mp.stats},
@@ -226,6 +232,6 @@
     canonicalRestore(bytes){loadState(bytes);},
     canonicalStep(inputs=[],resimulating=false){multiplayerAdapter.step({tick:gameSession.tick,inputs,resimulating});},
     encodeNetCommand(cmd){return encodeLocalCommand(cmd);},
-    encodeCastForTest(kind){return Array.from(encodeLocalCommand({type:'cast',shot:makeShotData(samplePoints(kind))}));},
+    encodeCastForTest(kind,aim=0){const payload=encodeLocalCommand({type:'cast',shot:{...makeShotData(samplePoints(kind)),aim}});return payload?Array.from(payload):null;},
     adapter(){return multiplayerAdapter;}
   });

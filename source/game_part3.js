@@ -380,7 +380,10 @@
         const a=-Math.PI*.70+k*.30;P.dot(p.x+Math.cos(a)*(p.r+13),p.y+Math.sin(a)*(p.r+13),1.5,p.color,.88);
       }
     }
-    P.dot(p.x,p.y,p.r*.66,p.color,.13);drawStroke(p.shape,p.x,p.y,p.angle+paintClockMs*.0018*(p.kind==='normal'||p.kind==='line'?0:1),1.25,p.color,.97,3.0,1);
+    // Shape coordinates, glow, trail and collider share p.x/p.y. Spin belongs to the drawing's age,
+    // not its travel heading: orbit turns used to add abrupt/reversing rotation to the same image.
+    const rotation=p.kind==='normal'||p.kind==='line'?p.angle:p.ageMs*.0018;
+    P.dot(p.x,p.y,p.r*.66,p.color,.13);drawStroke(p.shape,p.x,p.y,rotation,1.25,p.color,.97,3.0,1);
     P.dot(p.x,p.y,3.2,'#fff8d0',.83);
   }
   function drawHazard(h){if(!visible(h.x,h.y,90))return;
