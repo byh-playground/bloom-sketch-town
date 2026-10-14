@@ -5,7 +5,9 @@ cnn=(root/'cnn_weights.json').read_text(encoding='utf-8')
 refs=(root/'glyph_references.json').read_text(encoding='utf-8')
 modules=['renderer','input','dom','audio']
 sdk='\n'.join('/* bloom-gamekit · '+name+' · vendored module runtime (source origin: byh-playground/bloom-gamekit) */\n'+(root/f'gamekit_{name}.js').read_text(encoding='utf-8') for name in modules)+'\n'
-manifest=json.loads((root/'gamekit/manifest.json').read_text(encoding='utf-8'))
+manifest_data=(root/'gamekit/manifest.json').read_bytes()
+assert hashlib.sha256(manifest_data).hexdigest()=='c713809653043e8eb1d9b629c0c2734e9526217f69e04b49283d068c1b5d7da7', 'GameKit manifest hash mismatch'
+manifest=json.loads(manifest_data)
 urls={}
 for name in ['simloop','interpolation','rollback','transport']:
  data=(root/f'gamekit/{name}.js').read_bytes()
