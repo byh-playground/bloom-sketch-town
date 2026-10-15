@@ -1,10 +1,11 @@
 import { readdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { compileVectorAssetFile, compiledAssetModuleSource } from '../source/gamekit/0.6.1/upstream-source/modules/vector-assets/compiler.js';
+import { compileVectorAssetFile, compiledAssetModuleSource } from '../source/gamekit/0.6.5/upstream-source/modules/vector-assets/compiler.js';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const directory = path.join(root, 'source/assets');
+const curveSegments = 8;
 const names = (await readdir(directory)).filter(name => name.endsWith('.svg')).sort();
 if (!names.length) throw new Error('No SVG source assets found in source/assets');
 const assets = [];
@@ -16,7 +17,10 @@ for (const name of names) {
   const match = svg.match(/<metadata id="vector-asset">\s*([\s\S]*?)\s*<\/metadata>/);
   if (!match) throw new Error(`${name} has no GameKit vector metadata`);
   const metadata = JSON.parse(match[1]);
-  const asset = await compileVectorAssetFile(file, `source/assets/${name}`);
+  const asset = await compileVectorAssetFile(file, `source/assets/${name}`, { curveSegments });
+  if (asset.compilerOptions?.curveSegments !== curveSegments) {
+    throw new Error(`${name} did not record curveSegments=${curveSegments}`);
+  }
   assets.push({ name: metadata.id, variable: `asset${assets.length}`, asset });
 }
 if (new Set(assets.map(entry => entry.name)).size !== assets.length) throw new Error('SVG metadata asset ids must be unique');
@@ -31,6 +35,7 @@ const report = assets.map(({ name, asset }) => ({
   sourcePath: asset.sourcePath,
   sourceSha256: asset.sourceSha256,
   compilerVersion: asset.compilerVersion,
+  compilerOptions: asset.compilerOptions,
   parts: asset.geometry.partCount,
   vertices: asset.geometry.vertices.length / asset.geometry.strideFloats,
   clips: Object.keys(asset.metadata.clips),

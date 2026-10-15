@@ -141,6 +141,6 @@ GameKit PR47의 지연된 중첩 상태 전환과 PR48의 preview 복귀 수정�
 
 ### SVG renderer migration candidate
 
-The in-branch candidate authors static character and environment resources in `source/assets/*.svg`, then compiles them into the single-page build with the pinned GameKit 0.6.1 compiler. Live user strokes and transient combat effects remain runtime geometry. See the [implementation notes](docs/svg-renderer.md) and [fixed-scene benchmark](docs/svg-renderer-benchmark-v0.16.0.md). The candidate substantially reduces geometry upload bytes, but SwiftShader still shows a repeatable FPS regression, so the migration is not merged or deployed yet.
+The in-branch candidate authors static character and environment resources in `source/assets/*.svg`, then compiles them into the single-page build with the pinned GameKit Vector Assets 0.6.5 compiler at `curveSegments: 8`. Live user strokes and transient combat effects remain runtime geometry. See the [implementation notes](docs/svg-renderer.md) and [fixed-scene benchmark](docs/svg-renderer-benchmark-v0.16.0.md). D3D11 holds the 60 app FPS target, but SwiftShader remains about 16–21% slower, so the migration is not merged or deployed.
 [SVG renderer migration implementation notes](docs/svg-renderer.md)
 [Fixed-scene renderer benchmark and current SwiftShader regression](docs/svg-renderer-benchmark-v0.16.0.md)
