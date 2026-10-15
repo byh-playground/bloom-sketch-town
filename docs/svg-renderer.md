@@ -35,4 +35,4 @@ The compiler rejects unsupported tags, attributes, namespaces, event handlers, e
 
 ## Benchmark
 
-See [the fixed-scene benchmark](svg-renderer-benchmark-v0.16.0.md) for exact baseline/SVG Edge results at desktop and mobile DPRs, draw/upload counts, actor pose scaling, and verification limits. The SVG candidate reduces retained mesh bytes, but the fixed SwiftShader scene loses about 22–23% observed FPS because it submits more indexed geometry and draw calls. Treat the rendering migration as pending until the shared renderer closes that regression.
+See [the fixed-scene benchmark](svg-renderer-benchmark-v0.16.0.md) for exact baseline/SVG Edge results at desktop and mobile DPRs, CPU callback estimates, draw/upload counts, actor pose scaling, and verification limits. The SVG candidate reduces retained mesh bytes, but the fixed SwiftShader scene loses 20.8% observed FPS on desktop and 26.1% on mobile landscape because it submits more indexed geometry and draw calls. Treat the rendering migration as pending until the shared renderer closes that regression.
