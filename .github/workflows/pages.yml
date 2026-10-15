@@ -11,9 +11,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
       - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
+      - run: npm ci
       - run: python source/build_rpg.py
       - name: Verify committed build
         run: git diff --exit-code -- index.html

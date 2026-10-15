@@ -230,7 +230,7 @@
     if(!mp.code)return;try{await navigator.clipboard.writeText(mp.code);mpStatus('방 번호 복사 완료');}
     catch{mpStatus('방 번호 '+mp.code+' · 직접 입력해 주세요');}
   });
-  window.addEventListener('pagehide',cleanupMultiplayer);
+  window.addEventListener('pagehide',event=>{if(!event.persisted)cleanupMultiplayer();});
   mpUi();
   Object.assign(window.__sketchRpgDebug,{
     multiplayerState(){return {role:mp.role,connected:mp.connected,ready:mp.ready,code:mp.code,

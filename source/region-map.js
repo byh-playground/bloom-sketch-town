@@ -35,13 +35,5 @@
     // Pencil edge marks give the route direction without competing with combat outlines.
     for(let i=2;i<REGION_TERRAIN.route.length;i++){const a=REGION_TERRAIN.route[i];P.line(a[0]-8,a[1]-46,a[0]+9,a[1]-43,1,'#a99f87',.36);}
   }
-  function drawRegionProp(t){if(!['canopy','reed','slab','stump','bell','crane','crystal'].includes(t.kind))return false;const {x,y,r,kind}=t;if(!visible(x,y,r+70))return true;
-    if(kind==='canopy'){P.oval(x,y+r*.6,r*.85,r*.25,'#aeb59b',.3);P.line(x,y+r*.6,x,y-8,7,'#a3987c',.6);for(const [dx,dy,s]of [[-.5,-.25,.7],[.4,-.45,.85],[0,-.95,.73]]){P.oval(x+dx*r,y+dy*r,r*s,r*s*.72,'#b2c5a1',.82);P.ring(x+dx*r,y+dy*r,r*s,'#8da48c',.28,1.2,12);}return true;}
-    if(kind==='reed'){for(let i=0;i<5;i++){const dx=(i-2)*r*.24;P.line(x+dx,y+12,x+dx+(i%2?6:-5),y-r*(.75+(i%3)*.18),1.7,'#91a491',.75);P.oval(x+dx+(i%2?6:-5),y-r*(.75+(i%3)*.18),2.4,7,'#acaa88',.7);}return true;}
-    if(kind==='slab'){const pts=[[x-r,y+8],[x-r*.5,y-r*.7],[x+r*.55,y-r*.75],[x+r,y-r*.1],[x+r*.6,y+r*.5],[x-r*.7,y+r*.48]];sketchPolygon(pts,'#c7bda8',.8);sketchOutline(pts,1.6,'#a59a87',.55);P.line(x-r*.3,y-r*.45,x+r*.65,y-r*.25,1.2,'#e7dec9',.8);return true;}
-    if(kind==='stump'){P.oval(x,y+10,r,r*.65,'#b8ab8c',.7);P.oval(x,y-5,r,r*.55,'#e0d1ac',.9);for(const scale of [.32,.62,.87])P.ring(x,y-5,r*scale,'#a79978',.42,1.5,15);P.line(x-r*.7,y+6,x-r*.6,y+28,2,'#a39677',.55);return true;}
-    if(kind==='bell'){P.box(x,y,48,68,'#b4b9aa',.8);P.tri({x:x-33,y:y-28},{x,y:y-65},{x:x+33,y:y-28},'#8eaaa3',.7);P.box(x,y-10,20,27,'#7f9b97',.7);P.oval(x,y+38,73,17,'#a7bfba',.5);P.line(x-60,y+39,x+50,y+39,1.2,'#89aaa4',.65);return true;}
-    if(kind==='crane'){P.line(x-42,y+25,x+45,y+25,6,'#aa9a7d',.7);P.line(x-25,y+25,x-25,y-70,7,'#b6a282',.9);P.line(x-25,y-65,x+52,y-65,5,'#b6a282',.9);P.line(x+43,y-65,x+43,y-10,1.8,'#928b7e',.7);P.box(x+43,y-7,17,19,'#c2b8a2',.9);P.line(x-25,y-15,x+26,y-65,2,'#9f937b',.6);return true;}
-    for(let i=0;i<3;i++){const dx=(i-1)*r*.42,yy=y+i%2*9;P.tri({x:x+dx-12,y:yy+19},{x:x+dx,y:yy-26-i*6},{x:x+dx+15,y:yy+16},'#aca5bb',.65);P.line(x+dx,yy-26-i*6,x+dx+3,yy+15,1.5,'#e8dfed',.8);}return true;
-  }
+  function drawRegionProp(t){if(!['canopy','reed','slab','stump','bell','crane','crystal'].includes(t.kind))return false;const {x,y,r,kind}=t;if(!visible(x,y,r+70))return true;drawEnvironmentProp(kind,x,y,r);return true;}
   function drawMapLabels(){for(const landmark of REGION_TERRAIN.landmarks){if(!visible(landmark.x,landmark.y,150))continue;renderer.worldToScreenInto(landmark.x,landmark.y-landmark.r-75,anchorReuse);txtCtx.textAlign='center';txtCtx.font='600 11px system-ui';txtCtx.lineWidth=3;txtCtx.strokeStyle='#f5f0e1';txtCtx.strokeText(landmark.label,anchorReuse.x,anchorReuse.y);txtCtx.fillStyle='#7c8478';txtCtx.fillText(landmark.label,anchorReuse.x,anchorReuse.y);}}

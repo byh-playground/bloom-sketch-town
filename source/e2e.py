@@ -175,6 +175,14 @@ async def run_desktop(browser, suite: E2E, html: str):
         suite.check("real desktop WebGL renders game geometry", info["gpu"]["vertices"] > 0 and info["snap"]["rendererState"] == "ready")
         suite.check("30 TPS simulation / 60 FPS rendering targets", info["stats"]["targetTPS"] == 30 and info["stats"]["targetFPS"] == 60)
         suite.check("GameKit interpolation has live entities", info["stats"]["interpolated"] and info["stats"]["trackedEntities"] > 0)
+        frame_before_pagehide = info["gpu"]["frame"]
+        await page.evaluate("window.dispatchEvent(new PageTransitionEvent('pagehide',{persisted:true}))")
+        suite.check("bfcache pagehide preserves the live SVG renderer",
+                    (await page.evaluate("window.__sketchRpgDebug.snapshot().rendererState")) == "ready")
+        await page.evaluate("window.dispatchEvent(new PageTransitionEvent('pageshow',{persisted:true}))")
+        await page.wait_for_function(
+            f"window.__sketchRpgDebug.rendererStats().frame > {frame_before_pagehide}", timeout=3000
+        )
         before_tick = info["snap"]["tick"]
         await page.wait_for_timeout(800)
         tick_state = await page.evaluate("window.__sketchRpgDebug.snapshot().tick")
@@ -409,10 +417,11 @@ async def run_mobile(browser, suite: E2E, html: str):
         suite.check('mobile roll button consumes one charge and resumes walking', await page.evaluate("window.__sketchRpgDebug.rollState().charges===1 && window.__sketchRpgDebug.rollState().leftMs===0 && window.__sketchRpgDebug.movementState().x>0"))
         await cdp.send('Input.dispatchTouchEvent', {'type':'touchCancel','touchPoints':[]})
         await page.wait_for_timeout(100)
-        stopped=await page.evaluate("window.__sketchRpgDebug.snapshot().player")
+        stopped=await page.evaluate("window.__sketchRpgDebug.movementState()")
         await page.wait_for_timeout(100)
-        later=await page.evaluate("window.__sketchRpgDebug.snapshot().player")
-        suite.check('touch cancellation stops movement',all(stopped[k]==later[k] for k in ('x','y')))
+        later=await page.evaluate("window.__sketchRpgDebug.movementState()")
+        suite.check('touch cancellation stops movement',all(stopped[k]==later[k]==0 for k in ('x','y')),
+                    {'stoppedMovement':stopped,'laterMovement':later})
         await page.evaluate("window.__sketchRpgDebug.resumePainting()")
         suite.check("mobile WebGL/JS stays operational", not issues, issues[:5])
         await page.screenshot(path=str(ARTIFACTS / "mobile.png"))
@@ -534,11 +543,12 @@ async def run_magic_ux(browser,suite):
             await page.screenshot(path=str(ARTIFACTS/'growth-ux-mobile.png'))
             await page.locator('#growthModal [data-close]').click()
             await page.evaluate('__sketchRpgDebug.moveTo(1780,485)')
+            await page.locator('#field').focus()
             await page.keyboard.down('w')
             await page.wait_for_timeout(500)
             await page.keyboard.up('w')
-            state=await page.evaluate('__sketchRpgDebug.snapshot().player')
-            suite.check('authored wetland water silhouette blocks actual walking',state['y']>=460 and state['y']<485,state)
+            state=await page.evaluate('({player:__sketchRpgDebug.snapshot().player,movement:__sketchRpgDebug.movementState()})')
+            suite.check('authored wetland water silhouette blocks actual walking',state['player']['y']>=460 and state['player']['y']<485,state)
             suite.check('new HUD/magic/map flow has no JavaScript error',not issues,issues)
         finally:
             await context.close()
@@ -604,7 +614,9 @@ async def run_progression(browser, suite: E2E):
             await page.set_viewport_size({'width':390,'height':844})
             await page.evaluate('__sketchRpgDebug.progressionCombatFixture(1);__sketchRpgDebug.setInk(100)')
             await page.wait_for_timeout(150)
-            await draw_circle(page,140)
+            region_shot=await draw_circle(page,140)
+            suite.check('resized region fixture queues the actual circle stroke',region_shot is not None and region_shot['kind']=='circle',region_shot)
+            if region_shot is None:return
             await page.wait_for_function('__sketchRpgDebug.progressionState().regionKills[1]===5',timeout=10000)
             await page.evaluate('__sketchRpgDebug.moveTo(2790,735)')
             await page.wait_for_timeout(150)
@@ -799,11 +811,13 @@ async def run_real_p2p(browser, suite: E2E):
             state=await host.evaluate('JSON.parse(new TextDecoder().decode(__sketchRpgDebug.canonicalSnapshot()))')
             deficit=sum(a['maxInk']-a['ink'] for a in state['actors'])
             suite.check('simultaneous PC/mobile door completion consumes exactly one personal gate cost',abs(deficit-25)<0.01,{'deficit':deficit,'gate':state['world']['gates']['door']})
-            await guest.locator('#multiplayerButton').click()
+            await guest.locator('#multiplayerButton').click(no_wait_after=True)
+            await guest.locator('#multiplayerModal').wait_for(state='visible',timeout=5000)
             await guest.locator('#mpLeave').click()
             await guest.wait_for_function('window.__sketchRpgDebug!==undefined && !__sketchRpgDebug.multiplayerState().connected',timeout=10000)
             if not await guest.locator('#multiplayerModal').is_visible():
-                await guest.locator('#multiplayerButton').click()
+                await guest.locator('#multiplayerButton').click(no_wait_after=True)
+                await guest.locator('#multiplayerModal').wait_for(state='visible',timeout=5000)
             await guest.locator('#mpRoomInput').fill(code)
             await guest.locator('#mpJoin').click()
             try:
