@@ -15,7 +15,7 @@ The pinned SDK is `byh-playground/bloom-gamekit` v0.6.1, source commit `4150109c
 
 `game_part3.js` maps the current game state to an SVG clip and expression. Poses, enemy expressions, house variants, and plant sway are authored in SVG metadata. SVG meshes and runtime geometry share one GameKit WebGL device. The renderer flushes vector geometry before each mesh boundary so painter order, alpha blending, clipping, and depth ordering stay in the same order as the game calls; it does not globally reorder draws.
 
-User drawn strokes remain sampled runtime input and dynamic game geometry. They are not converted into SVG files or recompiled on each frame. Transient effects such as projectile trails, impacts, rings, and cast sparks also remain runtime geometry. Static player/enemy bodies and repeated environment objects are compiled once at build time and their GPU meshes are cached until disposal. `pagehide` releases every vector asset, the context, and its device.
+User drawn strokes remain sampled runtime input and dynamic game geometry. They are not converted into SVG files or recompiled on each frame. Transient effects such as projectile trails, impacts, rings, and cast sparks also remain runtime geometry. Static player/enemy bodies and repeated environment objects are compiled once at build time and their GPU meshes are cached until disposal. A non-persisted `pagehide` releases every vector asset, the context, its device, and input resources. A persisted bfcache `pagehide` pauses the game loops while keeping those resources alive; persisted `pageshow` resumes them.
 
 Each environment item has its own SVG mesh. This avoids submitting hidden geometry for every tree or house when the shared environment art sheet is used repeatedly. Repeated instances may be instanced when adjacent in painter order, but the renderer preserves ordering boundaries and does not promise one draw per SVG asset or a fixed draw count.
 
@@ -31,7 +31,7 @@ The compiler rejects unsupported tags, attributes, namespaces, event handlers, e
 - The retained mesh renderer batches consecutive instances only when mesh, multipart poses, projection, clip planes, and depth state match. One-part static props can reuse a retained mesh across different transforms. Independently animated multipart actors have different per-part poses and stay in separate draws; the renderer does not sort them or cross painter boundaries. `MeshBuilder.combine` remains available for explicitly compatible groups up to 16 total parts, but it duplicates geometry into a combined mesh and is not used as a per-frame workaround here.
 - The existing world and live drawing effects use GameKit's vector context on the same WebGL1 context. The vector path and SVG mesh queues are flushed at their painter boundary to preserve source draw order.
 - SVG `opacity`, fill opacity, and stroke opacity are compiled into per-vertex alpha. No raster textures are introduced by the migrated assets.
-- The runtime device tracks context loss/restoration and owns the white vector texture and GPU buffers. The asset cache is disposed on page hide; resize continues through the existing renderer boundary.
+- The runtime device tracks context loss/restoration and owns the white vector texture and GPU buffers. The asset cache is disposed on final page hide, while bfcache suspend/resume keeps it intact. Resize continues through the existing renderer boundary.
 
 ## Benchmark
 
