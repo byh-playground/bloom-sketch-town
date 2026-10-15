@@ -69,7 +69,15 @@ class Renderer2D {
     if (this.active) throw new Error('endFrame is required');
     if (clear.length !== 4 || Array.from(clear).some(n => !Number.isFinite(n) || n < 0 || n > 1)) throw new TypeError('clear must be normalized RGBA');
     const width = Math.max(1, Math.round(this.width*this.dpr)), height = Math.max(1, Math.round(this.height*this.dpr));
-    if (!this.context.beginFrame({ width, height, clearColor: Array.from(clear) })) return false;
+    try {
+      if (!this.context.beginFrame({ width, height, clearColor: Array.from(clear) })) return false;
+    } catch (error) {
+      // The WebGL loss event may arrive after the browser has already made
+      // context queries return null. Skip that boundary frame and let the
+      // pinned device's loss/restore handlers reinitialize retained resources.
+      if (this.gl.isContextLost()) return false;
+      throw error;
+    }
     this.active = true; this.frame++;
     this._applyCamera();
     return true;

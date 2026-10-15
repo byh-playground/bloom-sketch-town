@@ -31,7 +31,7 @@ The compiler rejects unsupported tags, attributes, namespaces, event handlers, e
 - The retained mesh renderer batches consecutive instances only when mesh, multipart poses, projection, clip planes, and depth state match. One-part static props can reuse a retained mesh across different transforms. Independently animated multipart actors have different per-part poses and stay in separate draws; the renderer does not sort them or cross painter boundaries. `MeshBuilder.combine` remains available for explicitly compatible groups up to 16 total parts, but it duplicates geometry into a combined mesh and is not used as a per-frame workaround here.
 - The existing world and live drawing effects use GameKit's vector context on the same WebGL1 context. The vector path and SVG mesh queues are flushed at their painter boundary to preserve source draw order.
 - SVG `opacity`, fill opacity, and stroke opacity are compiled into per-vertex alpha. No raster textures are introduced by the migrated assets.
-- The runtime device tracks context loss/restoration and owns the white vector texture and GPU buffers. The asset cache is disposed on final page hide, while bfcache suspend/resume keeps it intact. Resize continues through the existing renderer boundary.
+- The runtime device tracks context loss/restoration and owns the white vector texture and GPU buffers. The renderer also skips a boundary frame if WebGL queries go unavailable just before the browser's loss event, then reuses retained meshes after restoration. The asset cache is disposed on final page hide, while bfcache suspend/resume keeps it intact. Resize continues through the existing renderer boundary.
 
 ## Benchmark
 

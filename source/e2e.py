@@ -183,6 +183,26 @@ async def run_desktop(browser, suite: E2E, html: str):
         await page.wait_for_function(
             f"window.__sketchRpgDebug.rendererStats().frame > {frame_before_pagehide}", timeout=3000
         )
+        has_context_loss = await page.evaluate("""() => {
+          const gl=document.querySelector('#field').getContext('webgl');
+          const ext=gl?.getExtension('WEBGL_lose_context');
+          if(!ext)return false;
+          window.__restoreSketchWebGL=()=>ext.restoreContext();
+          ext.loseContext();
+          return true;
+        }""")
+        suite.check("WebGL context loss extension is available", has_context_loss)
+        if has_context_loss:
+            await page.wait_for_function(
+                "window.__sketchRpgDebug.snapshot().rendererState === 'lost'", timeout=5000
+            )
+            await page.evaluate("window.__restoreSketchWebGL()")
+            await page.wait_for_function(
+                "window.__sketchRpgDebug.snapshot().rendererState === 'ready' && window.__sketchRpgDebug.rendererStats().vertices > 0",
+                timeout=10000,
+            )
+            suite.check("retained SVG meshes restore after WebGL context loss",
+                        (await page.evaluate("window.__sketchRpgDebug.rendererStats().mesh.state")) == "ready")
         before_tick = info["snap"]["tick"]
         await page.wait_for_timeout(800)
         tick_state = await page.evaluate("window.__sketchRpgDebug.snapshot().tick")
