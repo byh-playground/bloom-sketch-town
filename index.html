@@ -93,7 +93,7 @@ const GAMEKIT_VECTOR_URLS={"rendering":"data:text/javascript;base64,Ly8gbW9kdWxl
 const [gamekitRendering,gamekitVectorAssets]=await Promise.all([import(GAMEKIT_VECTOR_URLS.rendering),import(GAMEKIT_VECTOR_URLS.vectorAssets)]);
 const {WebGLDevice,VectorContext,MeshBuilder,MeshRenderer}=gamekitRendering;
 const {createVectorAsset}=gamekitVectorAssets;
-/* bloom-gamekit renderer vendored module runtime (source origin: byh-playground/bloom-gamekit) */
+/* bloom-gamekit · renderer · vendored module runtime (source origin: byh-playground/bloom-gamekit) */
 // Compatibility facade over GameKit 0.6.1 VectorContext. The gameplay calls
 // remain ordered at the old Renderer2D boundary; SVG meshes and transient paths
 // share one WebGL device and are flushed only when their painter changes.
@@ -223,7 +223,7 @@ class Renderer2D {
   }
 }
 
-/* bloom-gamekit input vendored module runtime (source origin: byh-playground/bloom-gamekit) */
+/* bloom-gamekit · input · vendored module runtime (source origin: byh-playground/bloom-gamekit) */
 function actionName(action) {
 if (typeof action !== 'string' || !action.length) throw new TypeError('action must be a nonempty string');
 }
@@ -298,7 +298,7 @@ entry.pressed = false; entry.released = false;
 }
 }
 
-/* bloom-gamekit dom vendored module runtime (source origin: byh-playground/bloom-gamekit) */
+/* bloom-gamekit · dom · vendored module runtime (source origin: byh-playground/bloom-gamekit) */
 const UI_TARGETS = 'input, textarea, select, button, a[href], [contenteditable]:not([contenteditable="false"]), [data-gamekit-ui]';
 const BUTTON_BITS = [1, 4, 2, 8, 16];
 function bindings(value, name, pointer = false) {
@@ -544,7 +544,7 @@ if (touchAction !== undefined && target.style?.touchAction === touchAction) targ
 };
 }
 
-/* bloom-gamekit audio vendored module runtime (source origin: byh-playground/bloom-gamekit) */
+/* bloom-gamekit · audio · vendored module runtime (source origin: byh-playground/bloom-gamekit) */
 const audioDefaults={volume:.7,headroom:.24,maxVoices:12,rampMs:8,storageKey:null,
 synthesis:{attackMs:4,releaseTailMs:6,sourceTailMs:10,noiseMs:1000,minGain:.0001,minHz:20},
 compressor:{threshold:-18,knee:12,ratio:6,attackMs:3,releaseMs:120},
