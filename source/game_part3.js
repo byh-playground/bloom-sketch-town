@@ -76,6 +76,7 @@
     player.castActive=sceneViews.cast.some(c=>c.owner===player.actorId)||(player.castPreviewMs||0)>0;
     const mood=playerMood(running),clip=player.dash.leftMs>0?'dash':mood==='down'?'down':mood==='cast'?'cast':running?'move':'idle';
     const vector=drawVector('player',mood,clip,paintClockMs,[1,0,0,1,x-50,y-36]);
+    player.currentClip=vector.currentClip;player.currentExpression=vector.currentExpression;
     if(player.invulMs>0&&Math.floor(paintClockMs/93)%2===1&&mood!=='hurt')P.ring(x,y,22,'#80a59c',.65,2.2);
     if(player.dash.leftMs>0){const progress=clamp(player.dash.elapsedMs/Math.max(1,player.dash.durationMs),0,1);P.ring(x,y,16+Math.sin(Math.PI*progress)*6,'#7da69b',.21,1.65,22);const a=paintClockMs*.030;for(let k=0;k<3;k++){const q=a+k*Math.PI*2/3;P.line(x+Math.cos(q)*21,y+Math.sin(q)*21,x+Math.cos(q+.45)*24,y+Math.sin(q+.45)*24,1.8,'#759b92',.52);}}
     const casting=sceneViews.cast.some(c=>c.owner===player.actorId),anticipation=(player.castPreviewMs||0)>0;
