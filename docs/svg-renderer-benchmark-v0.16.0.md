@@ -1,8 +1,8 @@
 # SVG renderer benchmark for Sketch Town 0.16.0
 
-This report compares the main-branch 0.16.0 bundle with the SVG candidate. The current v0.6.4 / `curveSegments: 8` measurements are first; the older v0.6.1 run remains below as historical context.
+This report records the official GameKit Vector Assets v0.6.5 candidate and the renderer measurements for its runtime bundle. The v0.6.5 `rendering.js` and `vector-assets.js` bytes match v0.6.4 exactly, so the measurements below characterize the same renderer code; the GPU samples were not repeated during the v0.6.5 pin verification. The older v0.6.1 run remains below as historical context.
 
-## Current candidate: GameKit Vector Assets 0.6.4, curveSegments 8
+## Current candidate: GameKit Vector Assets 0.6.5, curveSegments 8
 
 The controlled scene uses the same main baseline and candidate HTML, Edge 155, 1024×768 DPR1 or 844×390 DPR2, a 1-second settle and 4-second sample. Setup fixes the player at (475,735), five enemies, HP 120, zero projectiles/casts, and pauses simulation before sampling; reported actual TPS was 0. Two uninstrumented SwiftShader samples were run for each viewport. D3D11 results are one sample per viewport. These are this host's measurements, not hardware-wide guarantees.
 
@@ -19,9 +19,11 @@ The game's smoothed render-callback EMA varied by run and is not a GPU timer; it
 
 For the 17 authored Sketch Town SVGs, the supplied same-asset measurement reports retained geometry of 443,720 bytes at 16 segments and 278,940 bytes at 8 segments (-37.1%). The same-state 1024×768 pixel comparison differed in 44,877 of 2,359,296 RGBA channel values (1.90%), with mean absolute difference 0.168 and maximum 73; differences were chiefly small leaf and curve edges. At the game's fixed scale, no clear silhouette, outline, or expression loss was observed. These results validate `curveSegments: 8` for these Sketch Town assets; they do not establish a CPU or FPS improvement.
 
-The canonical `python source/build_rpg.py` passed with the v0.6.4 source and dist pins and compiled all 17 SVGs with `compilerOptions.curveSegments=8`. The generated `index.html` is 2,013,926 bytes (SHA-256 `ae3bb4c6daad428255e73d676036906309ef5a955c162faebe3c186ae650a2f0`). Edge 155 full non-network E2E passed 64 checks with one public-network check not run; the separate real Nostr/WebRTC online flow passed all 6 checks. A full combined live run reached 100 passing checks, then its final same-room leave/rejoin timed out: the host reported `membership deadline exceeded` and the guest reported `dynamic room is full`. The same latest P2P fixture on main baseline reached 36 passing checks and failed at the same rejoin condition. The independent online flow successfully rejoined and produced matching confirmed state.
+The canonical `python source/build_rpg.py` passed with the official v0.6.5 source and dist pins and compiled all 17 authored SVGs with `compilerOptions.curveSegments=8`. The generated `index.html` is 2,013,926 bytes (SHA-256 `ae3bb4c6daad428255e73d676036906309ef5a955c162faebe3c186ae650a2f0`). These SVGs are static, predefined assets; user-created freehand strokes remain dynamic point geometry and are not serialized or recompiled as SVG. Edge 155 full non-network E2E passed 64 checks with one public-network-only check not run. The separate real Nostr/WebRTC online flow passed all 6 checks, including reconnect, with the same candidate HTML hash. A fresh main-baseline online run also passed all 6 checks using baseline HTML SHA-256 `053ed36964b01358e90f09e5fbba215397f133e9aeca435e26838bdf87c14c2d`.
 
-**Status:** keep PR #12 as a draft. Do not merge or deploy while the software-renderer regression and combined-flow same-room membership/rejoin limitation remain. The full non-network suite and independent live online flow pass separately.
+The dedicated combined live P2P/cast run remains unresolved: it passed admission, replication, timing, reserved-tick, duplicate-packet, hash-reconciliation, and protocol checks, then timed out waiting for a real cast to be observed. A second focused cast attempt also timed out, while the independent reconnect flow passed on retry after one intermittent timeout. These reports use the candidate HTML SHA above. They do not demonstrate an actor A/B cast pass or stable reconnect across the combined flow.
+
+**Status:** keep PR #12 as a draft. Do not merge or deploy while the measured SwiftShader regression and combined live P2P cast/reconnect instability remain. The non-network suite and independent live online flow pass separately; their success does not clear the combined P2P blocker.
 
 ## Historical v0.6.1 candidate measurements
 

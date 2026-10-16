@@ -703,6 +703,15 @@ async def run_real_p2p(browser, suite: E2E):
             print('REAL_CAST_DIAGNOSTIC',json.dumps({'stage':stage,'peers':diagnostics},ensure_ascii=False),flush=True)
             for name,page in (('host',host),('guest',guest)):
                 await page.screenshot(path=str(ARTIFACTS/f'real-cast-{stage}-{name}.png'))
+        async def ensure_multiplayer_modal(page):
+            modal=page.locator('#multiplayerModal')
+            if not await modal.is_visible():
+                try:
+                    await page.locator('#multiplayerButton').click(no_wait_after=True,timeout=1000)
+                except Exception:
+                    if not await modal.is_visible():
+                        raise
+            await modal.wait_for(state='visible',timeout=5000)
         try:
             await asyncio.gather(host.goto(url, wait_until="load"), guest.goto(url, wait_until="load"))
             await asyncio.gather(
@@ -824,8 +833,9 @@ async def run_real_p2p(browser, suite: E2E):
                             const d=__sketchRpgDebug,snapshot=JSON.parse(new TextDecoder().decode(d.canonicalSnapshot()));
                             const cast=snapshot.world.casts.find(c=>c.owner===actor);
                             const actors=d.renderedActors(),localActor=actors.find(p=>p.id===actor);
+                            if(cast&&castReleasedAim===null)castReleasedAim=cast.shot?.aim??null;
                             if(!castSampleStarted&&(cast||localActor?.castActive)){
-                              castReleasedAim=cast?.shot?.aim??null;castSampleStarted=true;window.castSampleEnd=performance.now()+1400;
+                              castSampleStarted=true;window.castSampleEnd=performance.now()+1400;
                             }
                             if(castSampleStarted){
                               const state=d.snapshot(),mp=d.multiplayerState(),audit=d.inputAudit();
@@ -876,7 +886,12 @@ async def run_real_p2p(browser, suite: E2E):
                     except Exception:
                         await report_cast_diagnostic(f'{actor}-sample-start')
                         raise
-                    released_aim=await host.evaluate("actor=>JSON.parse(new TextDecoder().decode(__sketchRpgDebug.canonicalSnapshot())).world.casts.find(c=>c.owner===actor).shot.aim",actor)
+                    try:
+                        await host.wait_for_function("window.castReleasedAim!==null",timeout=3000)
+                    except Exception:
+                        await report_cast_diagnostic(f'{actor}-authoritative-aim')
+                        raise
+                    released_aim=await host.evaluate("window.castReleasedAim")
                     suite.check('RTC command freezes the actual drawing aim: '+actor,abs(released_aim-before_release_aim)<1e-10)
                     try:
                         await asyncio.gather(*(p.wait_for_function("window.castSampleDone===true",timeout=3000) for p in (host,guest)))
@@ -944,14 +959,24 @@ async def run_real_p2p(browser, suite: E2E):
                             for i,a in enumerate(state['actors'])]
             suite.check('simultaneous PC/mobile door completion consumes exactly one personal gate cost',abs(deficit-25)<0.01,
                         {'deficit':deficit,'inkBefore':ink_before_gate,'inkAfter':ink_after_gate,'gate':state['world']['gates']['door']})
-            if not await guest.locator('#multiplayerModal').is_visible():
-                await guest.locator('#multiplayerButton').click(no_wait_after=True)
-                await guest.locator('#multiplayerModal').wait_for(state='visible',timeout=5000)
+            await ensure_multiplayer_modal(guest)
             await guest.locator('#mpLeave').click()
-            await guest.wait_for_function('window.__sketchRpgDebug!==undefined && !__sketchRpgDebug.multiplayerState().connected',timeout=10000)
-            if not await guest.locator('#multiplayerModal').is_visible():
-                await guest.locator('#multiplayerButton').click(no_wait_after=True)
-                await guest.locator('#multiplayerModal').wait_for(state='visible',timeout=5000)
+            try:
+                await guest.wait_for_function('window.__sketchRpgDebug!==undefined && !__sketchRpgDebug.multiplayerState().connected',timeout=10000)
+            except Exception:
+                diagnostics=await asyncio.gather(*(p.evaluate("""() => ({
+                  multiplayer:__sketchRpgDebug.multiplayerState(),
+                  modalVisible:document.getElementById('multiplayerModal')?.classList.contains('open'),
+                  modalText:document.getElementById('multiplayerModal')?.innerText,
+                  leaveText:document.getElementById('mpLeave')?.innerText,
+                  progressText:document.getElementById('mpProgress')?.innerText,
+                  location:location.href
+                })""") for p in (host,guest)))
+                print('LEAVE_DIAGNOSTIC',json.dumps(diagnostics,ensure_ascii=False),flush=True)
+                for name,page in (('host',host),('guest',guest)):
+                    await page.screenshot(path=str(ARTIFACTS/f'leave-failed-{name}.png'))
+                raise
+            await ensure_multiplayer_modal(guest)
             await guest.locator('#mpRoomInput').fill(code)
             await guest.locator('#mpJoin').click()
             try:

@@ -1,10 +1,10 @@
 {
   "repository": "byh-playground/bloom-gamekit",
-  "version": "0.6.4",
-  "sourceCommit": "07244380145a8fb9a0a973a6f7c7c0249fe9bbea",
-  "distCommit": "e4917cdf84fdaf9f601a21938961fe6553ca0ee4",
+  "version": "0.6.5",
+  "sourceCommit": "71b368bd85eaa1aa17fb841573da7fd9ffe0c9de",
+  "distCommit": "b1bd32a1876fb8b096f483a93d1079da49e4fc74",
   "manifest": "manifest.json",
-  "manifestSha256": "d09aa0b2e797fc1bb780b53d99326f6a04b42f0e31aa9e1657fff37e75ec4b8d",
+  "manifestSha256": "7a75ca95de002e9bd645777cfc822ed52794ce2b0e104a01c568c6431bafa6e7",
   "runtimeModules": {
     "rendering": "rendering.js",
     "vectorAssets": "vector-assets.js"
@@ -12,9 +12,9 @@
   "sha256": {
     "rendering.js": "7602d9132a1dc9e5089a1c3216ddc8b2b35b7a7e4fd26df03eb19d6c05c1b804",
     "vector-assets.js": "0cc9b087c531b2633d63050c1bfecbf6b0aee91792fc4e028dbfcbfce5523096",
-    "upstream-source/modules/vector-assets/compiler.js": "d56907fc798eee7e6331c7b58597e620915c4c00776a044bc4682af3ed86e524",
+    "upstream-source/modules/vector-assets/compiler.js": "221530613965de21787b81ef625090449882faf9da8e8b3ba898815a230a98f4",
     "upstream-source/modules/vector-assets/schema.js": "a98eee9a78729e1baaeea932223de7b1e034af7fc0ddd8b9f72e42958bc7c8ff",
-    "upstream-source/modules/vector-assets/scripts/compile.mjs": "759ff951c3bf7afdffad7c168ea36f9ae3bf19d04908c2dc5086d1d0159dc3d7"
+    "upstream-source/modules/vector-assets/scripts/compile.mjs": "0e7d0aec67b422e8879897ddda7c077fbb80f89afa47af0c91a95ea84b80c96c"
   },
   "compilerOptions": {
     "curveSegments": 8
