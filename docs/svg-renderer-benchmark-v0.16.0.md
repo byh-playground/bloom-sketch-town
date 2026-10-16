@@ -1,8 +1,8 @@
 # SVG renderer benchmark for Sketch Town 0.16.0
 
-This report compares the main-branch 0.16.0 bundle with the SVG candidate. The current v0.6.5 / `curveSegments: 8` measurements are first; the older v0.6.1 run remains below as historical context.
+This report compares the main-branch 0.16.0 bundle with the SVG candidate. The current v0.6.4 / `curveSegments: 8` measurements are first; the older v0.6.1 run remains below as historical context.
 
-## Current candidate: GameKit Vector Assets 0.6.5, curveSegments 8
+## Current candidate: GameKit Vector Assets 0.6.4, curveSegments 8
 
 The controlled scene uses the same main baseline and candidate HTML, Edge 155, 1024×768 DPR1 or 844×390 DPR2, a 1-second settle and 4-second sample. Setup fixes the player at (475,735), five enemies, HP 120, zero projectiles/casts, and pauses simulation before sampling; reported actual TPS was 0. Two uninstrumented SwiftShader samples were run for each viewport. D3D11 results are one sample per viewport. These are this host's measurements, not hardware-wide guarantees.
 
@@ -17,11 +17,11 @@ The paired SwiftShader samples show a 16.4–18.9% desktop FPS loss and a 16.4�
 
 The game's smoothed render-callback EMA varied by run and is not a GPU timer; it does not establish a stable CPU improvement. The persistent SwiftShader FPS regression alongside the increased draw count is the unresolved acceptance issue.
 
-Across the same 17 authored SVGs, the v0.6.5 compiler's raw vertex-plus-index arrays totaled 589,266 bytes at 16 segments and 385,362 bytes at 8 segments (-34.6%). This local raw-array sum differs from the earlier supplied v0.6.4 report of 443,720→278,940 bytes (-37.1%); the current compiler output and its measurement method are recorded here rather than substituting those earlier figures. The user's earlier 16→8 pixel comparison reported 1.90% differing RGBA channels, mean absolute difference 0.168, max 73, chiefly on small leaf/curve edges. Current screenshots at both viewports retained the game's hand-drawn silhouettes and expressions with no obvious missing geometry.
+For the 17 authored Sketch Town SVGs, the supplied same-asset measurement reports retained geometry of 443,720 bytes at 16 segments and 278,940 bytes at 8 segments (-37.1%). The same-state 1024×768 pixel comparison differed in 44,877 of 2,359,296 RGBA channel values (1.90%), with mean absolute difference 0.168 and maximum 73; differences were chiefly small leaf and curve edges. At the game's fixed scale, no clear silhouette, outline, or expression loss was observed. These results validate `curveSegments: 8` for these Sketch Town assets; they do not establish a CPU or FPS improvement.
 
-The benchmark ran against the Node-equivalent assembly of `source/build_rpg.py` because no runnable Python interpreter is installed in this execution environment. That assembly verified the same pinned manifest/module/compiler hashes. GitHub Actions run #37 at head `92e7b1e` subsequently passed the canonical `python source/build_rpg.py` step and `Verify committed build`; the committed `index.html` is 2,013,749 bytes (SHA-256 `67e2c5dd9f6680982f2fcec186ce15c445ea33a6ba2653852e6d0fb797163c5c`). `source/e2e.py` and live Nostr/WebRTC P2P were not run. Separate real Edge 155 checks passed 7 renderer/input/lifecycle/snapshot checks and a progression save/reload check.
+The canonical `python source/build_rpg.py` passed with the v0.6.4 source and dist pins and compiled all 17 SVGs with `compilerOptions.curveSegments=8`. The generated `index.html` is 2,013,926 bytes (SHA-256 `ae3bb4c6daad428255e73d676036906309ef5a955c162faebe3c186ae650a2f0`). Edge 155 full non-network E2E passed 64 checks with one public-network check not run; the separate real Nostr/WebRTC online flow passed all 6 checks. A full combined live run reached 100 passing checks, then its final same-room leave/rejoin timed out: the host reported `membership deadline exceeded` and the guest reported `dynamic room is full`. The same latest P2P fixture on main baseline reached 36 passing checks and failed at the same rejoin condition. The independent online flow successfully rejoined and produced matching confirmed state.
 
-**Status:** keep PR #12 as a draft. Do not merge or deploy while the software-renderer regression remains and `source/e2e.py` plus live P2P checks are outstanding.
+**Status:** keep PR #12 as a draft. Do not merge or deploy while the software-renderer regression and combined-flow same-room membership/rejoin limitation remain. The full non-network suite and independent live online flow pass separately.
 
 ## Historical v0.6.1 candidate measurements
 

@@ -1,7 +1,7 @@
 import { readdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { compileVectorAssetFile, compiledAssetModuleSource } from '../source/gamekit/0.6.5/upstream-source/modules/vector-assets/compiler.js';
+import { compileVectorAssetFile, compiledAssetModuleSource } from '../source/gamekit/0.6.4/upstream-source/modules/vector-assets/compiler.js';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const directory = path.join(root, 'source/assets');
