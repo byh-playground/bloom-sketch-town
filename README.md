@@ -6,9 +6,10 @@
 
 ## 실행과 검증
 
-Python 3.10 이상에서 실행합니다. 빌드는 표준 라이브러리만 사용합니다.
+Node.js 22 이상과 Python 3.10 이상이 필요합니다. `npm ci`로 고정된 SVG 컴파일러 의존성을 설치한 뒤 빌드합니다.
 
 ```sh
+npm ci
 python source/build_rpg.py
 python -m http.server 8080
 ```
@@ -137,3 +138,9 @@ GameKit PR47의 지연된 중첩 상태 전환과 PR48의 preview 복귀 수정�
 [0.16.0 영향 검증](docs/ux-v0.16.0.json): 실제 Edge UI·긍정/부정 포인터 그림 15 PASS, 지역 진행 14 PASS, 공개 Nostr·2인 RTC 6 PASS. 기존 전체 기능을 반복 검사하지 않았습니다. ANGLE SwiftShader WebGL 경로이며 하드웨어 GPU·모바일 실기기·외부 NAT·장시간 밸런스는 미검증입니다.
 
 [잉크 부족 바](docs/ink-mobile-v0.16.0.png) · [마법진 재시도](docs/magic-retry-v0.16.0.png) · [투자 화면](docs/growth-mobile-v0.16.0.png) · [숲](docs/map-forest-v0.16.0.png) · [습지](docs/map-marsh-v0.16.0.png) · [채석장](docs/map-quarry-v0.16.0.png)
+
+### SVG renderer migration candidate
+
+The in-branch candidate authors static character and environment resources in `source/assets/*.svg`, then compiles them into the single-page build with the pinned GameKit Vector Assets 0.6.5 compiler at `curveSegments: 8`. Live user strokes and transient combat effects remain runtime geometry. See the [implementation notes](docs/svg-renderer.md) and [fixed-scene benchmark](docs/svg-renderer-benchmark-v0.16.0.md). D3D11 holds the 60 app FPS target, but SwiftShader remains about 16–21% slower, so the migration is not merged or deployed.
+[SVG renderer migration implementation notes](docs/svg-renderer.md)
+[Fixed-scene renderer benchmark and current SwiftShader regression](docs/svg-renderer-benchmark-v0.16.0.md)
