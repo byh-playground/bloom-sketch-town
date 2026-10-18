@@ -218,10 +218,10 @@
   $('mpJoin').addEventListener('click',()=>mpConnect('join'));
   $('mpLeave').addEventListener('click',async()=>{
     if(mp.connected||mp.connecting){
-      $('mpLeave').disabled=true;mpStatus('참가자 목록에서 나가는 중…');let timeout;
-      try{if(mp.session)await Promise.race([mp.session.leave(),new Promise((_,reject)=>{timeout=setTimeout(()=>reject(new Error('참가자 정리 시간 초과')),5000);})]);}
+      $('mpLeave').disabled=true;mpStatus('참가자 목록에서 나가는 중…');
+      try{if(mp.session)await mp.session.leave();}
       catch(error){console.warn('[Sketch Town departure]',error.message);}
-      finally{clearTimeout(timeout);++mpGeneration;cleanupMultiplayer();location.reload();}
+      finally{++mpGeneration;cleanupMultiplayer();location.reload();}
       return;
     }
     goRoute('play');

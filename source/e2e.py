@@ -33,7 +33,7 @@ from playwright.async_api import async_playwright
 
 ROOT = Path(__file__).resolve().parent.parent
 HTML_PATH = ROOT / "index.html"
-ARTIFACTS = ROOT / "e2e_artifacts"
+ARTIFACTS = Path(os.environ.get("SKETCH_TOWN_ARTIFACTS", ROOT / "e2e_artifacts"))
 CHROMIUM = os.environ.get("SKETCH_CHROMIUM", "/usr/bin/chromium" if Path("/usr/bin/chromium").exists() else "")
 FLAGS = [
     "--no-sandbox", "--disable-dev-shm-usage", "--enable-webgl",
@@ -210,10 +210,16 @@ async def run_desktop(browser, suite: E2E, html: str):
         # Real WebGL already verified above. Suppress repeated software GPU frames during
         # heavy input simulation; the actual GameKit timer continues at 30TPS.
         await page.evaluate("window.__sketchRpgDebug.pausePainting()")
+        # Measure the movement kernel in a clear lane. Nearby default enemies can collide,
+        # hit, or knock the player back during this short wall-clock sample.
+        await page.evaluate("window.__sketchRpgDebug.moveTo(475,735);window.__sketchRpgDebug.combatFixture('boss',1600,735)")
 
         await page.locator('#field').focus()
-        idle = await page.evaluate("window.__sketchRpgDebug.snapshot()")
         await page.keyboard.down('d')
+        # Begin the timed sample only after the 60 Hz input pump has delivered the
+        # held direction to a 30 TPS simulation step.
+        await page.wait_for_function("window.__sketchRpgDebug.movementState().x===1 && window.__sketchRpgDebug.snapshot().player.x>475",timeout=2000)
+        idle = await page.evaluate("window.__sketchRpgDebug.snapshot()")
         await page.wait_for_timeout(400)
         moved = await page.evaluate("window.__sketchRpgDebug.snapshot()")
         distance = moved['player']['x'] - idle['player']['x']
@@ -962,7 +968,7 @@ async def run_real_p2p(browser, suite: E2E):
             await ensure_multiplayer_modal(guest)
             await guest.locator('#mpLeave').click()
             try:
-                await guest.wait_for_function('window.__sketchRpgDebug!==undefined && !__sketchRpgDebug.multiplayerState().connected',timeout=10000)
+                await guest.wait_for_function('window.__sketchRpgDebug!==undefined && !__sketchRpgDebug.multiplayerState().connected',timeout=20000)
             except Exception:
                 diagnostics=await asyncio.gather(*(p.evaluate("""() => ({
                   multiplayer:__sketchRpgDebug.multiplayerState(),
@@ -976,6 +982,14 @@ async def run_real_p2p(browser, suite: E2E):
                 for name,page in (('host',host),('guest',guest)):
                     await page.screenshot(path=str(ARTIFACTS/f'leave-failed-{name}.png'))
                 raise
+            try:
+                await host.wait_for_function('__sketchRpgDebug.multiplayerState().players===1 && !__sketchRpgDebug.multiplayerState().shared',timeout=20000)
+                suite.check('guest leave commits to the host roster before rejoining',True)
+            except Exception:
+                diagnostic=await host.evaluate("({state:__sketchRpgDebug.multiplayerState(),progress:document.getElementById('mpProgress').innerText})")
+                print('LEAVE_ROSTER_DIAGNOSTIC',json.dumps(diagnostic,ensure_ascii=False),flush=True)
+                await host.screenshot(path=str(ARTIFACTS/'leave-roster-failed-host.png'))
+                suite.check('guest leave commits to the host roster before rejoining',False,diagnostic)
             await ensure_multiplayer_modal(guest)
             await guest.locator('#mpRoomInput').fill(code)
             await guest.locator('#mpJoin').click()

@@ -1473,8 +1473,8 @@ if(e.hp<=0){e.dead=true;world.kills++;if(e.kind!=='boss')world.regionKills[e.reg
     }
   };
   const vectorAssets=new Map();let vectorAssetDraws=0;
-  function vectorRecord(id){let record=vectorAssets.get(id);if(record)return record;const compiled=BLOOM_VECTOR_ASSETS[id];if(!compiled)throw new Error('Missing compiled SVG asset: '+id);const asset=createVectorAsset(renderer.context.meshRenderer,compiled);const player=asset.createPlayer();record={asset,player,clip:player.currentClip,expression:player.currentExpression};vectorAssets.set(id,record);return record;}
-  function vectorState(id,expression,clip,timeMs){const record=vectorRecord(id);if(record.clip!==clip){record.player.play(clip,timeMs);record.clip=clip;}if(record.expression!==expression){record.player.setExpression(expression);record.expression=expression;}record.player.seek(timeMs);return record.player;}
+  function vectorRecord(id){let record=vectorAssets.get(id);if(record)return record;const compiled=BLOOM_VECTOR_ASSETS[id];if(!compiled)throw new Error('Missing compiled SVG asset: '+id);const asset=createVectorAsset(renderer.context.meshRenderer,compiled);const player=asset.createPlayer();record={asset,player,clip:player.currentClip,expression:player.currentExpression,staticPoseReady:false};vectorAssets.set(id,record);return record;}
+  function vectorState(id,expression,clip,timeMs){const record=vectorRecord(id);if(record.clip!==clip){record.player.play(clip,timeMs);record.clip=clip;record.staticPoseReady=false;}if(record.expression!==expression){record.player.setExpression(expression);record.expression=expression;record.staticPoseReady=false;}if(clip!=='static'||!record.staticPoseReady){record.player.seek(timeMs);if(clip==='static')record.staticPoseReady=true;}return record.player;}
   function drawVector(id,expression,clip,timeMs,localMatrix,alpha=1){const player=vectorState(id,expression,clip,timeMs);renderer.drawVector(player,localMatrix,alpha);vectorAssetDraws++;return player;}
   function drawEnvironmentProp(kind,x,y,r,house=null){const expression=house?'house-'+house.type:kind;if(!['canopy','reed','slab','stump','bell','crane','crystal','house-home','house-shop','house-library'].includes(expression))return false;const sX=house?house.width/172:r/50,sY=house?house.height/135:sX,tx=x-90*sX,ty=house?y-105*sY:y-190*sY;drawVector('environment-'+expression,expression,'static',paintClockMs,[sX,0,0,sY,tx,ty]);return true;}
   const decalPlayers=new WeakMap();
@@ -1725,10 +1725,10 @@ if(e.hp<=0){e.dead=true;world.kills++;if(e.kind!=='boss')world.regionKills[e.reg
     }else{P.ring(g.x,g.y,68,regionCleared(g.region)?'#81a89a':'#b0ab94',.47,2,24);const seal=glyphReferences.paths.starcircle.map(([x,y])=>({x:x*80,y:y*80}));drawStroke(seal,g.x,g.y,0,1,'#8da391',.35,1.5);}
   }}
   function drawGateLabels(){for(const g of GATES){if(!visible(g.x,g.y,220))continue;renderer.worldToScreenInto(g.x,g.y-116,anchorReuse);txtCtx.textAlign='center';txtCtx.font='800 12px system-ui';txtCtx.lineWidth=4;txtCtx.strokeStyle='#fffaf0';const text=world.gates[g.id].open?g.name+' · 완성':g.name+' · '+(regionCleared(g.region)?'별+원 마법진':REGIONS[g.region].name+' 공략 필요');txtCtx.strokeText(text,anchorReuse.x,anchorReuse.y);txtCtx.fillStyle='#4f6e63';txtCtx.fillText(text,anchorReuse.x,anchorReuse.y);}}
-  function drawEnvironmentGuide(){if(!environmentTarget)return;const g=gateOf(environmentTarget),points=glyphReferences.paths.starcircle.map(([x,y])=>{const s={x:0,y:0};renderer.worldToScreenInto(g.x+x*80,g.y+y*80,s);return s;});drawCtx.save();drawCtx.globalAlpha=.33;drawCtx.lineWidth=2;drawCtx.strokeStyle='#447d74';drawCtx.setLineDash([5,4]);drawCtx.beginPath();points.forEach((p,i)=>i?drawCtx.lineTo(p.x,p.y):drawCtx.moveTo(p.x,p.y));drawCtx.stroke();drawCtx.setLineDash([]);drawCtx.beginPath();drawCtx.arc(points[0].x,points[0].y,6,0,Math.PI*2);drawCtx.stroke();drawCtx.restore();}
+  function drawEnvironmentGuide(){const target=drawInput.pointer!==null?drawInput.environmentTarget:environmentTarget;if(!target)return;const g=gateOf(target),points=glyphReferences.paths.starcircle.map(([x,y])=>{const s={x:0,y:0};renderer.worldToScreenInto(g.x+x*80,g.y+y*80,s);return s;});drawCtx.save();drawCtx.globalAlpha=.33;drawCtx.lineWidth=2;drawCtx.strokeStyle='#447d74';drawCtx.setLineDash([5,4]);drawCtx.beginPath();points.forEach((p,i)=>i?drawCtx.lineTo(p.x,p.y):drawCtx.moveTo(p.x,p.y));drawCtx.stroke();drawCtx.setLineDash([]);drawCtx.beginPath();drawCtx.arc(points[0].x,points[0].y,6,0,Math.PI*2);drawCtx.stroke();drawCtx.restore();}
   // Device collection: BLOOM GameKit createDOMInput + ActionState, one writer for commands.
   const ui={modal:null,returnFocus:null};
-  const drawInput={pointer:null,points:[],length:0,finished:null,previewUntilMs:0,aim:0,center:null,origin:null,environmentPoints:[]};
+  const drawInput={pointer:null,points:[],length:0,finished:null,previewUntilMs:0,aim:0,center:null,origin:null,environmentTarget:null,environmentPoints:[]};
   const sampleFromPointer=o=>({x:clamp(o.x,0,vw),y:clamp(o.y,0,vh)});
   function appendDrawPoint(p){const prev=drawInput.points.at(-1);if(prev){const d=hypot(p.x-prev.x,p.y-prev.y);if(d<1.25)return;drawInput.length+=d;}if(drawInput.points.length<1200)drawInput.points.push(p);}
   function setSlowUi(on){on=on&&!mp.connected;$('slowFx').classList.toggle('visible',on);$('slowIndicator').classList.toggle('visible',on);}
@@ -1744,10 +1744,10 @@ if(e.hp<=0){e.dead=true;world.kills++;if(e.kind!=='boss')world.regionKills[e.reg
     if(hypot(dx,dy)>=24)drawInput.aim=Math.atan2(dy,dx);
     drawInput.center=center;drawInput.origin=origin;
   }
-  function dropDraw(keepEnvironment=false){if(!keepEnvironment){environmentTarget=null;environmentFeedback='';}drawInput.environmentPoints=[];drawInput.pointer=null;drawInput.points.length=0;drawInput.length=0;drawInput.finished=null;drawInput.previewUntilMs=0;drawInput.center=null;drawInput.origin=null;gesture.drawId=null;setSlowUi(false);$('strokeStatus').textContent='전장에 한 획 · 놓는 순간 방향 확정';}
+  function dropDraw(keepEnvironment=false){if(!keepEnvironment){environmentTarget=null;environmentFeedback='';}drawInput.environmentPoints=[];drawInput.environmentTarget=null;drawInput.pointer=null;drawInput.points.length=0;drawInput.length=0;drawInput.finished=null;drawInput.previewUntilMs=0;drawInput.center=null;drawInput.origin=null;gesture.drawId=null;setSlowUi(false);$('strokeStatus').textContent='전장에 한 획 · 놓는 순간 방향 확정';}
   function finishDraw(){
     if(!drawingAllowed()){dropDraw();return;}
-    updateDrawingAim();const points=drawInput.points.slice(),length=drawInput.length,aim=drawInput.aim,environment=environmentTarget,envPoints=drawInput.environmentPoints.slice();dropDraw();focusGameplay();
+    updateDrawingAim();const points=drawInput.points.slice(),length=drawInput.length,aim=drawInput.aim,environment=drawInput.environmentTarget,envPoints=drawInput.environmentPoints.slice();dropDraw();focusGameplay();
     if(points.length<3||length<16){showResult('조금 더 길게 한 획을 그려 주세요',1100);return;}
     if(environment){const g=gateOf(environment),sampled=simplifyGateStroke(envPoints),result=magicCircleResult(sampled);environmentTarget=environment;if(!result.ok){environmentFeedback=result.reason;showResult(result.reason+' · 잉크 소비 없음',2400);return;}environmentFeedback='별과 둘레원 확인 · 완성 명령 처리 중';queueProgression({type:'gate',id:environment,points:sampled});drawInput.finished=points;drawInput.previewUntilMs=performance.now()+350;return;}
     gesture.lastCombatStroke=points.map(p=>({...p}));drawInput.finished=points;drawInput.previewUntilMs=performance.now()+220;
@@ -1756,14 +1756,14 @@ if(e.hp<=0){e.dead=true;world.kills++;if(e.kind!=='boss')world.regionKills[e.reg
     }catch(error){console.error(error);showResult('마법 분석 실패 · 다시 그려 보세요',950);}}
   function collectCombatDrawing(e){
     if(e.type==='down'&&drawInput.pointer===null&&drawingAllowed()){
-      focusGameplay();dropDraw(true);drawInput.pointer=e.pointerId;gesture.drawId=e.pointerId;gesture.startMs=world.clockMs;
+      focusGameplay();dropDraw(true);drawInput.pointer=e.pointerId;drawInput.environmentTarget=environmentTarget;gesture.drawId=e.pointerId;gesture.startMs=world.clockMs;
       const actor=displayedDrawingActor();drawInput.aim=Math.atan2(actor.faceY,actor.faceX);setSlowUi(true);appendEnvironmentPoint(e);appendDrawPoint(sampleFromPointer(e));updateDrawingAim();environmentFeedback='';$('strokeStatus').textContent=environmentTarget?'둘레원 한 바퀴 → 다섯 꼭짓점 별':'이동으로 조준 · 놓으면 발사';
     }else if(drawInput.pointer===e.pointerId){
       if(!drawingAllowed()||e.type==='cancel'){dropDraw();return;}
       if(e.type==='move'||e.type==='up'){appendEnvironmentPoint(e);appendDrawPoint(sampleFromPointer(e));updateDrawingAim();if(e.type==='up')finishDraw();}
     }
   }
-  function appendEnvironmentPoint(e){if(!environmentTarget)return;const g=gateOf(environmentTarget),p={x:0,y:0};renderer.screenToWorldInto(e.x,e.y,p);drawInput.environmentPoints.push({x:+(p.x-g.x).toFixed(2),y:+(p.y-g.y).toFixed(2)});}
+  function appendEnvironmentPoint(e){const target=drawInput.pointer!==null?drawInput.environmentTarget:environmentTarget;if(!target)return;const g=gateOf(target),p={x:0,y:0};renderer.screenToWorldInto(e.x,e.y,p);drawInput.environmentPoints.push({x:+(p.x-g.x).toFixed(2),y:+(p.y-g.y).toFixed(2)});}
   const keyboardBindings={KeyW:'up',ArrowUp:'up',KeyA:'left',ArrowLeft:'left',KeyS:'down',ArrowDown:'down',KeyD:'right',ArrowRight:'right',Space:'dash'};
   // A single captured battlefield pointer owns ink. UI/stick pointers never enter this target.
   const fieldInput=createDOMInput({target:field,state:actions,keys:keyboardBindings,pointerButtons:{0:'paint'},touchAction:'none',onPointer:collectCombatDrawing,onRelease:dropDraw});
@@ -1813,7 +1813,7 @@ if(e.hp<=0){e.dead=true;world.kills++;if(e.kind!=='boss')world.regionKills[e.reg
     const points=drawInput.pointer!==null?drawInput.points:drawInput.previewUntilMs>performance.now()?drawInput.finished:null;
     drawCtx.setTransform(drawDpr,0,0,drawDpr,0,0);drawCtx.clearRect(0,0,vw,vh);drawEnvironmentGuide();if(!points?.length)return;
     drawCtx.save();drawCtx.lineCap='round';drawCtx.lineJoin='round';
-    if(drawInput.pointer!==null&&drawInput.origin&&!environmentTarget){
+    if(drawInput.pointer!==null&&drawInput.origin&&!(drawInput.pointer!==null?drawInput.environmentTarget:environmentTarget)){
       const o=drawInput.origin,c=drawInput.center,a=drawInput.aim,tip={x:o.x+Math.cos(a)*88,y:o.y+Math.sin(a)*88};
       drawCtx.strokeStyle='#315f68';drawCtx.lineWidth=2;drawCtx.setLineDash([5,5]);drawCtx.beginPath();drawCtx.moveTo(o.x,o.y);drawCtx.lineTo(c.x,c.y);drawCtx.stroke();drawCtx.setLineDash([]);
       drawCtx.beginPath();drawCtx.moveTo(o.x,o.y);drawCtx.lineTo(tip.x,tip.y);drawCtx.moveTo(tip.x-12*Math.cos(a-.5),tip.y-12*Math.sin(a-.5));drawCtx.lineTo(tip.x,tip.y);drawCtx.lineTo(tip.x-12*Math.cos(a+.5),tip.y-12*Math.sin(a+.5));drawCtx.stroke();
@@ -2480,10 +2480,10 @@ if(e.hp<=0){e.dead=true;world.kills++;if(e.kind!=='boss')world.regionKills[e.reg
   $('mpJoin').addEventListener('click',()=>mpConnect('join'));
   $('mpLeave').addEventListener('click',async()=>{
     if(mp.connected||mp.connecting){
-      $('mpLeave').disabled=true;mpStatus('참가자 목록에서 나가는 중…');let timeout;
-      try{if(mp.session)await Promise.race([mp.session.leave(),new Promise((_,reject)=>{timeout=setTimeout(()=>reject(new Error('참가자 정리 시간 초과')),5000);})]);}
+      $('mpLeave').disabled=true;mpStatus('참가자 목록에서 나가는 중…');
+      try{if(mp.session)await mp.session.leave();}
       catch(error){console.warn('[Sketch Town departure]',error.message);}
-      finally{clearTimeout(timeout);++mpGeneration;cleanupMultiplayer();location.reload();}
+      finally{++mpGeneration;cleanupMultiplayer();location.reload();}
       return;
     }
     goRoute('play');
