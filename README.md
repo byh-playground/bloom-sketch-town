@@ -36,7 +36,7 @@ python source/e2e.py --live-p2p
 
 ## GameKit과 입력
 
-멀티플레이에 사용하는 simloop, interpolation, rollback, transport는 모두 공식 GameKit v0.3.1의 동일 dist 커밋 `72b09b260edf9650353017acb49c06873fe9f5a1`에 고정했습니다. `source/gamekit/manifest.json`의 SHA-256을 빌드에서 확인하고 공식 ESM 바이트를 단일 HTML에 포함합니다. 기존 renderer/input/dom/audio와 게임 규칙은 원본을 유지합니다. 이전 멀티플레이 버전과는 방 namespace와 simulationVersion을 분리합니다.
+멀티플레이에 사용하는 simloop, interpolation, rollback, transport는 모두 공식 GameKit v0.14.3 dist 커밋 `418e17c455db56d6ed073d82d115191d9dd8bf04` (source commit `dd59a57fcf66409cef16632ffb433c0b760324fa`)에 고정했습니다. `source/gamekit/manifest.json`의 SHA-256을 빌드에서 확인하고 공식 ESM 바이트를 단일 HTML에 포함합니다. 기존 renderer/input/dom/audio와 게임 규칙은 원본을 유지합니다. 이전 멀티플레이 버전과는 방 namespace와 simulationVersion을 분리합니다.
 
 입력 이벤트는 `observeInput` → 공식 `submitInput`으로 즉시 송신합니다. 입력 60Hz, 시뮬레이션 30TPS, 렌더 최대 60FPS는 독립 실행되며 게임 설정입니다. Command는 한 번만 제출하고 최초 예약 T를 바꾸지 않습니다. `MP_PROFILE`의 network scheduling, safety margin 8ms, jitter multiplier 2로 정상 입력에 도착 여유를 주며 늦은 입력만 공식 rollback으로 보정합니다. `reconciled`에서 표시 상태를 다시 게시합니다.
 

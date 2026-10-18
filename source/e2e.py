@@ -765,7 +765,7 @@ async def run_real_p2p(browser, suite: E2E):
                     if(inputTiming.eventAt && !inputTiming.sendAt) inputTiming.sendAt=performance.now();
                     if(window.delayInputUntil>performance.now()) {
                       const copy=data instanceof ArrayBuffer?data.slice(0):ArrayBuffer.isView(data)?data.slice():data;
-                      setTimeout(()=>{if(this.readyState==='open'){send.call(this,copy);send.call(this,copy);}},250);
+                      setTimeout(()=>{if(this.readyState==='open'){send.call(this,copy);send.call(this,copy);}},700);
                     } else send.call(this,data);
                   };
                   let before,tick;
@@ -797,6 +797,7 @@ async def run_real_p2p(browser, suite: E2E):
                 await guest.keyboard.up("d")
                 await guest.wait_for_timeout(800)
                 suite.check("guest walking does not apply movement input to host", await host.evaluate("window.__sketchRpgDebug.multiplayerState().host.moveX===0 && window.__sketchRpgDebug.multiplayerState().host.moveY===0"))
+                # The injected duplicate must arrive beyond the 8-tick reservation horizon (~267 ms at 30 TPS).
                 rolls=await host.evaluate("window.__sketchRpgDebug.multiplayerState().stats.rollbacks||0")
                 await guest.evaluate("window.delayInputUntil=performance.now()+2000")
                 await guest.keyboard.down("a")
@@ -829,7 +830,7 @@ async def run_real_p2p(browser, suite: E2E):
                 boundary=min(s['confirmedTick'] for s in states)
                 hashes=await asyncio.gather(*(p.evaluate("t=>window.__sketchRpgDebug.stateHash(t)",boundary) for p in (host,guest)))
                 suite.check("late duplicated RTC input reconciles to equal confirmed hash",hashes[0] is not None and hashes[0]==hashes[1],{'tick':boundary,'hashes':hashes,'rollbacks':[s['stats'].get('rollbacks',0) for s in states]})
-                suite.check("both peers use pinned protocol 3 bundle",all(s['gamekitSHA']=='72b09b260edf9650353017acb49c06873fe9f5a1' and s['namespace']=='sketch-town-coop-0.16.0' and s['simulationVersion'].startswith('sketch-town-0.16.0-') and s['inputScheduling']=='network' and s['inputHz']==60 for s in states))
+                suite.check("both peers use pinned protocol 3 bundle",all(s['gamekitSHA']=='418e17c455db56d6ed073d82d115191d9dd8bf04' and s['namespace']=='sketch-town-coop-0.16.0' and s['simulationVersion'].startswith('sketch-town-0.16.0-') and s['inputScheduling']=='network' and s['inputHz']==60 for s in states))
                 for sender,actor in ((host,'a'),(guest,'b')):
                     for page in (host,guest):
                         await page.evaluate("""actor => {

@@ -21,7 +21,7 @@ for rel,expected in gk_pin['sha256'].items():
 gk_urls={name:'data:text/javascript;base64,'+base64.b64encode((gk_root/file).read_bytes()).decode() for name,file in gk_pin['runtimeModules'].items()}
 sdk='const GAMEKIT_VECTOR_URLS='+json.dumps(gk_urls)+';\nconst [gamekitRendering,gamekitVectorAssets]=await Promise.all([import(GAMEKIT_VECTOR_URLS.rendering),import(GAMEKIT_VECTOR_URLS.vectorAssets)]);\nconst {WebGLDevice,VectorContext,MeshBuilder,MeshRenderer}=gamekitRendering;\nconst {createVectorAsset}=gamekitVectorAssets;\n'+sdk
 manifest_data=(root/'gamekit/manifest.json').read_bytes()
-assert hashlib.sha256(manifest_data).hexdigest()=='c713809653043e8eb1d9b629c0c2734e9526217f69e04b49283d068c1b5d7da7', 'GameKit manifest hash mismatch'
+assert hashlib.sha256(manifest_data).hexdigest()=='20244c2beeee33719f407a9baa92c55a4bd55a0e4eb9f094590bb0eed652296e', 'GameKit manifest hash mismatch'
 manifest=json.loads(manifest_data)
 urls={}
 for name in ['simloop','interpolation','rollback','transport']:

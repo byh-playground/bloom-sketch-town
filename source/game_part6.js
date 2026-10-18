@@ -2,7 +2,7 @@
   // BLOOM GameKit RoomSession(mode=online, profile.mode=rollback).
   // Signaling uses public Nostr relays; RTC carries only GameKit's framed inputs,
   // membership control and validated join/recovery checkpoints. No live world broadcast.
-  const GAMEKIT_SHA='72b09b260edf9650353017acb49c06873fe9f5a1';
+  const GAMEKIT_SHA='418e17c455db56d6ed073d82d115191d9dd8bf04';
   // Release identity also isolates peers whose cast/checkpoint contracts differ.
   const MP_NAMESPACE='sketch-town-coop-'+CFG.version;
   const MP_SIMULATION_VERSION='sketch-town-'+CFG.version+'-'+GAMEKIT_SHA;
