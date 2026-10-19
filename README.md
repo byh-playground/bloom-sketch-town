@@ -6,9 +6,10 @@
 
 ## 실행과 검증
 
-Python 3.10 이상에서 실행합니다. 빌드는 표준 라이브러리만 사용합니다.
+Node.js 22 이상과 Python 3.10 이상이 필요합니다. `npm ci`로 고정된 SVG 컴파일러 의존성을 설치한 뒤 빌드합니다.
 
 ```sh
+npm ci
 python source/build_rpg.py
 python -m http.server 8080
 ```
@@ -35,7 +36,7 @@ python source/e2e.py --live-p2p
 
 ## GameKit과 입력
 
-멀티플레이에 사용하는 simloop, interpolation, rollback, transport는 모두 공식 GameKit v0.3.1의 동일 dist 커밋 `72b09b260edf9650353017acb49c06873fe9f5a1`에 고정했습니다. `source/gamekit/manifest.json`의 SHA-256을 빌드에서 확인하고 공식 ESM 바이트를 단일 HTML에 포함합니다. 기존 renderer/input/dom/audio와 게임 규칙은 원본을 유지합니다. 이전 멀티플레이 버전과는 방 namespace와 simulationVersion을 분리합니다.
+멀티플레이에 사용하는 simloop, interpolation, rollback, transport는 모두 공식 GameKit v0.14.3 dist 커밋 `418e17c455db56d6ed073d82d115191d9dd8bf04` (source commit `dd59a57fcf66409cef16632ffb433c0b760324fa`)에 고정했습니다. `source/gamekit/manifest.json`의 SHA-256을 빌드에서 확인하고 공식 ESM 바이트를 단일 HTML에 포함합니다. 기존 renderer/input/dom/audio와 게임 규칙은 원본을 유지합니다. 이전 멀티플레이 버전과는 방 namespace와 simulationVersion을 분리합니다.
 
 입력 이벤트는 `observeInput` → 공식 `submitInput`으로 즉시 송신합니다. 입력 60Hz, 시뮬레이션 30TPS, 렌더 최대 60FPS는 독립 실행되며 게임 설정입니다. Command는 한 번만 제출하고 최초 예약 T를 바꾸지 않습니다. `MP_PROFILE`의 network scheduling, safety margin 8ms, jitter multiplier 2로 정상 입력에 도착 여유를 주며 늦은 입력만 공식 rollback으로 보정합니다. `reconciled`에서 표시 상태를 다시 게시합니다.
 
@@ -137,3 +138,9 @@ GameKit PR47의 지연된 중첩 상태 전환과 PR48의 preview 복귀 수정�
 [0.16.0 영향 검증](docs/ux-v0.16.0.json): 실제 Edge UI·긍정/부정 포인터 그림 15 PASS, 지역 진행 14 PASS, 공개 Nostr·2인 RTC 6 PASS. 기존 전체 기능을 반복 검사하지 않았습니다. ANGLE SwiftShader WebGL 경로이며 하드웨어 GPU·모바일 실기기·외부 NAT·장시간 밸런스는 미검증입니다.
 
 [잉크 부족 바](docs/ink-mobile-v0.16.0.png) · [마법진 재시도](docs/magic-retry-v0.16.0.png) · [투자 화면](docs/growth-mobile-v0.16.0.png) · [숲](docs/map-forest-v0.16.0.png) · [습지](docs/map-marsh-v0.16.0.png) · [채석장](docs/map-quarry-v0.16.0.png)
+
+### SVG renderer migration candidate
+
+The branch authors static character and environment resources in `source/assets/*.svg`, compiled with the pinned GameKit Vector Assets 0.6.5 compiler at `curveSegments: 8`; live user strokes and transient combat effects remain runtime geometry. The renderer uses the official GameKit 0.15.1 rendering module (dist commit `50f835a801a8fae3c982e051290a26555ac031df`), while retaining the existing Vector Assets runtime/compiler, compiled geometry, and multiplayer modules. The non-radial pipeline passes its isolated comparison gate and final bundle E2E, but the SwiftShader comparison against legacy WebGL1 L still misses the performance gate: desktop p95 is 19.86% slower, and the mobile-sized viewport is 16.60% slower at median and 14.21% at p95. Stage 4's static-combine experiment was not adopted; Stage 5's DPR comparison was inconclusive. The explicitly approved merge does not imply a performance improvement or close that gate. See the [implementation notes](docs/svg-renderer.md) and [fixed-scene benchmark](docs/svg-renderer-benchmark-v0.16.0.md).
+[SVG renderer migration implementation notes](docs/svg-renderer.md)
+[Fixed-scene renderer benchmark and current SwiftShader regression](docs/svg-renderer-benchmark-v0.16.0.md)

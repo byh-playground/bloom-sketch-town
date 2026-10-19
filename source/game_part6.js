@@ -2,7 +2,7 @@
   // BLOOM GameKit RoomSession(mode=online, profile.mode=rollback).
   // Signaling uses public Nostr relays; RTC carries only GameKit's framed inputs,
   // membership control and validated join/recovery checkpoints. No live world broadcast.
-  const GAMEKIT_SHA='72b09b260edf9650353017acb49c06873fe9f5a1';
+  const GAMEKIT_SHA='418e17c455db56d6ed073d82d115191d9dd8bf04';
   // Release identity also isolates peers whose cast/checkpoint contracts differ.
   const MP_NAMESPACE='sketch-town-coop-'+CFG.version;
   const MP_SIMULATION_VERSION='sketch-town-'+CFG.version+'-'+GAMEKIT_SHA;
@@ -218,10 +218,10 @@
   $('mpJoin').addEventListener('click',()=>mpConnect('join'));
   $('mpLeave').addEventListener('click',async()=>{
     if(mp.connected||mp.connecting){
-      $('mpLeave').disabled=true;mpStatus('참가자 목록에서 나가는 중…');let timeout;
-      try{if(mp.session)await Promise.race([mp.session.leave(),new Promise((_,reject)=>{timeout=setTimeout(()=>reject(new Error('참가자 정리 시간 초과')),5000);})]);}
+      $('mpLeave').disabled=true;mpStatus('참가자 목록에서 나가는 중…');
+      try{if(mp.session)await mp.session.leave();}
       catch(error){console.warn('[Sketch Town departure]',error.message);}
-      finally{clearTimeout(timeout);++mpGeneration;cleanupMultiplayer();location.reload();}
+      finally{++mpGeneration;cleanupMultiplayer();location.reload();}
       return;
     }
     goRoute('play');
@@ -230,7 +230,7 @@
     if(!mp.code)return;try{await navigator.clipboard.writeText(mp.code);mpStatus('방 번호 복사 완료');}
     catch{mpStatus('방 번호 '+mp.code+' · 직접 입력해 주세요');}
   });
-  window.addEventListener('pagehide',cleanupMultiplayer);
+  window.addEventListener('pagehide',event=>{if(!event.persisted)cleanupMultiplayer();});
   mpUi();
   Object.assign(window.__sketchRpgDebug,{
     multiplayerState(){return {role:mp.role,connected:mp.connected,ready:mp.ready,code:mp.code,

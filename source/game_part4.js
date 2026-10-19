@@ -1,6 +1,6 @@
   // Device collection: BLOOM GameKit createDOMInput + ActionState, one writer for commands.
   const ui={modal:null,returnFocus:null};
-  const drawInput={pointer:null,points:[],length:0,finished:null,previewUntilMs:0,aim:0,center:null,origin:null,environmentPoints:[]};
+  const drawInput={pointer:null,points:[],length:0,finished:null,previewUntilMs:0,aim:0,center:null,origin:null,environmentTarget:null,environmentPoints:[]};
   const sampleFromPointer=o=>({x:clamp(o.x,0,vw),y:clamp(o.y,0,vh)});
   function appendDrawPoint(p){const prev=drawInput.points.at(-1);if(prev){const d=hypot(p.x-prev.x,p.y-prev.y);if(d<1.25)return;drawInput.length+=d;}if(drawInput.points.length<1200)drawInput.points.push(p);}
   function setSlowUi(on){on=on&&!mp.connected;$('slowFx').classList.toggle('visible',on);$('slowIndicator').classList.toggle('visible',on);}
@@ -16,10 +16,10 @@
     if(hypot(dx,dy)>=24)drawInput.aim=Math.atan2(dy,dx);
     drawInput.center=center;drawInput.origin=origin;
   }
-  function dropDraw(keepEnvironment=false){if(!keepEnvironment){environmentTarget=null;environmentFeedback='';}drawInput.environmentPoints=[];drawInput.pointer=null;drawInput.points.length=0;drawInput.length=0;drawInput.finished=null;drawInput.previewUntilMs=0;drawInput.center=null;drawInput.origin=null;gesture.drawId=null;setSlowUi(false);$('strokeStatus').textContent='전장에 한 획 · 놓는 순간 방향 확정';}
+  function dropDraw(keepEnvironment=false){if(!keepEnvironment){environmentTarget=null;environmentFeedback='';}drawInput.environmentPoints=[];drawInput.environmentTarget=null;drawInput.pointer=null;drawInput.points.length=0;drawInput.length=0;drawInput.finished=null;drawInput.previewUntilMs=0;drawInput.center=null;drawInput.origin=null;gesture.drawId=null;setSlowUi(false);$('strokeStatus').textContent='전장에 한 획 · 놓는 순간 방향 확정';}
   function finishDraw(){
     if(!drawingAllowed()){dropDraw();return;}
-    updateDrawingAim();const points=drawInput.points.slice(),length=drawInput.length,aim=drawInput.aim,environment=environmentTarget,envPoints=drawInput.environmentPoints.slice();dropDraw();focusGameplay();
+    updateDrawingAim();const points=drawInput.points.slice(),length=drawInput.length,aim=drawInput.aim,environment=drawInput.environmentTarget,envPoints=drawInput.environmentPoints.slice();dropDraw();focusGameplay();
     if(points.length<3||length<16){showResult('조금 더 길게 한 획을 그려 주세요',1100);return;}
     if(environment){const g=gateOf(environment),sampled=simplifyGateStroke(envPoints),result=magicCircleResult(sampled);environmentTarget=environment;if(!result.ok){environmentFeedback=result.reason;showResult(result.reason+' · 잉크 소비 없음',2400);return;}environmentFeedback='별과 둘레원 확인 · 완성 명령 처리 중';queueProgression({type:'gate',id:environment,points:sampled});drawInput.finished=points;drawInput.previewUntilMs=performance.now()+350;return;}
     gesture.lastCombatStroke=points.map(p=>({...p}));drawInput.finished=points;drawInput.previewUntilMs=performance.now()+220;
@@ -28,14 +28,14 @@
     }catch(error){console.error(error);showResult('마법 분석 실패 · 다시 그려 보세요',950);}}
   function collectCombatDrawing(e){
     if(e.type==='down'&&drawInput.pointer===null&&drawingAllowed()){
-      focusGameplay();dropDraw(true);drawInput.pointer=e.pointerId;gesture.drawId=e.pointerId;gesture.startMs=world.clockMs;
+      focusGameplay();dropDraw(true);drawInput.pointer=e.pointerId;drawInput.environmentTarget=environmentTarget;gesture.drawId=e.pointerId;gesture.startMs=world.clockMs;
       const actor=displayedDrawingActor();drawInput.aim=Math.atan2(actor.faceY,actor.faceX);setSlowUi(true);appendEnvironmentPoint(e);appendDrawPoint(sampleFromPointer(e));updateDrawingAim();environmentFeedback='';$('strokeStatus').textContent=environmentTarget?'둘레원 한 바퀴 → 다섯 꼭짓점 별':'이동으로 조준 · 놓으면 발사';
     }else if(drawInput.pointer===e.pointerId){
       if(!drawingAllowed()||e.type==='cancel'){dropDraw();return;}
       if(e.type==='move'||e.type==='up'){appendEnvironmentPoint(e);appendDrawPoint(sampleFromPointer(e));updateDrawingAim();if(e.type==='up')finishDraw();}
     }
   }
-  function appendEnvironmentPoint(e){if(!environmentTarget)return;const g=gateOf(environmentTarget),p={x:0,y:0};renderer.screenToWorldInto(e.x,e.y,p);drawInput.environmentPoints.push({x:+(p.x-g.x).toFixed(2),y:+(p.y-g.y).toFixed(2)});}
+  function appendEnvironmentPoint(e){const target=drawInput.pointer!==null?drawInput.environmentTarget:environmentTarget;if(!target)return;const g=gateOf(target),p={x:0,y:0};renderer.screenToWorldInto(e.x,e.y,p);drawInput.environmentPoints.push({x:+(p.x-g.x).toFixed(2),y:+(p.y-g.y).toFixed(2)});}
   const keyboardBindings={KeyW:'up',ArrowUp:'up',KeyA:'left',ArrowLeft:'left',KeyS:'down',ArrowDown:'down',KeyD:'right',ArrowRight:'right',Space:'dash'};
   // A single captured battlefield pointer owns ink. UI/stick pointers never enter this target.
   const fieldInput=createDOMInput({target:field,state:actions,keys:keyboardBindings,pointerButtons:{0:'paint'},touchAction:'none',onPointer:collectCombatDrawing,onRelease:dropDraw});
@@ -85,7 +85,7 @@
     const points=drawInput.pointer!==null?drawInput.points:drawInput.previewUntilMs>performance.now()?drawInput.finished:null;
     drawCtx.setTransform(drawDpr,0,0,drawDpr,0,0);drawCtx.clearRect(0,0,vw,vh);drawEnvironmentGuide();if(!points?.length)return;
     drawCtx.save();drawCtx.lineCap='round';drawCtx.lineJoin='round';
-    if(drawInput.pointer!==null&&drawInput.origin&&!environmentTarget){
+    if(drawInput.pointer!==null&&drawInput.origin&&!(drawInput.pointer!==null?drawInput.environmentTarget:environmentTarget)){
       const o=drawInput.origin,c=drawInput.center,a=drawInput.aim,tip={x:o.x+Math.cos(a)*88,y:o.y+Math.sin(a)*88};
       drawCtx.strokeStyle='#315f68';drawCtx.lineWidth=2;drawCtx.setLineDash([5,5]);drawCtx.beginPath();drawCtx.moveTo(o.x,o.y);drawCtx.lineTo(c.x,c.y);drawCtx.stroke();drawCtx.setLineDash([]);
       drawCtx.beginPath();drawCtx.moveTo(o.x,o.y);drawCtx.lineTo(tip.x,tip.y);drawCtx.moveTo(tip.x-12*Math.cos(a-.5),tip.y-12*Math.sin(a-.5));drawCtx.lineTo(tip.x,tip.y);drawCtx.lineTo(tip.x-12*Math.cos(a+.5),tip.y-12*Math.sin(a+.5));drawCtx.stroke();
