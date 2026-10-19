@@ -91,12 +91,16 @@ class Renderer2D {
   }
   rect(x,y,width,height,tint=[1,1,1,1],angle=0) {
     this._frame(); finite(x,'x'); finite(y,'y'); positive(width,'width'); positive(height,'height'); finite(angle,'angle');
-    const c=this.context; c.save(); c.translate(x,y); c.rotate(angle); c.scale(width/2,height/2); c.fillTriangleFan(UNIT_SQUARE,tint); c.restore();
+    const c=this.context, prior=c.getTransform();
+    try { c.translate(x,y); c.rotate(angle); c.scale(width/2,height/2); c.fillTriangleFan(UNIT_SQUARE,tint); }
+    finally { c.setTransform(prior.a,prior.b,prior.c,prior.d,prior.e,prior.f); }
   }
   ellipse(x,y,rx,ry,tint=[1,1,1,1],segments=24) {
     this._frame(); finite(x,'x'); finite(y,'y'); positive(rx,'radiusX'); positive(ry,'radiusY');
     if (!Number.isSafeInteger(segments) || segments < 3 || segments > 256) throw new RangeError('segments must be 3..256');
-    const c=this.context; c.save(); c.translate(x,y); c.scale(rx,ry); c.fillTriangleFan(unitPolygon(segments),tint); c.restore();
+    const c=this.context, prior=c.getTransform();
+    try { c.translate(x,y); c.scale(rx,ry); c.fillTriangleFan(unitPolygon(segments),tint); }
+    finally { c.setTransform(prior.a,prior.b,prior.c,prior.d,prior.e,prior.f); }
   }
   line(x0,y0,x1,y1,width,tint=[1,1,1,1]) {
     this._frame(); [x0,y0,x1,y1].forEach((n,i)=>finite(n,`line[${i}]`)); positive(width,'width');

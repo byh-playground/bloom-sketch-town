@@ -1,0 +1,10 @@
+{
+  "repository": "byh-playground/bloom-gamekit",
+  "version": "0.15.1",
+  "distCommit": "50f835a801a8fae3c982e051290a26555ac031df",
+  "manifest": "manifest.json",
+  "manifestSha256": "7540662fda050f8f2fcfdb6cc21818a136c0f8d3df93a53dcde68175f70c65b0",
+  "runtimeModule": "rendering.js",
+  "sha256": "1a3790c3281de93ff361a8720eccfb03b60018b09937a84a8d4da02b3f73c9ba",
+  "scope": "rendering module only; Sketch Town continues using its existing Vector Assets 0.6.5 runtime/compiler and existing multiplayer module pins"
+}

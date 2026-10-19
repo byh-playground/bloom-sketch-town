@@ -29,6 +29,44 @@ After the pin update, `python source/e2e.py --flow online --live-p2p` passed all
 
 **Status:** the guest leave/rejoin blocker is resolved by the pinned SDK and the current online E2E. Keep PR #12 as a draft because the measured SwiftShader performance regression remains unresolved. This CPU software renderer evidence is not a claim about actual mobile hardware performance.
 
+## Official GameKit 0.15.1 non-radial pipeline candidate (2026-10-19)
+
+The renderer now imports only the official GameKit 0.15.1 `rendering.js` module from dist commit `50f835a801a8fae3c982e051290a26555ac031df` (module SHA-256 `1a3790c3281de93ff361a8720eccfb03b60018b09937a84a8d4da02b3f73c9ba`; official manifest SHA-256 `7540662fda050f8f2fcfdb6cc21818a136c0f8d3df93a53dcde68175f70c65b0`). The previous GameKit Vector Assets 0.6.5 runtime/compiler, compiled geometry, SVG inputs, facade, simulation time/seed, and multiplayer module pins remain unchanged. Candidate N selects the new plain pipeline for non-radial submissions while retaining the full radial pipeline.
+
+### Pixel and submission parity
+
+F is the existing candidate, G is the temporary old-fragment control, and N is the official new renderer module. All 4 viewport/camera combinations produced identical RGBA hashes across F/G/N:
+
+| Viewport and camera | Exact pixel SHA-256 (F = G = N) |
+| --- | --- |
+| 1024×768 DPR1, zoom 1, rotation 0 | `618b753e1028caf1f39a2027cc075f7255050dcefa2900fbe0c4b36aa699f25c` |
+| 1024×768 DPR1, zoom 1.23, rotation 0.17 | `69b406b552e606e1333892b0fbf9cdddb392ccc352c393bb42d528ae27890f6` |
+| 844×390 DPR2, zoom 1, rotation 0 | `f397ae7c61a7746f85a8844751b9101628f4f8f6ad82beb4e1ec1480e46ce5a2` |
+| 844×390 DPR2, zoom 1.23, rotation 0.17 | `e1632119dca5250551a3fc44db61aaff3a822b9e4db26b6fa143f5451f8004dc` |
+
+F/G/N kept exact draw order and counts: desktop 22 draws (6 vector, 16 mesh), 56,703 submitted vertices and 183,680 upload bytes/frame; mobile-sized 20 draws (6 vector, 14 mesh), 38,250 vertices and 182,208 upload bytes/frame. All three reported zero static geometry uploads and zero geometry bytes uploaded. N uses no radial uniforms for these solid submissions; radial support remains in its separate full pipeline.
+
+### Six-round paired performance comparison
+
+Edge 155.0.4283.62 was run with the same fixed scene and camera at each viewport. Each candidate received six 3.5-second warmups and six 15-second samples, in balanced crossover order. The FPS window had no profiler, GL census, readback, `gl.finish`, or page logging. Values below are pooled median/p95 requestAnimationFrame intervals in milliseconds; lower is faster. Run-by-run medians, p95 values, ranges, frame intervals, and paired confidence intervals are in the local evidence summary.
+
+| SwiftShader viewport | L legacy WebGL1 | S_F | F | G old fragment | N official renderer | N vs G median/p95 | N vs F median/p95 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1024×768 DPR1 | 41.70 / 41.80 | 50.00 / 50.10 | 58.30 / 58.40 | 50.00 / 50.10 | 41.70 / 50.10 | −16.60% / 0.00% | −28.47% / −14.21% |
+| 844×390 DPR2 | 50.00 / 58.40 | 58.40 / 66.70 | 75.00 / 83.40 | 58.40 / 66.70 | 58.30 / 66.70 | −0.17% / 0.00% | −22.27% / −20.02% |
+
+The preset N-vs-G gate passes on both viewports: median interval is not worse by +3%, p95 is not worse by +5%, and N beats F in all 6/6 paired median comparisons. N is also equal to or faster than S_F. Paired 95% t intervals for median/p95 change were desktop N-vs-G −16.57% [−16.65, −16.48] / 0.00% [−0.00, 0.00], and mobile-sized −0.17% [−0.17, −0.17] / −0.07% [−0.16, 0.01].
+
+The overall Sketch performance gate still fails against L. Desktop N ties L median but its p95 is 19.86% worse (50.10 vs 41.80ms). On the mobile-sized viewport N is 16.60% worse at median and 14.21% worse at p95 (58.30/66.70 vs 50.00/58.40ms). L is the legacy WebGL1 renderer, not Canvas2D. This CPU software-renderer gap is not a claim about mobile hardware.
+
+A separate six-round hardware run used ANGLE/NVIDIA GeForce GTX 1660 Ti D3D11. All candidates and viewports sampled about 119.99 FPS with 8.30ms median and 8.40–8.50ms p95 intervals. The renderer holds the game's 60 app-FPS target, but the 120Hz sampling cap masks candidate differences on this GPU.
+
+### Final bundle validation and acceptance
+
+The canonical `python source/build_rpg.py` generated `index.html` SHA-256 `3f4655495d2478c4c37ce07fb5594c31a42604e5e876cdd44c02ff0fa8bff1bf`; the 17-asset generated geometry remained byte-identical (SHA-256 `40929af1e099f30f9b52f491b2835653c014635e9d289dbdfe495067896cd62e`). Against that exact bundle, the existing offline E2E passed 64 checks with one public-network check `NOT_RUN` (105.08s), and the live public Nostr/WebRTC flow passed all 7 checks (44.18s), including guest leave/rejoin and matching confirmed state hashes. Both used Edge WebGL1/ANGLE SwiftShader; D3D11 measurements above are separate hardware validation.
+
+The official N renderer and final bundle pass their isolated rendering, build, lifecycle, offline, and online checks. Keep PR #12 as a draft and do not merge or deploy yet: the final Sketch SwiftShader comparison still regresses against L. No extra batching or renderer API change was included in this candidate.
+
 ## Historical v0.6.1 candidate measurements
 
 The candidate embeds the official GameKit 0.6.1 distribution. Its checksums and source commit are recorded in `source/gamekit/0.6.1/provenance.json`.
