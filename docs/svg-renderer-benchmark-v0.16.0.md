@@ -1,8 +1,8 @@
 # SVG renderer benchmark for Sketch Town 0.16.0
 
-This report records the official GameKit Vector Assets v0.6.5 candidate and the renderer measurements for its runtime bundle. The v0.6.5 `rendering.js` and `vector-assets.js` bytes match v0.6.4 exactly, so the measurements below characterize the same renderer code; the GPU samples were not repeated during the v0.6.5 pin verification. The older v0.6.1 run remains below as historical context.
+This report contains separate renderer datasets. The earlier fixed-scene measurements below are for the GameKit Vector Assets v0.6.5 candidate; its `rendering.js` and `vector-assets.js` bytes match v0.6.4, and the two 4-second SwiftShader samples were not repeated during the v0.6.5 pin verification. The later six-round comparison below measures the official GameKit renderer v0.15.1 candidate against legacy WebGL1 L. Do not attribute the older 16.4–20.9% sample results to v0.15.1. The older v0.6.1 run remains below as historical context.
 
-## Current candidate: GameKit Vector Assets 0.6.5, curveSegments 8
+## Earlier fixed-scene candidate: GameKit Vector Assets 0.6.5, curveSegments 8
 
 The controlled scene uses the same main baseline and candidate HTML, Edge 155, 1024×768 DPR1 or 844×390 DPR2, a 1-second settle and 4-second sample. Setup fixes the player at (475,735), five enemies, HP 120, zero projectiles/casts, and pauses simulation before sampling; reported actual TPS was 0. Two uninstrumented SwiftShader samples were run for each viewport. D3D11 results are one sample per viewport. These are this host's measurements, not hardware-wide guarantees.
 
