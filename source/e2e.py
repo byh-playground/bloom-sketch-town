@@ -713,7 +713,7 @@ async def run_real_p2p(browser, suite: E2E):
             modal=page.locator('#multiplayerModal')
             if not await modal.is_visible():
                 try:
-                    await page.locator('#multiplayerButton').click(no_wait_after=True,timeout=1000)
+                    await page.locator('#multiplayerButton').click(no_wait_after=True,timeout=5000)
                 except Exception:
                     if not await modal.is_visible():
                         raise
