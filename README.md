@@ -6,15 +6,13 @@
 
 ## 실행과 검증
 
-Node.js 22 이상과 Python 3.10 이상이 필요합니다. `npm ci`로 고정된 SVG 컴파일러 의존성을 설치한 뒤 빌드합니다.
+Node.js나 별도 빌드 없이 정적 HTTP 서버에서 원본 HTML과 source/ JS·CSS·SVG·CNN 데이터를 직접 제공합니다.
 
 ```sh
-npm ci
-python source/build_rpg.py
 python -m http.server 8080
 ```
 
-http://localhost:8080 에서 실행합니다. 생성되는 `index.html`은 단일 실행 파일입니다. 게임 코드·고정 GameKit 모듈·CNN 데이터의 정본은 `source/`에 있습니다.
+http://localhost:8080 에서 실행합니다. `index.html`은 가벼운 진입점이며 source/bootstrap.js가 원본 스크립트와 고정 GameKit 모듈, CNN JSON을 직접 로딩합니다. source/vector-assets-compiled.js는 현재 SVG 벡터의 고정 기하 스냅샷으로, 향후 SVG 변경 시 명시적으로 다시 생성해야 합니다.
 
 ```sh
 python -m pip install playwright
@@ -36,7 +34,7 @@ python source/e2e.py --live-p2p
 
 ## GameKit과 입력
 
-멀티플레이에 사용하는 simloop, interpolation, rollback, transport는 모두 공식 GameKit v0.14.3 dist 커밋 `418e17c455db56d6ed073d82d115191d9dd8bf04` (source commit `dd59a57fcf66409cef16632ffb433c0b760324fa`)에 고정했습니다. `source/gamekit/manifest.json`의 SHA-256을 빌드에서 확인하고 공식 ESM 바이트를 단일 HTML에 포함합니다. 기존 renderer/input/dom/audio와 게임 규칙은 원본을 유지합니다. 이전 멀티플레이 버전과는 방 namespace와 simulationVersion을 분리합니다.
+멀티플레이에 사용하는 simloop, interpolation, rollback, transport는 모두 공식 GameKit v0.14.3 dist 커밋 `418e17c455db56d6ed073d82d115191d9dd8bf04` (source commit `dd59a57fcf66409cef16632ffb433c0b760324fa`)에 고정했습니다. 고정된 GameKit ESM 파일을 source/gamekit/에서 직접 읽으며 더 이상 배포용 HTML에 병합하지 않습니다. 기존 source/gamekit/manifest.json은 SDK 의존성 검증의 원본으로 유지합니다. 기존 renderer/input/dom/audio와 게임 규칙은 원본을 유지합니다. 이전 멀티플레이 버전과는 방 namespace와 simulationVersion을 분리합니다.
 
 입력 이벤트는 `observeInput` → 공식 `submitInput`으로 즉시 송신합니다. 입력 60Hz, 시뮬레이션 30TPS, 렌더 최대 60FPS는 독립 실행되며 게임 설정입니다. Command는 한 번만 제출하고 최초 예약 T를 바꾸지 않습니다. `MP_PROFILE`의 network scheduling, safety margin 8ms, jitter multiplier 2로 정상 입력에 도착 여유를 주며 늦은 입력만 공식 rollback으로 보정합니다. `reconciled`에서 표시 상태를 다시 게시합니다.
 
@@ -48,7 +46,7 @@ python source/e2e.py --live-p2p
 
 [실제 Edge 검증 기록](docs/e2e-v0.12.1.json): 40 PASS, 0 NOT RUN, 30.5초. [0.11.0의 30TPS 표시·CPU 계측](docs/performance-v0.11.0.json).
 
-PR CI는 번들 해시 확인과 빌드 재현성을 검사합니다. main 병합 시 동일 빌드의 `index.html`을 GitHub Actions Pages로 배포합니다.
+PR CI는 원본 JavaScript 문법과 필수 자산 경로를 검사합니다. main 병합 시 index.html과 source/ 원본을 변경 없이 GitHub Pages에 게시합니다.
 
 [공통 개발 규칙](https://github.com/byh-playground/bloom-reference/blob/main/rules/development.html)과 [프로젝트 관리 규칙](https://github.com/byh-playground/bloom-reference/blob/main/rules/project-management.html)을 따릅니다.
 
