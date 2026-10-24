@@ -39,6 +39,27 @@
   const keyboardBindings={KeyW:'up',ArrowUp:'up',KeyA:'left',ArrowLeft:'left',KeyS:'down',ArrowDown:'down',KeyD:'right',ArrowRight:'right',Space:'dash'};
   // A single captured battlefield pointer owns ink. UI/stick pointers never enter this target.
   const fieldInput=createDOMInput({target:field,state:actions,keys:keyboardBindings,pointerButtons:{0:'paint'},touchAction:'none',onPointer:collectCombatDrawing,onRelease:dropDraw});
+  // Intro replays call the same authored stroke-input callback, without emulating pointer capture.
+  if (new URLSearchParams(location.search).get('showcaseDemo') === '1') {
+    window.BloomSketchShowcase = Object.freeze({
+      drawStroke(shape = 'circle') {
+        if (!drawingAllowed()) return false;
+        const steps = shape === 'line' ? 20 : 54;
+        const cx = vw * .56, cy = vh * .47, radius = Math.max(36, Math.min(vw, vh) * .14);
+        const point = i => {
+          const t = i / steps, a = t * Math.PI * 2;
+          return shape === 'line'
+            ? {x: cx - radius + radius * 2 * t, y: cy + radius * .35 - radius * .7 * t}
+            : {x: cx + Math.cos(a) * radius, y: cy + Math.sin(a) * radius};
+        };
+        const send = (type, i) => collectCombatDrawing({type, pointerId: 71, ...point(i)});
+        send('down', 0);
+        for (let i = 1; i < steps; i++) send('move', i);
+        send('up', steps);
+        return true;
+      }
+    });
+  }
   // Registered after the GameKit device listener, so the edge already belongs to ActionState.
   for(const type of ['keydown','keyup'])document.addEventListener(type,e=>{if(!e.repeat&&keyboardBindings[e.code]&&!ui.modal)wakeInputPreview();});
   // Environment mode is a local input choice, available before the next 30TPS boundary.

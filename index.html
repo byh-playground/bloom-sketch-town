@@ -1,6 +1,33 @@
 <!doctype html>
 <html lang="ko"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no"/><meta name="theme-color" content="#f8f2e7"/><title>스케치 타운 · 탑다운 액션 RPG v0.16.0</title>
-<link rel="stylesheet" href="./source/styles.css"></head><body>
+<link rel="stylesheet" href="./source/styles.css"><script>
+// Showcase frames are disposable: normal game saves and preferences remain untouched.
+// A direct intro URL is owned by the showcase host, not by the gameplay router.
+if (new URLSearchParams(location.search).get('showcaseDemo') !== '1' && location.hash === '#/showcase') {
+  window.__BLOOM_SHOWCASE_DEEPLINK = true;
+  history.replaceState(null, '', location.pathname + location.search);
+}
+if (new URLSearchParams(location.search).get('showcaseDemo') === '1') {
+  // Demonstration inputs are scheduled rather than browser-trusted gestures.
+  // Suppress autoplay prompts while preserving the same game simulation.
+  const Context = window.AudioContext || window.webkitAudioContext;
+  if (Context) Context.prototype.resume = function () { return Promise.resolve(); };
+  const nativeSet = Element.prototype.setPointerCapture;
+  const nativeRelease = Element.prototype.releasePointerCapture;
+  const nativeHas = Element.prototype.hasPointerCapture;
+  Element.prototype.setPointerCapture = function (id) { if (id !== 71) return nativeSet.call(this, id); };
+  Element.prototype.releasePointerCapture = function (id) { if (id !== 71) return nativeRelease.call(this, id); };
+  Element.prototype.hasPointerCapture = function (id) { return id === 71 || nativeHas.call(this, id); };
+
+  const stores = new WeakMap();
+  const storage = self => { if (!stores.has(self)) stores.set(self, new Map()); return stores.get(self); };
+  Storage.prototype.getItem = function(key) { return storage(this).get(String(key)) ?? null; };
+  Storage.prototype.setItem = function(key,value) { storage(this).set(String(key), String(value)); };
+  Storage.prototype.removeItem = function(key) { storage(this).delete(String(key)); };
+  Storage.prototype.clear = function() { storage(this).clear(); };
+}
+</script>
+</head><body>
 <div id="shell"><canvas id="field" tabindex="0" aria-label="스케치 타운 전장: 직접 한 획을 그리고 이동으로 조준한 뒤 놓으면 발사합니다"></canvas><canvas id="draw" aria-hidden="true"></canvas><div id="slowFx" class="slow-veil" aria-hidden="true"><div class="slow-lines"></div></div><div id="hitFlash" class="impact-flash" aria-hidden="true"></div><div id="slowIndicator" class="slow-indicator"><b>◷ 0.25×</b><span>잉크 시간 왜곡</span></div>
  <div class="hud-top">
  <div class="hud-badge top-left"><div class="logo">✎</div><div class="identity"><div class="brand">스케치 타운 <small id="gameVersion">RPG</small></div><div class="hero-line"><b id="level">LV 1</b><span id="hpText">HP 120 / 120</span></div><div class="hp-bg"><div class="hp-fill" id="hpFill"></div></div><section id="inkMeter" class="ink-meter" data-state="ready"><div class="ink-caption"><b>잉크</b><output id="inkText">100 / 100</output><small id="inkRecovery">가득 참</small></div><div id="inkBar" class="ink-bar" role="progressbar" aria-label="현재 잉크" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100"><div id="inkFill" class="ink-fill"></div><div id="inkReservation" class="ink-reservation"></div></div><div id="inkEstimate" class="ink-estimate"></div></section><div class="xp-bg"><div class="xp-fill" id="xpFill"></div></div></div></div>
@@ -27,4 +54,5 @@
 <script type="application/json" id="sketchCNN"></script>
 <script type="application/json" id="glyphReferences"></script>
 <script type="module" src="./source/bootstrap.js"></script>
+<script type="module" src="./source/showcase.js"></script>
 </body></html>
