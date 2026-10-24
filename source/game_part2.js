@@ -44,7 +44,6 @@
   function announce(text,time=1700){world.screenText=text;world.screenTextMs=time;if(!resimulatingGame){$('screenMessage').textContent=text;$('screenMessage').classList.add('show');}}
   createWorld();
 
-  function rollEase(t){return t+.10*Math.sin(Math.PI*t);}
   // The canonical actor movement kernel is shared by authority and GameKit's detached preview fork.
   // Neither helper reads input devices, queues effects, changes world simulation, or plays audio.
   function refreshActorRoll(actor,dt){const d=actor.dash;if(d.charges>=CFG.player.roll.capacity){d.rechargeMs=0;return;}
