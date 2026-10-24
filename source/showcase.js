@@ -1,5 +1,6 @@
 import { installShowcase } from 'https://cdn.jsdelivr.net/gh/byh-playground/bloom-gamekit@cdf99b6b960d0e26b9162bb24b773acbc6632835/scenario.js';
 const SHOWCASE = installShowcase({
+    custom: (shape, win) => win.BloomSketchShowcase?.drawStroke(shape) === true,
     title:'스케치 타운',
     launcher:'#helpButton',
     playSelector:'#field',
@@ -28,15 +29,13 @@ const SHOWCASE = installShowcase({
   },
   {
     "atMs": 4500,
-    "action": "draw",
-    "selector": "#field",
-    "shape": "line"
+    "action": "custom",
+    "name": "line"
   },
   {
     "atMs": 6800,
-    "action": "draw",
-    "selector": "#field",
-    "shape": "circle"
+    "action": "custom",
+    "name": "circle"
   },
   {
     "atMs": 9000,
@@ -59,9 +58,8 @@ const SHOWCASE = installShowcase({
   },
   {
     "atMs": 11600,
-    "action": "draw",
-    "selector": "#field",
-    "shape": "circle"
+    "action": "custom",
+    "name": "circle"
   },
   {
     "atMs": 14100,
@@ -96,15 +94,13 @@ const SHOWCASE = installShowcase({
   },
   {
     "atMs": 21100,
-    "action": "draw",
-    "selector": "#field",
-    "shape": "line"
+    "action": "custom",
+    "name": "line"
   },
   {
     "atMs": 24100,
-    "action": "draw",
-    "selector": "#field",
-    "shape": "circle"
+    "action": "custom",
+    "name": "circle"
   }
 ]
 });
