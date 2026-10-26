@@ -6,6 +6,7 @@ const SOURCES = [
   'source/gamekit_audio.js',
   'source/vector-assets-compiled.js',
   'source/game_part1.js',
+  'source/map-generator.js',
   'source/progression.js',
   'source/region-map.js',
   'source/game_part2.js',

@@ -54,9 +54,9 @@
   function ground(){
     regionGround();
     P.oval(484,740,368,318,'#f2e5ca',.62);
-    P.oval(CFG.boss.x,CFG.boss.y,CFG.boss.radius*.89,CFG.boss.radius*.89,'#e6dde8',.4);
-    P.ring(CFG.boss.x,CFG.boss.y,CFG.boss.radius,'#b4a7b4',.42,2,32);
-    P.ring(CFG.boss.x,CFG.boss.y,CFG.boss.radius*.7,'#b7a8b7',.2,1.4,24);
+    P.oval(mapLayout.boss.x,mapLayout.boss.y,mapLayout.boss.radius*.89,mapLayout.boss.radius*.89,'#e6dde8',.4);
+    P.ring(mapLayout.boss.x,mapLayout.boss.y,mapLayout.boss.radius,'#b4a7b4',.42,2,32);
+    P.ring(mapLayout.boss.x,mapLayout.boss.y,mapLayout.boss.radius*.7,'#b7a8b7',.2,1.4,24);
     // Village safety circle.
     P.oval(504,735,98,81,'#dceade',.65);P.ring(504,735,92,'#86a68e',.52,1.8,28);
     P.dot(503,730,16,'#fafbf3');P.ring(503,730,17,'#789b89',.73,2,24);P.dot(503,730,7,'#a5c9a3',.8);
@@ -180,7 +180,7 @@
       txtCtx.translate(px,py);txtCtx.scale(pop,pop);txtCtx.translate(-px,-py);
       txtCtx.font='1000 17px system-ui,sans-serif';txtCtx.lineWidth=4.0;txtCtx.strokeStyle='#fff9ee';txtCtx.strokeText(f.text,anchorReuse.x,anchorReuse.y);txtCtx.fillStyle=f.color;txtCtx.fillText(f.text,anchorReuse.x,anchorReuse.y);txtCtx.setTransform(screenDpr,0,0,screenDpr,0,0);}
     if(visible(504,735,140)){renderer.worldToScreenInto(504,625,anchorReuse);txtCtx.textAlign='center';txtCtx.font='900 12px system-ui';txtCtx.lineWidth=3.4;txtCtx.strokeStyle='#fffaf0';txtCtx.strokeText('푸른 잉크 샘 · 회복',anchorReuse.x,anchorReuse.y);txtCtx.fillStyle='#568276';txtCtx.fillText('푸른 잉크 샘 · 회복',anchorReuse.x,anchorReuse.y);}
-    if(world.bossSpawned&&!world.bossDefeated&&visible(CFG.boss.x,CFG.boss.y,100)){renderer.worldToScreenInto(CFG.boss.x,CFG.boss.y-112,anchorReuse);txtCtx.textAlign='center';txtCtx.font='900 13px system-ui';txtCtx.lineWidth=3.7;txtCtx.strokeStyle='#fffaf0';txtCtx.strokeText('잉크 감시자',anchorReuse.x,anchorReuse.y);txtCtx.fillStyle='#8c647e';txtCtx.fillText('잉크 감시자',anchorReuse.x,anchorReuse.y);}
+    if(world.bossSpawned&&!world.bossDefeated&&visible(mapLayout.boss.x,mapLayout.boss.y,100)){renderer.worldToScreenInto(mapLayout.boss.x,mapLayout.boss.y-112,anchorReuse);txtCtx.textAlign='center';txtCtx.font='900 13px system-ui';txtCtx.lineWidth=3.7;txtCtx.strokeStyle='#fffaf0';txtCtx.strokeText('잉크 감시자',anchorReuse.x,anchorReuse.y);txtCtx.fillStyle='#8c647e';txtCtx.fillText('잉크 감시자',anchorReuse.x,anchorReuse.y);}
     txtCtx.globalAlpha=1;drawMapLabels();
   }
   let lastCameraAt=0;
