@@ -14,7 +14,7 @@
   function populateRegionMap(){
     for(const [region,count]of [[0,95],[1,78],[2,72]])for(let i=0;i<count;i++){
       const spec=REGIONS[region],x=spec.min+90+rand()*(spec.max-spec.min-180),y=90+rand()*(CFG.world.height-180);
-      if(hypot(x-485,y-740)<330||nearMapRoute(x,y,105)||REGION_TERRAIN.clearings.some(c=>hypot((x-c.x)/c.rx,(y-c.y)/c.ry)<1.1)||hypot(x-CFG.boss.x,y-CFG.boss.y)<290||GATES.some(g=>hypot(x-g.x,y-g.y)<205)||mapTerrainBlocked(x,y,25)||spec.spawns.some(s=>hypot(x-s[1],y-s[2])<90))continue;
+      if(hypot(x-485,y-740)<330||nearMapRoute(x,y,105)||REGION_TERRAIN.clearings.some(c=>hypot((x-c.x)/c.rx,(y-c.y)/c.ry)<1.1)||hypot(x-CFG.boss.x,y-CFG.boss.y)<290||mapTerrainBlocked(x,y,25)||spec.spawns.some(s=>hypot(x-s[1],y-s[2])<90))continue;
       addMapProp(x,y,region===0?30+rand()*22:region===1?20+rand()*18:24+rand()*24,region===0?'canopy':region===1?'reed':'slab',region,region!==1);
     }
     for(const landmark of REGION_TERRAIN.landmarks){world.trees.push({...landmark,variant:0});addObstacle({x:landmark.x,y:landmark.y,r:landmark.r*.65,kind:landmark.kind});}

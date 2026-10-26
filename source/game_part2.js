@@ -1,16 +1,16 @@
   const actions=new ActionState(),gesture={drawId:null,points:[],length:0,startMs:0,trainingId:null,trainingPoints:[],lastCombatStroke:null};
-  let player={x:475,y:735,vx:0,vy:0,moveX:0,moveY:0,faceX:1,faceY:0,r:CFG.player.radius,hp:CFG.player.hp,maxHp:CFG.player.hp,level:1,xp:0,xpNext:65,ink:100,inkDelayMs:0,investments:{...savedProfile.investments},power:1,dash:{leftMs:0,durationMs:0,elapsedMs:0,distance:0,charges:2,rechargeMs:0,dirX:1,dirY:0,originX:475,originY:735,rollMarkMs:0},nextCastAtMs:0,invulMs:0,healMsgMs:0,hits:0};
-  restoreProfile(player,savedProfile);
+  let player={x:475,y:735,vx:0,vy:0,moveX:0,moveY:0,faceX:1,faceY:0,r:CFG.player.radius,hp:CFG.player.hp,maxHp:CFG.player.hp,ink:100,inkDelayMs:0,cards:emptyCards(),power:1,dash:{leftMs:0,durationMs:0,elapsedMs:0,distance:0,charges:2,rechargeMs:0,dirX:1,dirY:0,originX:475,originY:735,rollMarkMs:0},nextCastAtMs:0,invulMs:0,healMsgMs:0,hits:0};
+  applyCards(player);
   const hostPlayer=player;
-  const guestPlayer={...hostPlayer,investments:emptyInvestments(),level:1,xp:0,xpNext:65,x:536,y:756,hp:hostPlayer.hp,maxHp:hostPlayer.maxHp,dash:{...hostPlayer.dash,originX:536,originY:756},nextCastAtMs:0,hits:0};
-  applyInvestments(guestPlayer);
+  const guestPlayer={...hostPlayer,cards:emptyCards(),x:536,y:756,hp:hostPlayer.hp,maxHp:hostPlayer.maxHp,dash:{...hostPlayer.dash,originX:536,originY:756},nextCastAtMs:0,hits:0};
+  applyCards(guestPlayer);
   const mp={role:'solo',connected:false,ready:false,connecting:false,shared:false,room:null,session:null,code:'',localId:null,ownerId:null,interpolation:null,poseRevision:0,poseSequence:0,poseReset:true,stats:{rollbacks:0,recoveries:0,commands:0,advanced:0}};
   function actors(){return mp.shared?[hostPlayer,guestPlayer]:[hostPlayer];}
   function actorId(actor){return actor===guestPlayer?'b':'a';}
   function actorOf(id){return id==='b'?guestPlayer:hostPlayer;}
   function withActor(actor,fn){const before=player;player=actor;try{return fn();}finally{player=before;}}
   const camera={x:0,y:0,zoom:1};
-  const world={regionKills:[0,0,0],gates:{door:{open:false,stroke:[],owner:null,openedAtMs:0},bridge:{open:false,stroke:[],owner:null,openedAtMs:0}},obstacles:[],grid:new Map(),decals:[],trees:[],houses:[],enemies:[],projectiles:[],hazards:[],casts:[],particles:[],floaters:[],pickups:[],fields:[],commands:[],castQueue:[],rollMarks:[],rollTarget:null,nextId:1,seed:0x31415,clockMs:0,kills:0,bossSpawned:false,bossDefeated:false,hitstopMs:0,lastHitstopClockMs:-1000,hitFlashMs:0,slowRatio:1,screenTextMs:0,screenText:'',effectShakeMs:0,mode:'playing',deathMs:0,lastResult:null};
+  const world={regionKills:[0,0,0],obstacles:[],grid:new Map(),decals:[],trees:[],houses:[],enemies:[],projectiles:[],hazards:[],casts:[],particles:[],floaters:[],pickups:[],fields:[],commands:[],castQueue:[],rollMarks:[],rollTarget:null,nextId:1,seed:0x31415,clockMs:0,kills:0,bossSpawned:false,bossDefeated:false,hitstopMs:0,lastHitstopClockMs:-1000,hitFlashMs:0,slowRatio:1,screenTextMs:0,screenText:'',effectShakeMs:0,mode:'playing',deathMs:0,lastResult:null};
   const audioRecipes={
     draw:{category:'sfx',layers:[{kind:'tone',type:'sine',hz:610,end:910,ms:90,gain:.3}]},
     throw:{category:'sfx',layers:[{kind:'tone',type:'triangle',hz:410,end:950,ms:128,gain:.42},{kind:'noise',hz:2100,ms:65,gain:.17}]},
@@ -19,7 +19,6 @@
     bounce:{category:'sfx',layers:[{kind:'tone',type:'sine',hz:620,end:860,ms:87,gain:.20},{kind:'noise',hz:1900,ms:52,gain:.15}]},
     dash:{category:'sfx',layers:[{kind:'noise',hz:1200,ms:128,gain:.31}]},
     land:{category:'sfx',layers:[{kind:'tone',type:'triangle',hz:180,end:78,ms:110,gain:.26},{kind:'noise',hz:420,ms:76,gain:.13}]},
-    level:{category:'sfx',layers:[{kind:'tone',type:'sine',hz:360,end:920,ms:310,gain:.42}]},
     select:{category:'sfx',layers:[{kind:'tone',type:'sine',hz:650,end:510,ms:70,gain:.21}]},
   };
   const sound=new AudioPlayer({...audioDefaults,volume:.67,maxVoices:14,categories:{sfx:{volume:1,max:14,gapMs:18,priority:0}},sounds:audioRecipes});
@@ -31,15 +30,15 @@
   const cellSize=160,gridKey=(x,y)=>`${Math.floor(x/cellSize)},${Math.floor(y/cellSize)}`;
   function addObstacle(o){world.obstacles.push(o);for(let gx=Math.floor((o.x-o.r)/cellSize);gx<=Math.floor((o.x+o.r)/cellSize);gx++)for(let gy=Math.floor((o.y-o.r)/cellSize);gy<=Math.floor((o.y+o.r)/cellSize);gy++){const key=`${gx},${gy}`;if(!world.grid.has(key))world.grid.set(key,[]);world.grid.get(key).push(o);}}
   function circleBounds(x,y,r){return x>=r&&y>=r&&x<=CFG.world.width-r&&y<=CFG.world.height-r;}
-  function touchesObstacle(x,y,r){if(!circleBounds(x,y,r)||gateBlocked(x,y,r)||mapTerrainBlocked(x,y,r))return true;const list=world.grid.get(gridKey(x,y))||[];for(const o of list){if(hypot(o.x-x,o.y-y)<o.r+r)return true;}return false;}
+  function touchesObstacle(x,y,r){if(!circleBounds(x,y,r)||mapTerrainBlocked(x,y,r))return true;const list=world.grid.get(gridKey(x,y))||[];for(const o of list){if(hypot(o.x-x,o.y-y)<o.r+r)return true;}return false;}
   function moveCollider(e,dx,dy,r){if(!touchesObstacle(e.x+dx,e.y,r))e.x+=dx;if(!touchesObstacle(e.x,e.y+dy,r))e.y+=dy;}
   function createWorld(){
     // Deterministic generated props. No hand-authored image assets, texture uploads, or runtime network.
     for(const h of [{x:275,y:540,w:173,h:127,type:'house'},{x:575,y:462,w:167,h:119,type:'library'},{x:360,y:960,w:162,h:112,type:'shop'}]){world.houses.push(h);addObstacle({x:h.x,y:h.y+16,r:h.w*.46,kind:'house'});}
     populateRegionMap();
-    spawnRegion(0);
+    REGIONS.forEach((_,i)=>spawnRegion(i));
   }
-  const enemyDefs={chaser:{r:19,hp:55,speed:89,damage:11,color:'#a57673',name:'종이 사냥꾼',xp:18},spitter:{r:20,hp:48,speed:65,damage:9,color:'#8e8ba8',name:'잉크 투척수',xp:21},charger:{r:23,hp:85,speed:72,damage:18,color:'#c1966b',name:'낙서 돌격수',xp:27},boss:{r:56,hp:580,speed:55,damage:23,color:'#8d688e',name:'잉크 감시자',xp:190}};
+  const enemyDefs={chaser:{r:19,hp:55,speed:89,damage:11,color:'#a57673',name:'종이 사냥꾼'},spitter:{r:20,hp:48,speed:65,damage:9,color:'#8e8ba8',name:'잉크 투척수'},charger:{r:23,hp:85,speed:72,damage:18,color:'#c1966b',name:'낙서 돌격수'},boss:{r:56,hp:580,speed:55,damage:23,color:'#8d688e',name:'잉크 감시자'}};
   function spawnEnemy(kind,x,y){const d=enemyDefs[kind],id=world.nextId++;const e={id,kind,region:regionAt(x),x,y,r:d.r,hp:d.hp,maxHp:d.hp,vx:0,vy:0,ageMs:0,aiMs:0,windupMs:0,attackMs:400+rand()*550,chargeMs:0,chargeDX:0,chargeDY:0,hitMs:0,burnMs:0,burnTickMs:400,burnAmount:0,wetMs:0,stunMs:0,dead:false};world.enemies.push(e);return e;}
   function announce(text,time=1700){world.screenText=text;world.screenTextMs=time;if(!resimulatingGame){$('screenMessage').textContent=text;$('screenMessage').classList.add('show');}}
   createWorld();
@@ -116,7 +115,6 @@
   function takeDamage(amount,fromX,fromY){if(player.invulMs>0||world.mode!=='playing')return false;player.hp=Math.max(0,player.hp-Math.round(amount));player.invulMs=520;player.hits++;world.effectShakeMs=180;floating(player.x,player.y-32,`-${Math.round(amount)}`,'#bb604f');burst(player.x,player.y,'#d07962',10,83);sfx('hit');if(fromX!=null){const d=hypot(player.x-fromX,player.y-fromY)||1;moveCollider(player,(player.x-fromX)/d*17,(player.y-fromY)/d*17,player.r);}if(player.hp<=0){if(!resimulatingGame&&player===(mp.role==='join'?guestPlayer:hostPlayer))dropDraw();if(mp.shared){player.koMs=1150;announce('동료의 잉크가 번졌다 · 잠시 뒤 부활!',1100);}else{world.mode='down';world.deathMs=1150;announce('먹물이 번졌다… 마을로 돌아갑니다',1100);}}return true;}
   function reviveActor(actor){withActor(actor,()=>{player.x=actor===guestPlayer?536:480;player.y=actor===guestPlayer?756:735;player.hp=Math.ceil(player.maxHp*.75);player.invulMs=1600;player.koMs=0;player.dash.leftMs=0;player.dash.charges=CFG.player.roll.capacity;player.dash.rechargeMs=0;player.nextCastAtMs=0;});}
   function revive(){player.x=480;player.y=735;player.hp=Math.ceil(player.maxHp*.75);player.invulMs=1600;player.dash.leftMs=0;player.dash.charges=CFG.player.roll.capacity;player.dash.rechargeMs=0;player.nextCastAtMs=0;world.hazards.length=0;world.projectiles.length=0;world.casts.length=0;world.castQueue.length=0;world.rollMarks.length=0;world.mode='playing';}
-  function awardXp(value){player.xp+=value;while(player.xp>=player.xpNext){player.xp-=player.xpNext;player.level++;player.xpNext=Math.round(player.xpNext*1.32+10);announce(`레벨 ${player.level} · 강화 포인트 +1!`,1550);sfx('level');}}
   function nearestEnemy(range=900,x=player.x,y=player.y,excludeId=null){
     let nearest=null,best=range;
     for(const e of world.enemies){if(e.dead||e.id===excludeId)continue;const d=hypot(e.x-x,e.y-y);if(d<best){best=d;nearest=e;}}
@@ -176,8 +174,8 @@
     // Radial scratch and high-contrast paper sparks at the real contact point.
     world.fields.push({kind:'impact',x:e.x,y:e.y-3,r:e.kind==='boss'?59:33,ageMs:0,lifeMs:260,color});
     burst(e.x,e.y,color,e.kind==='boss'?11:7,99);
-if(e.hp<=0){e.dead=true;world.kills++;if(e.kind!=='boss')world.regionKills[e.region]++;burst(e.x,e.y,enemyDefs[e.kind].color,9,100);tearEnemyInk(e);sfx('kill');awardXp(enemyDefs[e.kind].xp);if(mp.shared){withActor(player===hostPlayer?guestPlayer:hostPlayer,()=>awardXp(enemyDefs[e.kind].xp));}if(e.kind!=='boss'){world.pickups.push({x:e.x,y:e.y,r:8,lifeMs:24000,kind:'ink',amount:1+Math.floor(rand()*3)});}else{world.bossDefeated=true;announce('잉크 감시자 격파 · 스케치 타운을 되찾았다!',3500);world.pickups.push({x:e.x,y:e.y,r:15,lifeMs:30000,kind:'ink',amount:24});}
-      if(regionCleared(2)&&!world.bossSpawned){world.bossSpawned=true;spawnEnemy('boss',CFG.boss.x,CFG.boss.y);announce('고대 원형장에 잉크 감시자가 나타났다!',2600);}}
+if(e.hp<=0){e.dead=true;world.kills++;if(e.kind!=='boss')world.regionKills[e.region]++;burst(e.x,e.y,enemyDefs[e.kind].color,9,100);tearEnemyInk(e);sfx('kill');if(e.kind!=='boss'){world.pickups.push({x:e.x,y:e.y,r:8,lifeMs:24000,kind:'ink',amount:1+Math.floor(rand()*3)});}else{world.bossDefeated=true;announce('잉크 감시자 격파 · 스케치 타운을 되찾았다!',3500);world.pickups.push({x:e.x,y:e.y,r:15,lifeMs:30000,kind:'ink',amount:24});}
+      if(allRegionsCleared()&&!world.bossSpawned){world.bossSpawned=true;spawnEnemy('boss',CFG.boss.x,CFG.boss.y);announce('고대 원형장에 잉크 감시자가 나타났다!',2600);}}
     else sfx('hit');return d;}
 
   function enemyProjectile(x,y,tx,ty,kind='ink',speed=260,damage=9){const dx=tx-x,dy=ty-y,m=hypot(dx,dy)||1;world.hazards.push({x,y,prevX:x,prevY:y,vx:dx/m*speed,vy:dy/m*speed,r:kind==='orb'?11:7,kind,color:kind==='orb'?'#9d729c':'#9f8fb1',damage,ageMs:0,lifeMs:2100});}

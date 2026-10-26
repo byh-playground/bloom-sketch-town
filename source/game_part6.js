@@ -30,7 +30,7 @@
   }
   const canonicalKeys=['nextId','seed','clockMs','kills','bossSpawned','bossDefeated',
     'hitstopMs','lastHitstopClockMs','hitFlashMs','slowRatio','screenTextMs','screenText',
-    'effectShakeMs','mode','deathMs','regionKills','gates'];
+    'effectShakeMs','mode','deathMs','regionKills'];
   const canonicalArrays=['enemies','projectiles','hazards','casts','pickups','fields','castQueue'];
   function encodeState(){
     const worldState={};for(const key of canonicalKeys)worldState[key]=world[key];
@@ -48,8 +48,8 @@
       for(const name of canonicalArrays)if(!Array.isArray(w[name])||w[name].length>({enemies:75,projectiles:65,hazards:150,casts:8,pickups:120,fields:350,castQueue:8}[name]))return false;
       // Recovery must preserve the released direction; missing/invalid aim is not an old-schema fallback.
       for(const name of ['casts','castQueue'])if(w[name].some(c=>!validShotAim(c?.shot?.aim)))return false;
-      if(!Array.isArray(w.regionKills)||w.regionKills.length!==3||w.regionKills.some(n=>!Number.isSafeInteger(n)||n<0)||!w.gates||GATES.some(g=>!w.gates[g.id]||typeof w.gates[g.id].open!=='boolean'||!Number.isFinite(w.gates[g.id].openedAtMs)||w.gates[g.id].openedAtMs<0||!Array.isArray(w.gates[g.id].stroke)||w.gates[g.id].open&&!validGateStroke(g,w.gates[g.id].stroke)))return false;
-      for(const a of data.actors)if(!validProfile(a)||!Number.isFinite(a.ink)||a.ink<0||a.ink>derivedStats(a.investments).maxInk+1e-6||!Number.isFinite(a.inkDelayMs)||a.inkDelayMs<0||a.inkDelayMs>750||!a||!Number.isFinite(a.x)||!Number.isFinite(a.y)||!Number.isFinite(a.hp)||!a.dash||!Number.isFinite(a.dash.charges))return false;
+      if(!Array.isArray(w.regionKills)||w.regionKills.length!==3||w.regionKills.some(n=>!Number.isSafeInteger(n)||n<0))return false;
+      for(const a of data.actors)if(!validCards(a.cards)||!Number.isFinite(a.ink)||a.ink<0||a.ink>derivedStats(a.cards).maxInk+1e-6||!Number.isFinite(a.inkDelayMs)||a.inkDelayMs<0||a.inkDelayMs>750||!a||!Number.isFinite(a.x)||!Number.isFinite(a.y)||!Number.isFinite(a.hp)||!a.dash||!Number.isFinite(a.dash.charges))return false;
       if(typeof data.shared!=='boolean')return false;
       return true;
     }catch{return false;}
@@ -86,10 +86,6 @@
       return {type:'roll',dx:Math.round(dx/magnitude*10000)/10000,dy:Math.round(dy/magnitude*10000)/10000,
         distance:Math.round(clamp(distance,0,rollMaxDistance())*100)/100};
     }
-    if(cmd.type==='invest'&&STAT_DEFS.some(s=>s.id===cmd.id))return {type:'invest',id:cmd.id};
-    if(cmd.type==='redistribute')return {type:'redistribute'};
-    if(cmd.type==='profile'&&validProfile(cmd.profile))return {type:'profile',profile:cmd.profile};
-    if(cmd.type==='gate'&&gateOf(cmd.id)&&validGateStroke(gateOf(cmd.id),cmd.points))return {type:'gate',id:cmd.id,points:cmd.points};
     return null;
   }
   function encodeLocalCommand(cmd){const value=normalizeCommand(cmd);if(!value)return null;
@@ -100,11 +96,7 @@
       const {dx,dy,distance}=command,len=hypot(dx,dy);
       if(!Number.isFinite(len)||len<.96||len>1.04||!Number.isFinite(distance)||distance<1||distance>rollMaxDistance()+.01)return;
       executeRollVector(actor,dx,dy,distance);
-    }else if(command?.type==='invest')invest(actor,command.id);
-    else if(command?.type==='redistribute')redistribute(actor);
-    else if(command?.type==='profile'){if(restoreProfile(actor,command.profile)&&actor===player)mp.profileReady=true;}
-    else if(command?.type==='gate'&&world.mode==='playing'&&actor.hp>0&&!actor.koMs)completeGate(actor,command.id,command.points);
-    else if(command?.type==='cast'){
+    }else if(command?.type==='cast'){
       const shot=command.shot;
       if(!shot||!validShotAim(shot.aim)||!['normal',...glyphKinds].includes(shot.kind)||!Number.isFinite(shot.baseDamage)||shot.baseDamage<0||shot.baseDamage>250||!Number.isFinite(shot.areaPower)||shot.areaPower<0||shot.areaPower>1.6||!Number.isFinite(shot.geo?.length)||shot.geo.length<0||shot.geo.length>3500||!Array.isArray(shot.shape)||shot.shape.length<2||shot.shape.length>28||shot.shape.some(p=>!Number.isFinite(p?.x)||!Number.isFinite(p?.y)||Math.abs(p.x)>150||Math.abs(p.y)>150))return;
       withActor(actor,()=>submitSpell(shot));
@@ -155,7 +147,7 @@
       mp.ready=mp.shared;
       mp.poseReset=true;mp.poseRevision++;mp.previewNeedsReset=true;mp.inputPreview?.clear();
       mpStatus(mp.shared?'참가 승인 완료 · 30 TPS 롤백 협동 시작':'현재 혼자 방을 지키는 중 · 참가자를 기다립니다.');
-      if(mp.shared){if(mp.role==='join'&&mp.pendingProfile){world.commands.push({type:'profile',profile:mp.pendingProfile});mp.pendingProfile=null;}goRoute('play');}
+      if(mp.shared)goRoute('play');
       mpUi();
     }
     if(event.type==='peer-interrupted'||event.type==='peer-timeout'||event.type==='peer-disconnected')mpStatus('네트워크 연결 중단 · RoomSession 복구 대기 중');
@@ -175,7 +167,7 @@
   async function mpConnect(role){
     if(mp.connected||mp.connecting)return;
     const code=$('mpRoomInput').value.trim();if(!/^\d{4}$/.test(code)){mpStatus('방 번호는 숫자 네 자리여야 합니다.');return;}
-    mp.pendingProfile=profileOf(player);mp.profileReady=role==='host';mp.role=role;mp.code=code;mp.connecting=true;mpAbort=new AbortController();const generation=++mpGeneration;mpUi();
+    mp.role=role;mp.code=code;mp.connecting=true;mpAbort=new AbortController();const generation=++mpGeneration;mpUi();
     try{
       mpStatus('고정 BLOOM GameKit 롤백·전송·보간 모듈 로딩 중…');
       const [rollback,transport,simloop,interpolation]=await Promise.all([import(MP_ROLLBACK_URL),import(MP_TRANSPORT_URL),import(MP_SIMLOOP_URL),import(MP_INTERPOLATION_URL)]);
@@ -200,7 +192,6 @@
       mp.poseRevision++;mp.poseReset=true;mp.poseSequence=0;
       resetPresentation();rebindGameLoop();
       mp.ready=mp.shared;
-      if(role==='join'&&mp.shared&&mp.pendingProfile){world.commands.push({type:'profile',profile:mp.pendingProfile});mp.pendingProfile=null;}
       mpStatus(mp.shared?'롤백 협동 시작':'방이 준비되었습니다 · 다른 참가자를 기다립니다.');
       mpUi();
       if(role==='join'&&mp.shared)goRoute('play');

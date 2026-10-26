@@ -1,6 +1,6 @@
 # Sketch Town
 
-그림을 그려 공격하고 길을 여는 BLOOM 기반 액션 게임입니다. WASD·모바일 스틱으로 지역을 자유롭게 탐험하며 숲 → 문 → 습지 → 다리 → 채석장으로 진행합니다. 현재 버전은 **0.16.0**입니다. ChatGPT 원본 0.9.2에서 출발했으며 GameKit protocol 3의 동일 명령·롤백 경로를 사용합니다.
+그림을 그려 공격하는 BLOOM 기반 액션 게임입니다. WASD·모바일 스틱으로 숲·습지·채석장을 자유롭게 오가며 적을 물리치고, 세 지역을 모두 정리하면 보스가 나타납니다. 현재 버전은 **0.17.0**입니다. ChatGPT 원본 0.9.2에서 출발했으며 GameKit protocol 3의 동일 명령·롤백 경로를 사용합니다.
 
 [게임 실행](https://byh-playground.github.io/bloom-sketch-town/)
 
@@ -21,7 +21,7 @@ python source/e2e.py
 python source/e2e.py --live-p2p
 ```
 
-고정 사용자 흐름만 선택하려면 `--flow progression`(지역 공략·관문·투자 저장) 또는 `--flow online --live-p2p`(시작 전 개인 투자·동시 PC/모바일 문 그리기·실제 재접속)를 사용합니다. `--flow all`이 기본이며 전체 실행은 180초 안에서 끝납니다.
+고정 사용자 흐름만 선택하려면 `--flow progression`(카드 단계 파생값·지역 정리·보스 소환), `--flow ux`(잉크 바·지형 충돌) 또는 `--flow online --live-p2p`(실제 방 참가·재접속·체크포인트 해시)를 사용합니다. `--flow all`이 기본이며 전체 실행은 180초 안에서 끝납니다.
 
 마지막 명령은 공개 Nostr relay와 실제 WebRTC 2인 연결까지 검사합니다. `SKETCH_CHROMIUM`으로 설치된 Chromium/Edge 실행 경로를 지정할 수 있습니다. 결과는 Git에서 제외되는 `e2e_artifacts/`에 기록합니다. 과거 원본 결과는 `docs/original-e2e/`에 따로 보존했으며 현재 코드의 검증 결과로 간주하지 않습니다.
 
@@ -136,6 +136,14 @@ GameKit PR47의 지연된 중첩 상태 전환과 PR48의 preview 복귀 수정�
 [0.16.0 영향 검증](docs/ux-v0.16.0.json): 실제 Edge UI·긍정/부정 포인터 그림 15 PASS, 지역 진행 14 PASS, 공개 Nostr·2인 RTC 6 PASS. 기존 전체 기능을 반복 검사하지 않았습니다. ANGLE SwiftShader WebGL 경로이며 하드웨어 GPU·모바일 실기기·외부 NAT·장시간 밸런스는 미검증입니다.
 
 [잉크 부족 바](docs/ink-mobile-v0.16.0.png) · [마법진 재시도](docs/magic-retry-v0.16.0.png) · [투자 화면](docs/growth-mobile-v0.16.0.png) · [숲](docs/map-forest-v0.16.0.png) · [습지](docs/map-marsh-v0.16.0.png) · [채석장](docs/map-quarry-v0.16.0.png)
+
+### 0.17.0 로그라이크 전환 1단계: 관문·영구 투자 제거
+
+- 제거: 문·다리 그리기(둘레원+별 판정), 지역 순서 잠금, 레벨·경험치·강화 포인트, 성장 화면, 브라우저 저장(`sketch-town-progression-0.15`), `invest`·`redistribute`·`profile`·`gate` 명령.
+- 변경: 세 지역의 적이 시작부터 모두 배치되고 지역 사이에 벽이 없습니다. 세 지역을 모두 정리하면 잉크 감시자가 나타납니다. 잉크 바와 마법 한 번당 잉크 소비는 유지합니다.
+- 유지: 5종 효과(최대 잉크·잉크 회복·잉크 절약·공격력·최대 HP)의 파생값 계산 `derivedStats`. 이후 단계에서 보스 격파 보상 카드(3장 중 1장)가 이 계산을 그대로 사용합니다. 현재는 `cards` 단계(각 최대 5)만 보유하며 저장하지 않습니다.
+- 방 namespace·simulationVersion은 0.17.0으로 분리됩니다(체크포인트에서 `gates` 필드, 액터에서 `level`·`xp`·`investments` 필드가 사라졌기 때문입니다).
+- 검증: `--flow progression` 9 PASS, `--flow ux` 6 PASS. 공개 Nostr·RTC 흐름(`--flow online --live-p2p`)은 이 환경의 외부 네트워크 차단으로 실행하지 못했습니다. `--flow all`의 데스크톱·모바일 구간은 변경 전부터 이 환경에서 실패합니다(`set_content` 페이지가 상대 경로 스크립트를 읽지 못함).
 
 ### SVG renderer migration candidate
 
