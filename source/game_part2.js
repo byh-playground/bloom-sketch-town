@@ -10,7 +10,7 @@
   function actorOf(id){return id==='b'?guestPlayer:hostPlayer;}
   function withActor(actor,fn){const before=player;player=actor;try{return fn();}finally{player=before;}}
   const camera={x:0,y:0,zoom:1};
-  const world={regionKills:[0,0,0],obstacles:[],grid:new Map(),decals:[],trees:[],houses:[],enemies:[],projectiles:[],hazards:[],casts:[],particles:[],floaters:[],pickups:[],fields:[],commands:[],castQueue:[],rollMarks:[],rollTarget:null,nextId:1,seed:0x31415,clockMs:0,kills:0,bossSpawned:false,bossDefeated:false,hitstopMs:0,lastHitstopClockMs:-1000,hitFlashMs:0,slowRatio:1,screenTextMs:0,screenText:'',effectShakeMs:0,mode:'playing',deathMs:0,lastResult:null};
+  const world={regionKills:[0,0,0],obstacles:[],grid:new Map(),decals:[],trees:[],houses:[],enemies:[],projectiles:[],hazards:[],casts:[],particles:[],floaters:[],pickups:[],fields:[],commands:[],castQueue:[],rollMarks:[],rollTarget:null,nextId:1,seed:0x31415,clockMs:0,kills:0,bossesDefeated:0,hitstopMs:0,lastHitstopClockMs:-1000,hitFlashMs:0,slowRatio:1,screenTextMs:0,screenText:'',effectShakeMs:0,mode:'playing',deathMs:0,lastResult:null};
   const audioRecipes={
     draw:{category:'sfx',layers:[{kind:'tone',type:'sine',hz:610,end:910,ms:90,gain:.3}]},
     throw:{category:'sfx',layers:[{kind:'tone',type:'triangle',hz:410,end:950,ms:128,gain:.42},{kind:'noise',hz:2100,ms:65,gain:.17}]},
@@ -36,8 +36,9 @@
     applyMapLayout(mapSeed);
     REGIONS.forEach((_,i)=>spawnRegion(i));
   }
-  const enemyDefs={chaser:{r:19,hp:55,speed:89,damage:11,color:'#a57673',name:'종이 사냥꾼'},spitter:{r:20,hp:48,speed:65,damage:9,color:'#8e8ba8',name:'잉크 투척수'},charger:{r:23,hp:85,speed:72,damage:18,color:'#c1966b',name:'낙서 돌격수'},boss:{r:56,hp:580,speed:55,damage:23,color:'#8d688e',name:'잉크 감시자'}};
-  function spawnEnemy(kind,x,y){const d=enemyDefs[kind],id=world.nextId++;const e={id,kind,region:regionAt(x),x,y,r:d.r,hp:d.hp,maxHp:d.hp,vx:0,vy:0,ageMs:0,aiMs:0,windupMs:0,attackMs:400+rand()*550,chargeMs:0,chargeDX:0,chargeDY:0,hitMs:0,burnMs:0,burnTickMs:400,burnAmount:0,wetMs:0,stunMs:0,dead:false};world.enemies.push(e);return e;}
+  const enemyDefs={chaser:{r:19,hp:55,speed:89,damage:11,color:'#a57673',name:'종이 사냥꾼'},spitter:{r:20,hp:48,speed:65,damage:9,color:'#8e8ba8',name:'잉크 투척수'},charger:{r:23,hp:85,speed:72,damage:18,color:'#c1966b',name:'낙서 돌격수'}};
+  // Bosses take their stats from BOSS_PROFILES[bossId]; every enemy keeps its own copy of the stats the AI and renderer read.
+  function spawnEnemy(kind,x,y,bossId=kind==='boss'?0:-1){const profile=bossId>=0?BOSS_PROFILES[bossId]:null,d=profile||enemyDefs[kind],id=world.nextId++;const e={id,kind,bossId,name:d.name,color:d.color,speed:d.speed,damage:d.damage,region:regionAt(x),x,y,r:d.r,hp:d.hp,maxHp:d.hp,vx:0,vy:0,ageMs:0,aiMs:0,windupMs:0,attackMs:400+rand()*550,chargeMs:0,chargeDX:0,chargeDY:0,hitMs:0,burnMs:0,burnTickMs:400,burnAmount:0,wetMs:0,stunMs:0,dead:false};world.enemies.push(e);return e;}
   function announce(text,time=1700){world.screenText=text;world.screenTextMs=time;if(!resimulatingGame){$('screenMessage').textContent=text;$('screenMessage').classList.add('show');}}
   createWorld(initialMapSeed());
 
@@ -163,33 +164,44 @@
       item.y=e.y+(hashSketch(e.id,i,15)-.5)*e.r*.8;
       item.vx=Math.cos(angle)*speed;item.vy=Math.sin(angle)*speed-22;
       item.angle=angle+.5;item.segment=4+hashSketch(e.id,i,18)*(e.kind==='boss'?19:10);
-      item.color=enemyDefs[e.kind].color;item.lifeMs=480+hashSketch(e.id,i,20)*280;item.initialMs=760;item.r=1.5;
+      item.color=e.color;item.lifeMs=480+hashSketch(e.id,i,20)*280;item.initialMs=760;item.r=1.5;
       world.particles.push(item);
     }
   }
-  function damageEnemy(e,amount,x,y,color='#be7757'){if(e.dead)return 0;const d=Math.max(1,Math.round(amount));e.hp=Math.max(0,e.hp-d);e.hitMs=SKETCH.hitFlashMs;floating(x??e.x,y??e.y-32,`-${d}`,color);
+  // `source` is the drawn shape (CNN class) that caused the damage; boss rules scale or cancel it.
+  function damageEnemy(e,amount,x,y,color='#be7757',source='normal'){if(e.dead)return 0;
+    if(e.bossId>=0){const factor=BOSS_PROFILES[e.bossId].multiplier(source);if(factor===0){e.hitMs=SKETCH.hitFlashMs;floating(x??e.x,y??e.y-32,'면역','#8a8f93');return 0;}if(factor>1)floating((x??e.x)+16,(y??e.y-32)-16,'약점!','#d0803a');amount*=factor;}
+    const d=Math.max(1,Math.round(amount));e.hp=Math.max(0,e.hp-d);e.hitMs=SKETCH.hitFlashMs;floating(x??e.x,y??e.y-32,`-${d}`,color);
     if(world.clockMs-world.lastHitstopClockMs>110){world.lastHitstopClockMs=world.clockMs;world.hitstopMs=Math.max(world.hitstopMs,e.kind==='boss'?64:43);world.hitFlashMs=155;world.effectShakeMs=Math.max(world.effectShakeMs,e.kind==='boss'?190:110);}
     // Radial scratch and high-contrast paper sparks at the real contact point.
     world.fields.push({kind:'impact',x:e.x,y:e.y-3,r:e.kind==='boss'?59:33,ageMs:0,lifeMs:260,color});
     burst(e.x,e.y,color,e.kind==='boss'?11:7,99);
-if(e.hp<=0){e.dead=true;world.kills++;if(e.kind!=='boss')world.regionKills[e.region]++;burst(e.x,e.y,enemyDefs[e.kind].color,9,100);tearEnemyInk(e);sfx('kill');if(e.kind!=='boss'){world.pickups.push({x:e.x,y:e.y,r:8,lifeMs:24000,kind:'ink',amount:1+Math.floor(rand()*3)});}else{world.bossDefeated=true;announce('잉크 감시자 격파 · 스케치 타운을 되찾았다!',3500);world.pickups.push({x:e.x,y:e.y,r:15,lifeMs:30000,kind:'ink',amount:24});}
-      if(allRegionsCleared()&&!world.bossSpawned){world.bossSpawned=true;spawnEnemy('boss',mapLayout.boss.x,mapLayout.boss.y);announce('고대 원형장에 잉크 감시자가 나타났다!',2600);}}
+if(e.hp<=0){e.dead=true;world.kills++;if(e.kind!=='boss')world.regionKills[e.region]++;burst(e.x,e.y,e.color,9,100);tearEnemyInk(e);sfx('kill');if(e.kind!=='boss'){world.pickups.push({x:e.x,y:e.y,r:8,lifeMs:24000,kind:'ink',amount:1+Math.floor(rand()*3)});}else{world.bossesDefeated++;announce(world.bossesDefeated>=BOSS_PROFILES.length?`${e.name} 격파 · 스케치 타운을 되찾았다!`:`${e.name} 격파 · ${world.bossesDefeated}/${BOSS_PROFILES.length}`,3500);world.pickups.push({x:e.x,y:e.y,r:15,lifeMs:30000,kind:'ink',amount:24});}}
     else sfx('hit');return d;}
 
   function enemyProjectile(x,y,tx,ty,kind='ink',speed=260,damage=9){const dx=tx-x,dy=ty-y,m=hypot(dx,dy)||1;world.hazards.push({x,y,prevX:x,prevY:y,vx:dx/m*speed,vy:dy/m*speed,r:kind==='orb'?11:7,kind,color:kind==='orb'?'#9d729c':'#9f8fb1',damage,ageMs:0,lifeMs:2100});}
+  function activeBoss(){return world.enemies.find(e=>e.kind==='boss'&&!e.dead)||null;}
+  // Boss n appears when an able player nears boss site n, and only after boss n-1 has fallen.
+  function updateBossSummon(){
+    const next=world.bossesDefeated;if(next>=BOSS_PROFILES.length||activeBoss())return;
+    const site=mapLayout.bossSites[next],actors=mp.shared?[hostPlayer,guestPlayer]:[hostPlayer];
+    if(!actors.some(a=>a.hp>0&&!(a.koMs>0)&&hypot(a.x-site.x,a.y-site.y)<site.radius+220))return;
+    const profile=BOSS_PROFILES[next];spawnEnemy('boss',site.x,site.y,next);
+    announce(`${profile.name} 등장 · ${profile.ruleText()}`,3200);
+  }
   function enemyAction(e){if(e.dead||world.mode!=='playing')return;const dx=player.x-e.x,dy=player.y-e.y,d=hypot(dx,dy)||1;
-    if(e.attackType==='melee'){if(d<e.r+player.r+48)takeDamage(enemyDefs[e.kind].damage,e.x,e.y);burst(e.x+dx/d*20,e.y+dy/d*20,'#a87978',6,38);}
+    if(e.attackType==='melee'){if(d<e.r+player.r+48)takeDamage(e.damage,e.x,e.y);burst(e.x+dx/d*20,e.y+dy/d*20,'#a87978',6,38);}
     else if(e.attackType==='charge'){e.chargeMs=e.kind==='boss'?510:390;e.chargeDX=dx/d;e.chargeDY=dy/d;}
-    else if(e.attackType==='spit'){enemyProjectile(e.x,e.y,player.x,player.y,'ink',280,enemyDefs[e.kind].damage);}
+    else if(e.attackType==='spit'){enemyProjectile(e.x,e.y,player.x,player.y,'ink',280,e.damage);}
     else if(e.attackType==='nova'){for(let i=0;i<12;i++){const a=i*Math.PI/6+world.clockMs*.0003;enemyProjectile(e.x,e.y,e.x+Math.cos(a)*130,e.y+Math.sin(a)*130,'orb',215,10);}burst(e.x,e.y,'#bb86b4',14,95);}
     e.attackType=null;}
   function moveEnemy(e,dt,dx,dy){const wet=e.wetMs>0?.56:1;moveCollider(e,dx*wet*dt/1000,dy*wet*dt/1000,e.r*.68);}
   function updateEnemies(dt){const previousActor=player;try{for(const e of world.enemies){if(e.dead)continue;
-    if(mp.shared){const h=hypot(hostPlayer.x-e.x,hostPlayer.y-e.y),g=hypot(guestPlayer.x-e.x,guestPlayer.y-e.y);player=guestPlayer&&guestPlayer.koMs<=0&&g<h?guestPlayer:hostPlayer;if(hostPlayer.koMs>0&&guestPlayer.koMs<=0)player=guestPlayer;}e.ageMs+=dt;e.hitMs=Math.max(0,e.hitMs-dt);e.stunMs=Math.max(0,e.stunMs-dt);e.wetMs=Math.max(0,e.wetMs-dt);if(e.burnMs>0){e.burnMs=Math.max(0,e.burnMs-dt);e.burnTickMs-=dt;if(e.burnTickMs<=0){e.burnTickMs+=470;damageEnemy(e,e.burnAmount,e.x,e.y-13,art.flame);if(e.dead)continue;}}
+    if(mp.shared){const h=hypot(hostPlayer.x-e.x,hostPlayer.y-e.y),g=hypot(guestPlayer.x-e.x,guestPlayer.y-e.y);player=guestPlayer&&guestPlayer.koMs<=0&&g<h?guestPlayer:hostPlayer;if(hostPlayer.koMs>0&&guestPlayer.koMs<=0)player=guestPlayer;}e.ageMs+=dt;e.hitMs=Math.max(0,e.hitMs-dt);e.stunMs=Math.max(0,e.stunMs-dt);e.wetMs=Math.max(0,e.wetMs-dt);if(e.burnMs>0){e.burnMs=Math.max(0,e.burnMs-dt);e.burnTickMs-=dt;if(e.burnTickMs<=0){e.burnTickMs+=470;damageEnemy(e,e.burnAmount,e.x,e.y-13,art.flame,'flame');if(e.dead)continue;}}
       // Inactive far-off enemies never simulate AI, but status timers remain consistent.
       const dx=player.x-e.x,dy=player.y-e.y,d=hypot(dx,dy)||1;if(d>970&&e.kind!=='boss')continue;
       if(e.stunMs>0){moveCollider(e,e.vx*dt/1000,e.vy*dt/1000,e.r*.68);e.vx*=.85;e.vy*=.85;continue;}
-      if(e.chargeMs>0){e.chargeMs=Math.max(0,e.chargeMs-dt);moveCollider(e,e.chargeDX*(e.kind==='boss'?490:570)*dt/1000,e.chargeDY*(e.kind==='boss'?490:570)*dt/1000,e.r*.67);if(hypot(player.x-e.x,player.y-e.y)<player.r+e.r+6){takeDamage(enemyDefs[e.kind].damage,e.x,e.y);e.chargeMs=0;}continue;}
+      if(e.chargeMs>0){e.chargeMs=Math.max(0,e.chargeMs-dt);moveCollider(e,e.chargeDX*(e.kind==='boss'?490:570)*dt/1000,e.chargeDY*(e.kind==='boss'?490:570)*dt/1000,e.r*.67);if(hypot(player.x-e.x,player.y-e.y)<player.r+e.r+6){takeDamage(e.damage,e.x,e.y);e.chargeMs=0;}continue;}
       if(e.windupMs>0){e.windupMs-=dt;if(e.windupMs<=0){e.windupMs=0;enemyAction(e);}continue;}
       e.attackMs-=dt;
       if(e.kind==='chaser'){
@@ -204,8 +216,8 @@ if(e.hp<=0){e.dead=true;world.kills++;if(e.kind!=='boss')world.regionKills[e.reg
         if(d<650&&d>80)moveEnemy(e,dt,dx/d*enemyDefs.charger.speed,dy/d*enemyDefs.charger.speed);
         if(d<460&&e.attackMs<=0){e.attackMs=2400;e.windupMs=650;e.attackType='charge';}
       }else if(e.kind==='boss'){
-        if(d<760&&d>195)moveEnemy(e,dt,dx/d*enemyDefs.boss.speed,dy/d*enemyDefs.boss.speed);
-        if(d<670&&e.attackMs<=0){e.attackMs=e.hp<e.maxHp*.52?1750:2350;e.windupMs=e.hp<e.maxHp*.52?520:700;e.attackType=e.aiMs%3===2?'charge':'nova';e.aiMs++;}
+        if(d<760&&d>195)moveEnemy(e,dt,dx/d*e.speed,dy/d*e.speed);
+        if(d<670&&e.attackMs<=0){e.attackMs=(e.hp<e.maxHp*.52?1750:2350)*BOSS_PROFILES[e.bossId].tempo;e.windupMs=e.hp<e.maxHp*.52?520:700;e.attackType=e.aiMs%3===2?'charge':'nova';e.aiMs++;}
       }
       moveCollider(e,e.vx*dt/1000,e.vy*dt/1000,e.r*.68);e.vx*=Math.pow(.12,dt/1000);e.vy*=Math.pow(.12,dt/1000);
       // Entity-vs-hero separation, proportional to actual contact overlap; no position snap onto player.
@@ -272,13 +284,13 @@ if(e.hp<=0){e.dead=true;world.kills++;if(e.kind!=='boss')world.regionKills[e.reg
     if(e.dead)return false;
     const v=hypot(p.vx,p.vy)||1;
     const multiplier=p.kind==='triangle'?1.26:p.kind==='shuriken'?.67:p.kind==='water'?.90:1;
-    const inflicted=damageEnemy(e,p.baseDamage*multiplier*(e.kind==='boss'?.88:1),e.x,e.y-18,p.color);
+    const inflicted=damageEnemy(e,p.baseDamage*multiplier*(e.kind==='boss'?.88:1),e.x,e.y-18,p.color,p.kind);
     e.vx+=p.vx/v*(16+p.impact*73);e.vy+=p.vy/v*(16+p.impact*73);
     p.hitAt.set(e.id,p.ageMs);
     if(p.kind==='circle'){
       const radius=40+Math.sqrt(p.areaPower)*47;
       world.fields.push({kind:'ring',x:e.x,y:e.y,r:radius,ageMs:0,lifeMs:360,color:art.circle});
-      for(const n of world.enemies)if(!n.dead&&n.id!==e.id&&hypot(e.x-n.x,e.y-n.y)<radius+n.r){damageEnemy(n,p.baseDamage*.21,n.x,n.y-13,art.circle);}
+      for(const n of world.enemies)if(!n.dead&&n.id!==e.id&&hypot(e.x-n.x,e.y-n.y)<radius+n.r){damageEnemy(n,p.baseDamage*.21,n.x,n.y-13,art.circle,'circle');}
     }else if(p.kind==='triangle'){
       if(!e.dead){e.stunMs=Math.max(e.stunMs,140);}
       world.fields.push({kind:'slash',x:e.x,y:e.y,r:55,ageMs:0,lifeMs:260,color:art.triangle});
@@ -293,16 +305,16 @@ if(e.hp<=0){e.dead=true;world.kills++;if(e.kind!=='boss')world.regionKills[e.reg
       world.fields.push({kind:'splash',x:e.x,y:e.y,r:63,ageMs:0,lifeMs:420,color:art.water});
     }else if(p.kind==='lightning'){
       const wet=e.wetMs>0;
-      if(wet&&!e.dead)damageEnemy(e,Math.max(5,p.baseDamage*.37),e.x,e.y-25,art.lightning);
+      if(wet&&!e.dead)damageEnemy(e,Math.max(5,p.baseDamage*.37),e.x,e.y-25,art.lightning,'lightning');
       const range=wet?320:230;
       const near=world.enemies.filter(n=>!n.dead&&n.id!==e.id&&hypot(n.x-e.x,n.y-e.y)<range).sort((a,b)=>hypot(a.x-e.x,a.y-e.y)-hypot(b.x-e.x,b.y-e.y)).slice(0,wet?3:2);
       for(let i=0;i<near.length;i++){const n=near[i],boost=n.wetMs>0?1.65:1;
-        damageEnemy(n,p.baseDamage*(i===0?.31:.18)*boost,n.x,n.y,art.lightning);
+        damageEnemy(n,p.baseDamage*(i===0?.31:.18)*boost,n.x,n.y,art.lightning,'lightning');
         world.fields.push({kind:'arc',x:e.x,y:e.y,ex:n.x,ey:n.y,ageMs:0,lifeMs:235,color:art.lightning});}
     }else if(p.kind==='star'||p.kind==='starcircle'){
       const range=p.kind==='starcircle'?152:88;
       world.fields.push({kind:p.kind==='starcircle'?'magiccircle':'star',x:e.x,y:e.y,r:range,ageMs:0,lifeMs:p.kind==='starcircle'?1700:480,color:art[p.kind],power:p.baseDamage*.17,tickMs:310});
-      for(const n of world.enemies)if(!n.dead&&n.id!==e.id&&hypot(e.x-n.x,e.y-n.y)<range+n.r){damageEnemy(n,p.baseDamage*(p.kind==='starcircle'?.34:.28),n.x,n.y-17,p.color);if(p.kind==='star')n.stunMs=Math.max(n.stunMs,340);}
+      for(const n of world.enemies)if(!n.dead&&n.id!==e.id&&hypot(e.x-n.x,e.y-n.y)<range+n.r){damageEnemy(n,p.baseDamage*(p.kind==='starcircle'?.34:.28),n.x,n.y-17,p.color,p.kind);if(p.kind==='star')n.stunMs=Math.max(n.stunMs,340);}
     }else if(p.kind==='shuriken'){
       world.fields.push({kind:'slash',x:e.x,y:e.y,r:38,ageMs:0,lifeMs:210,color:art.shuriken});
       if(!e.dead)e.stunMs=Math.max(e.stunMs,130);
@@ -354,7 +366,7 @@ if(e.hp<=0){e.dead=true;world.kills++;if(e.kind!=='boss')world.regionKills[e.reg
   function tickEffects(dt){for(let i=world.fields.length-1;i>=0;i--){const f=world.fields[i];f.ageMs+=dt;
       if(f.kind==='magiccircle'){
         f.tickMs-=dt;
-        if(f.tickMs<=0){f.tickMs+=330;for(const e of world.enemies){if(!e.dead&&hypot(e.x-f.x,e.y-f.y)<f.r){damageEnemy(e,Math.max(2,f.power),e.x,e.y-22,f.color);}}}
+        if(f.tickMs<=0){f.tickMs+=330;for(const e of world.enemies){if(!e.dead&&hypot(e.x-f.x,e.y-f.y)<f.r){damageEnemy(e,Math.max(2,f.power),e.x,e.y-22,f.color,'starcircle');}}}
       }
       if(f.ageMs>=f.lifeMs)world.fields.splice(i,1);}
     const drag=Math.pow(.14,dt/1000);
@@ -389,7 +401,7 @@ if(e.hp<=0){e.dead=true;world.kills++;if(e.kind!=='boss')world.regionKills[e.reg
     // Time dilation is local-only; online rollback must not depend on device pointer state.
     const hostileDt=!mp.connected&&drawInput.pointer!==null?dt*.25:dt;
     world.slowRatio=hostileDt/dt;
-    updateEnemies(hostileDt);tickCasts(dt);tickProjectiles(dt,hostileDt);tickEffects(dt);
+    updateBossSummon();updateEnemies(hostileDt);tickCasts(dt);tickProjectiles(dt,hostileDt);tickEffects(dt);
     // Dead enemies have already delivered their XP, drops and ink fragments. Their records must NOT
     // survive forever in the canonical rollback history or AI scans. Stable IDs never get reused.
     for(let i=world.enemies.length-1;i>=0;i--)if(world.enemies[i].dead)world.enemies.splice(i,1);

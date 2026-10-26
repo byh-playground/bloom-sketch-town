@@ -23,11 +23,11 @@
   function recoverInk(a,dt){const delayed=Math.min(dt,a.inkDelayMs);a.inkDelayMs=Math.max(0,a.inkDelayMs-dt);a.ink=Math.min(a.maxInk,a.ink+a.inkRegen*(dt-delayed)/1000);}
   function regionAt(x){return x<REGIONS[0].max?0:x<REGIONS[1].max?1:2;}
   function regionCleared(i){return world.regionKills[i]>=REGIONS[i].goal;}
-  function allRegionsCleared(){return REGIONS.every((_,i)=>regionCleared(i));}
   function spawnRegion(index){for(const s of mapLayout.spawns)if(s.region===index)spawnEnemy(s.kind,s.x,s.y);}
   function progressionQuest(){
-    if(world.bossDefeated)return {title:'새 페이지를 완성했어요',text:'잉크 감시자를 쓰러뜨렸어요',value:1,max:1};
-    if(world.bossSpawned)return {title:'잉크 감시자',text:'잉크 감시자를 쓰러뜨리세요',value:0,max:1};
-    const goal=REGIONS.reduce((n,r)=>n+r.goal,0),kills=REGIONS.reduce((n,r,i)=>n+Math.min(world.regionKills[i],r.goal),0);
-    return {title:'잉크 몬스터 소탕',text:`적 ${kills}/${goal} · 모두 물리치면 감시자가 나타나요`,value:kills,max:goal};
+    const total=BOSS_PROFILES.length,done=world.bossesDefeated;
+    if(done>=total)return {title:'새 페이지를 완성했어요',text:`보스 ${total}/${total} 격파`,value:total,max:total};
+    const boss=activeBoss();
+    if(boss)return {title:`보스 ${done+1}/${total} · ${boss.name}`,text:BOSS_PROFILES[boss.bossId].ruleText(),value:done,max:total};
+    return {title:`보스 ${done+1}/${total} · ${BOSS_PROFILES[done].name}`,text:'지도의 원으로 가세요 · 규칙은 만나면 알려줘요',value:done,max:total};
   }

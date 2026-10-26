@@ -15,14 +15,15 @@
 
     miniCtx.fillStyle='#9eae9a';for(const t of world.trees)miniCtx.fillRect(xx(t.x),yy(t.y),1.8,1.8);
     miniCtx.fillStyle='#9c7c6a';for(const b of world.houses)miniCtx.fillRect(xx(b.x)-3,yy(b.y)-2.5,6,5);
-    miniCtx.strokeStyle='#9a6e96';miniCtx.beginPath();miniCtx.arc(xx(mapLayout.boss.x),yy(mapLayout.boss.y),Math.max(5,mapLayout.boss.radius/CFG.world.width*w),0,Math.PI*2);miniCtx.stroke();
+    for(const [i,site]of mapLayout.bossSites.entries()){miniCtx.strokeStyle=i<world.bossesDefeated?'#c5bfc4':'#9a6e96';miniCtx.beginPath();miniCtx.arc(xx(site.x),yy(site.y),Math.max(4,site.radius/CFG.world.width*w),0,Math.PI*2);miniCtx.stroke();}
     miniCtx.fillStyle='#a66b70';for(const e of world.enemies)if(!e.dead){miniCtx.beginPath();miniCtx.arc(xx(e.x),yy(e.y),e.kind==='boss'?4:2,0,Math.PI*2);miniCtx.fill();}
     if(mp.shared){const other=player===hostPlayer?guestPlayer:hostPlayer;miniCtx.beginPath();miniCtx.arc(xx(other.x),yy(other.y),3.9,0,Math.PI*2);miniCtx.fillStyle='#639ac4';miniCtx.fill();}
     const px=xx(player.x),py=yy(player.y);miniCtx.beginPath();miniCtx.arc(px,py,5,0,Math.PI*2);miniCtx.fillStyle='#fff';miniCtx.fill();miniCtx.lineWidth=2;miniCtx.strokeStyle='#396c6b';miniCtx.stroke();miniCtx.beginPath();miniCtx.arc(px,py,2.5,0,Math.PI*2);miniCtx.fillStyle='#396c6b';miniCtx.fill();
   }
   function updateHud(){const pct=100*player.hp/player.maxHp;$('hpFill').style.width=`${clamp(pct,0,100)}%`;$('hpText').textContent=`HP ${Math.ceil(player.hp)} / ${player.maxHp}`;
     updateProgressionHud();
-    const boss=world.enemies.find(e=>e.kind==='boss'&&!e.dead);$('bossBar').style.display=boss?'block':'none';if(boss)$('bossFill').style.width=`${100*boss.hp/boss.maxHp}%`;
+    const boss=activeBoss();$('bossBar').style.display=boss?'block':'none';
+    if(boss){$('bossFill').style.width=`${100*boss.hp/boss.maxHp}%`;const title=`${boss.name} · 보스 ${boss.bossId+1}/${BOSS_PROFILES.length}`,rule=BOSS_PROFILES[boss.bossId].ruleText();if($('bossName').textContent!==title)$('bossName').textContent=title;if($('bossRule').textContent!==rule)$('bossRule').textContent=rule;}
     const predicted=mp.connected&&mp.localPresentation&&mp.localPoseSource
       ?mp.localPresentation.modelFor(mp.localPoseSource,performance.now()):null;
     const d=predicted?{...player.dash,leftMs:predicted.leftMs,charges:predicted.charges}:player.dash,capacity=CFG.player.roll.capacity;
@@ -348,7 +349,7 @@
     movementState(){return {x:player.moveX,y:player.moveY,speed:CFG.player.walkSpeed};},rollState(){return {...player.dash};},slowState(){return {ratio:world.slowRatio,drawing:drawInput.pointer!==null,hitstopMs:world.hitstopMs};},
     advanceSession(){const result=gameSession.advance(SOLO_INPUT);if(result.status==='advanced')capturePresentation();return result;},pauseRendering(){pauseGameLoops();},resumeRendering(){resumeGameLoops();},pausePainting(){stopPainting();},resumePainting(){startPainting();},renderFrame(){loop.render();},selectGlyph(kind){selectGlyph(kind);},
     renderNow(){renderInterpolated();},
-    combatFixture(kind='boss',x=680,y=730){world.enemies.length=0;world.projectiles.length=0;world.casts.length=0;world.castQueue.length=0;world.hazards.length=0;world.fields.length=0;return spawnEnemy(kind,x,y).id;},
+    combatFixture(kind='boss',x=680,y=730){world.enemies.length=0;world.bossesDefeated=0;world.projectiles.length=0;world.casts.length=0;world.castQueue.length=0;world.hazards.length=0;world.fields.length=0;return spawnEnemy(kind,x,y).id;},
     ricochetState(){return world.projectiles.map(p=>({id:p.id,kind:p.kind,bouncesLeft:p.bouncesLeft,bouncesTotal:p.bouncesTotal,bounceCount:p.bounceCount,state:p.state,ageMs:p.ageMs,x:p.x,y:p.y}));},
     castQueueLength(){return world.castQueue.length;},effectsSnapshot(){return world.fields.map(f=>({kind:f.kind,ageMs:f.ageMs,lifeMs:f.lifeMs}));},
 
@@ -371,9 +372,17 @@
     runState(){return {actor:structuredClone(player),regionKills:[...world.regionKills],cards:{...player.cards}};},
     cardFixture(id){return addCard(player,id);},
     regionCombatFixture(region=0){const clearing=mapLayout.clearingsOf(region)[0],x=clearing.x-20,y=clearing.y;world.projectiles.length=0;world.casts.length=0;world.castQueue.length=0;world.commands.length=0;world.hazards.length=0;world.fields.length=0;world.enemies=world.enemies.filter(e=>!e.dead&&e.region===region);world.regionKills[region]=0;const kinds=['chaser','spitter','charger','spitter','chaser'];while(world.enemies.length<5){const i=world.enemies.length,e=spawnEnemy(kinds[i%kinds.length],x+i*14,y+(i%2)*12);e.region=region;}world.enemies.forEach((e,i)=>{e.x=x+i*14;e.y=y+(i%2)*12;e.hp=1;e.stunMs=15000;});player.x=x-140;player.y=y;player.moveX=player.moveY=0;player.nextCastAtMs=world.clockMs;camera.x=player.x;camera.y=player.y;dropDraw();resetPresentation();capturePresentation();},
+    bossState(){const b=activeBoss();return {defeated:world.bossesDefeated,sites:mapLayout.bossSites.map(q=>({...q})),profiles:BOSS_PROFILES.map(p=>({id:p.id,name:p.name,hp:p.hp,ruleText:p.ruleText(),best:p.bestKind(),factors:Object.fromEntries(SHAPE_KINDS.map(k=>[k,p.multiplier(k)]))})),active:b?{id:b.id,bossId:b.bossId,name:b.name,hp:b.hp,maxHp:b.maxHp,x:b.x,y:b.y}:null};},
+    setBossesDefeated(n){world.bossesDefeated=n;},
+    // Put boss n next to the player (stunned so only the damage rules are under test) and return its enemy id.
+    spawnBoss(n){world.enemies.length=0;world.projectiles.length=0;world.casts.length=0;world.castQueue.length=0;world.hazards.length=0;world.fields.length=0;world.bossesDefeated=n;const e=spawnEnemy('boss',player.x+190,player.y,n);e.stunMs=1e9;e.hp=e.maxHp;return e.id;},
+    // One real damageEnemy call per source kind; returns the hit points removed.
+    bossHit(id,kind,amount=100){const e=world.enemies.find(q=>q.id===id);const before=e.hp;damageEnemy(e,amount,e.x,e.y-18,'#be7757',kind);return before-e.hp;},
+    bossHp(id){const e=world.enemies.find(q=>q.id===id);return e?{hp:e.hp,dead:e.dead}:null;},
+    finishBoss(){const e=activeBoss();e.hp=1;damageEnemy(e,50,e.x,e.y,'#be7757',BOSS_PROFILES[e.bossId].bestKind());},
     mapState(){const m=mapLayout;return {seed:m.seed,attempt:m.attempt,hash:m.hash(),worldSeed:world.mapSeed,boss:{...m.boss},route:m.routePoints.map(p=>({...p})),ponds:m.ponds.map(p=>({x:p.x,y:p.y,rx:p.rx,ry:p.ry})),ridges:m.ridges.map(p=>({x:p.x,y:p.y,r:p.r})),clearings:m.clearings.map(c=>({x:c.x,y:c.y,rx:c.rx,ry:c.ry,region:c.region})),landmarks:m.landmarks.map(l=>({...l})),spawns:m.spawns.map(q=>({...q})),counts:{props:m.props.length,solids:m.solids.length,decals:m.decals.length,obstacles:world.obstacles.length,trees:world.trees.length}};},
     mapHashFor(seed){const t=performance.now(),l=generateMapLayout(seed);return {hash:l.hash(),attempt:l.attempt,ms:performance.now()-t};},
     terrainBlocked(x,y,r){return touchesObstacle(x,y,r);},
     setInk(value){player.ink=clamp(value,0,player.maxInk);},
-    snapshot(){return {slowRatio:world.slowRatio,hitstopMs:world.hitstopMs,tick:gameSession.tick,player:{x:player.x,y:player.y,hp:player.hp,ink:player.ink},mode:world.mode,kills:world.kills,bossSpawned:world.bossSpawned,bossDefeated:world.bossDefeated,enemyCount:world.enemies.filter(e=>!e.dead).length,projectileCount:world.projectiles.length,castCount:world.casts.length,castQueueCount:world.castQueue.length,roll:{charges:player.dash.charges,rechargeMs:player.dash.rechargeMs,activeMs:player.dash.leftMs},modal:ui.modal,worldWidth:CFG.world.width,worldHeight:CFG.world.height,drawPhase:drawInput.pointer!==null?'drawing':'idle',lastResult:world.lastResult,rendererState:renderer.state};}
+    snapshot(){return {slowRatio:world.slowRatio,hitstopMs:world.hitstopMs,tick:gameSession.tick,player:{x:player.x,y:player.y,hp:player.hp,ink:player.ink},mode:world.mode,kills:world.kills,bossesDefeated:world.bossesDefeated,activeBoss:activeBoss()?{id:activeBoss().bossId,name:activeBoss().name,hp:activeBoss().hp,maxHp:activeBoss().maxHp}:null,enemyCount:world.enemies.filter(e=>!e.dead).length,projectileCount:world.projectiles.length,castCount:world.casts.length,castQueueCount:world.castQueue.length,roll:{charges:player.dash.charges,rechargeMs:player.dash.rechargeMs,activeMs:player.dash.leftMs},modal:ui.modal,worldWidth:CFG.world.width,worldHeight:CFG.world.height,drawPhase:drawInput.pointer!==null?'drawing':'idle',lastResult:world.lastResult,rendererState:renderer.state};}
   };
