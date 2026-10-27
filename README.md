@@ -196,3 +196,7 @@ The branch authors static character and environment resources in `source/assets/
 - 소환수는 그린 몸의 중심이 있는 맵 좌표에 그대로 나타납니다(화면 어디든, 방향·거리 제한 없음). `aim`·`reach`가 `x`,`y`로 바뀌어 방 이름·simulationVersion을 0.18.1로 올렸습니다.
 - `scripts/compile-vector-assets.mjs`의 `curveSegments`를 8에서 4(컴파일러 허용 최소값)로 낮췄습니다. 17개 SVG 정점 합계 7,782 → 5,749(−26%), 시작 화면 렌더 정점 52,365 → 35,763(−32%, 소프트웨어 GL 컨테이너 측정, 실기기 FPS는 미측정).
 - 검증: `--flow summon` 23(450 단위 떨어진 곳에 그린 몸이 그 자리에 소환), `boss` 10, `progression` 8, `map` 12, `ux` 5 PASS.
+
+### 0.18.2 — SVG 선 둥근 마감 분할 2
+
+- 컴파일러(체크섬 고정)가 `SVGLoader.pointsToStroke`에 고정값 12로 넘기던 선 호 분할 수(Stroke arc divisions)를 `scripts/compile-vector-assets.mjs`에서 2로 덮어씁니다(고정 소스는 수정하지 않음). `curveSegments` 4와 함께 17개 SVG 정점 합계 7,782 → 3,589(−54%), 시작 화면 렌더 정점 52,365 → 23,499(−55%, 소프트웨어 GL 컨테이너 측정, 실기기 FPS는 미측정). 장면 모양은 같은 화면에서 눈으로 비교했고 차이를 찾지 못했습니다.

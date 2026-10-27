@@ -5,7 +5,7 @@ Sketch Town keeps its hand-drawn art and uses the pinned GameKit vector-asset pi
 ## Source and build flow
 
 - `source/assets/*.svg` is the authored source for the player, enemies, houses, trees, and individual environment props. Part pivots, sockets, expressions, and animation clips live in each file's `vector-asset` metadata.
-- `scripts/compile-vector-assets.mjs` invokes the pinned GameKit Vector Assets 0.6.5 compiler with `curveSegments: 8` and writes the ignored `source/vector_assets.generated.js` registry. The browser never compiles SVG at runtime.
+- `scripts/compile-vector-assets.mjs` invokes the pinned GameKit Vector Assets 0.6.5 compiler with `curveSegments: 4` and a stroke arc division override of 2 (the compiler hard-codes 12; overridden in the script, vendored source untouched) and writes the ignored `source/vector_assets.generated.js` registry. The browser never compiles SVG at runtime.
 - `source/build_rpg.py` verifies the SDK manifests and checksums, embeds the exact official ESM module bytes, compiles the source bundle, and regenerates the root `index.html`.
 - Rebuild with Node.js 22+, `npm ci`, and Python 3.10+: `python source/build_rpg.py`.
 

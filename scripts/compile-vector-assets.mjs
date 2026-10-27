@@ -1,11 +1,17 @@
 import { readdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { SVGLoader } from 'three/addons/loaders/SVGLoader.js';
 import { compileVectorAssetFile, compiledAssetModuleSource } from '../source/gamekit/0.6.5/upstream-source/modules/vector-assets/compiler.js';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const directory = path.join(root, 'source/assets');
 const curveSegments = 4;
+// Stroke arc divisions (round joins/caps) for SVGLoader.pointsToStroke. The pinned compiler hard-codes 12 and its source
+// is checksum-pinned, so the value is overridden here, at the call boundary, instead of editing the vendored file.
+const strokeArcDivisions = 2;
+const pointsToStroke = SVGLoader.pointsToStroke.bind(SVGLoader);
+SVGLoader.pointsToStroke = (points, style, _arcDivisions, minDistance) => pointsToStroke(points, style, strokeArcDivisions, minDistance);
 const names = (await readdir(directory)).filter(name => name.endsWith('.svg')).sort();
 if (!names.length) throw new Error('No SVG source assets found in source/assets');
 const assets = [];
