@@ -21,11 +21,63 @@
   // simulation or paid for until then; cancelling, a modal, death or 15 s without input leaves the ink untouched.
   const FACE_CANCEL_MS=15000,FACE_MAX_STROKES=12;
   let lastFaceResult=null;
-  const summonDraft={active:false,shot:null,body:null,center:null,strokes:[],lastActivityMs:0};
-  function showFaceStep(on){$('ribbon').hidden=on;$('faceBar').hidden=!on;}
+  const summonDraft={active:false,shot:null,body:null,center:null,strokes:[],lastActivityMs:0,live:null,liveSig:'',liveMs:0};
+  function showFaceStep(on){$('faceBar').hidden=!on;$('faceDone').textContent='✓ 소환';}
+  // Live "afterimage" recognition: while a body or face is being drawn, the best-matching reference is shown as a faint ghost
+  // laid over the drawing. Faces cost ~0.3 ms per call; the body classifier ~7 ms (CPU, unoptimized container), so both are throttled.
+  const LIVE_FACE_MS=100,LIVE_BODY_MS=160;
+  const liveBody={sig:'',ms:0,result:null};
+  function liveFaceStrokes(){const s=summonDraft.strokes.slice();if(drawInput.pointer!==null&&drawInput.points.length>1)s.push(drawInput.points);return s;}
+  function updateLiveFace(force=false){
+    if(!summonDraft.active)return;
+    const strokes=liveFaceStrokes(),sig=strokes.length+':'+strokes.reduce((n,s)=>n+s.length,0),now=performance.now();
+    if(!force&&(sig===summonDraft.liveSig||now-summonDraft.liveMs<LIVE_FACE_MS))return;
+    summonDraft.liveSig=sig;summonDraft.liveMs=now;
+    summonDraft.live=strokes.length?faceRecognizer.recognize(strokes):null;
+    const live=summonDraft.live,name=!live?'':live.accepted?expressionOf(live.id).name:'무표정';
+    $('faceDone').textContent=name?`✓ 소환 · ${name}`:'✓ 소환';
+  }
+  function updateLiveBody(){
+    if(drawInput.pointer===null||summonDraft.active){liveBody.result=null;liveBody.sig='';return;}
+    const pts=drawInput.points,sig=pts.length+':'+Math.round(drawInput.length),now=performance.now();
+    if(pts.length<8||drawInput.length<48){liveBody.result=null;return;}
+    if(sig===liveBody.sig||now-liveBody.ms<LIVE_BODY_MS)return;
+    liveBody.sig=sig;liveBody.ms=now;
+    try{const shot=makeShotData(pts),top=shot.reference.topClass;
+      liveBody.result={top:glyphReferences.paths[top]?top:null,accepted:shot.reference.approval.accepted};}catch(e){liveBody.result=null;}
+  }
+  // Draws reference strokes (unit coordinates) over a screen box, faint and dashed.
+  function paintGhost(unitStrokes,box,alpha,label){
+    let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;
+    for(const s of unitStrokes)for(const [x,y] of s){minX=Math.min(minX,x);maxX=Math.max(maxX,x);minY=Math.min(minY,y);maxY=Math.max(maxY,y);}
+    const gw=Math.max(.001,maxX-minX),gh=Math.max(.001,maxY-minY),target=Math.max(box.w,box.h,80),k=target/Math.max(gw,gh),cx=box.x+box.w/2,cy=box.y+box.h/2,mx=(minX+maxX)/2,my=(minY+maxY)/2;
+    const map=([x,y])=>[cx+(x-mx)*k,cy+(y-my)*k];
+    drawCtx.save();drawCtx.globalAlpha=alpha;drawCtx.strokeStyle='#2f7f87';drawCtx.fillStyle='#2f7f87';drawCtx.lineWidth=3;drawCtx.setLineDash([7,6]);
+    for(const s of unitStrokes){
+      if(s.length===1){const [x,y]=map(s[0]);drawCtx.beginPath();drawCtx.arc(x,y,4.5,0,Math.PI*2);drawCtx.fill();continue;}
+      drawCtx.beginPath();s.forEach((q,i)=>{const [x,y]=map(q);i?drawCtx.lineTo(x,y):drawCtx.moveTo(x,y);});drawCtx.stroke();
+    }
+    drawCtx.setLineDash([]);
+    if(label){drawCtx.globalAlpha=Math.min(1,alpha*2.2);drawCtx.font='700 12px sans-serif';drawCtx.textAlign='center';drawCtx.lineWidth=4;drawCtx.strokeStyle='#fffaf0';drawCtx.strokeText(label,cx,cy-target/2-8);drawCtx.fillText(label,cx,cy-target/2-8);}
+    drawCtx.restore();
+  }
+  function strokesBox(strokes){
+    let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;
+    for(const s of strokes)for(const p of s){minX=Math.min(minX,p.x);maxX=Math.max(maxX,p.x);minY=Math.min(minY,p.y);maxY=Math.max(maxY,p.y);}
+    return minX===Infinity?null:{x:minX,y:minY,w:maxX-minX,h:maxY-minY};
+  }
+  function paintLiveGhost(){
+    if(summonDraft.active){
+      const live=summonDraft.live,strokes=liveFaceStrokes(),box=strokesBox(strokes);
+      if(live&&live.candidate&&box){const e=expressionOf(live.candidate);paintGhost(e.guide,box,live.accepted?.5:.22,live.accepted?e.name:'');}
+    }else if(liveBody.result?.top&&drawInput.points.length>1){
+      const box=strokesBox([drawInput.points]),kind=liveBody.result.top;
+      paintGhost([glyphReferences.paths[kind]],box,liveBody.result.accepted?.5:.22,liveBody.result.accepted?`${shapeNames[kind]} · ${summonSpecOf(kind).name}`:'');
+    }
+  }
   function cancelSummonDraft(message){
     const was=summonDraft.active;
-    Object.assign(summonDraft,{active:false,shot:null,body:null,center:null,strokes:[]});showFaceStep(false);
+    Object.assign(summonDraft,{active:false,shot:null,body:null,center:null,strokes:[],live:null,liveSig:''});showFaceStep(false);
     if(was&&message){showResult(message,1600);$('strokeStatus').textContent='원하는 자리에 한 획 · 그 자리에 소환';}
   }
   function beginSummonDraft(shot,bodyPoints,center){
@@ -37,7 +89,7 @@
   function addFaceStroke(points){
     if(!points.length)return;
     if(summonDraft.strokes.length>=FACE_MAX_STROKES){showResult(`표정은 ${FACE_MAX_STROKES}획까지예요 · ✓ 소환을 눌러 주세요`,1400);return;}
-    summonDraft.strokes.push(points.map(p=>({x:p.x,y:p.y})));summonDraft.lastActivityMs=performance.now();
+    summonDraft.strokes.push(points.map(p=>({x:p.x,y:p.y})));summonDraft.lastActivityMs=performance.now();updateLiveFace(true);
     $('strokeStatus').textContent=`표정 ${summonDraft.strokes.length}획 · 다 그렸으면 ✓ 소환`;
   }
   function commitSummon(){
@@ -118,22 +170,27 @@
     else{const size=$('moveStick').getBoundingClientRect().width,dx=e.x-size/2,dy=e.y-size/2,length=hypot(dx,dy),radius=size*.34;
       movementStick.x=length>size*.12?dx/length:0;movementStick.y=length>size*.12?dy/length:0;
       const scale=Math.min(1,radius/Math.max(1,length));$('moveKnob').style.transform=`translate(${dx*scale}px,${dy*scale}px)`;}
+    // Touching the stick rolls once toward the stick direction (or the facing direction on a bare tap); holding then walks on.
+    if(e.type==='down')actions.pulse('dash');
     wakeInputPreview();
   },onRelease(){resetMovementStick();wakeInputPreview();}});
-  const rollButtonInput=createDOMInput({target:$('rollButton'),state:actions,pointerButtons:{0:'dash'},excludeTarget:false,touchAction:'none',onPointer(e){if(e.type==='down'){focusGameplay();wakeInputPreview();}}});
-  $('rollButton').addEventListener('click',e=>{if(e.detail===0){actions.pulse('dash');wakeInputPreview();}});
   $('soundButton').addEventListener('click',async()=>{audioOn=!audioOn;sound.setMuted(!audioOn);$('soundButton').setAttribute('aria-pressed',String(audioOn));$('soundButton').textContent=audioOn?'♪ 켬':'♪ 끔';if(audioOn){await sound.unlock();sfx('select');}});
   function showResult(message,durationMs=1250){if(resimulatingGame)return;const c=$('resultChip');c.textContent=message;c.classList.add('show');ui.resultUntil=performance.now()+durationMs;}
   function changeModal(name){const open=name==='training'||name==='help'||name==='multi';ui.modal=open?name:null;for(const id of ['trainingModal','helpModal','multiplayerModal'])$(id).classList.toggle('open',open&&id===(name==='training'?'trainingModal':name==='help'?'helpModal':'multiplayerModal'));
-    if(open){fieldInput.releaseAll('modal');stickInput.releaseAll('modal');rollButtonInput.releaseAll('modal');dropDraw();if(name==='training'){updateTrainingView();drawTrainingPad();}}
+    if(open){fieldInput.releaseAll('modal');stickInput.releaseAll('modal');dropDraw();if(name==='training'){updateTrainingView();drawTrainingPad();}}
     else{drawInput.pointer=null;focusGameplay();}
     $('trainingButton').setAttribute('aria-expanded',String(name==='training'));$('helpButton').setAttribute('aria-expanded',String(name==='help'));
   }
   function applyRoute(){const route=location.hash.split('?')[0];changeModal(route==='#/training'?'training':route==='#/help'?'help':route==='#/multi'?'multi':null);if(loop)loop.resetTiming();}
   function goRoute(name){const url=name?`#/${name}`:'#/play';if(location.hash===url){applyRoute();return;}location.hash=url;}
-  $('multiplayerButton').addEventListener('click',()=>goRoute('multi'));
-  $('trainingButton').addEventListener('click',()=>goRoute('training'));
-  $('helpButton').addEventListener('click',()=>goRoute('help'));
+  $('multiplayerButton').addEventListener('click',()=>{closeHeadMenu();goRoute('multi');});
+  $('trainingButton').addEventListener('click',()=>{closeHeadMenu();goRoute('training');});
+  $('helpButton').addEventListener('click',()=>{closeHeadMenu();goRoute('help');});
+  $('codexButton').addEventListener('click',()=>{closeHeadMenu();goRoute('help');requestAnimationFrame(()=>$('codexTitle').scrollIntoView({block:'start'}));});
+  // The four head buttons live behind one menu button so the top of the screen stays free for drawing.
+  function closeHeadMenu(){$('headMenu').hidden=true;$('menuButton').setAttribute('aria-expanded','false');}
+  $('menuButton').addEventListener('click',e=>{e.stopPropagation();const open=$('headMenu').hidden;$('headMenu').hidden=!open;$('menuButton').setAttribute('aria-expanded',String(open));});
+  document.addEventListener('pointerdown',e=>{if(!$('headMenu').hidden&&!e.target.closest('#headMenu,#menuButton'))closeHeadMenu();});
   for(const b of document.querySelectorAll('[data-close]'))b.addEventListener('click',()=>goRoute('play'));
   document.querySelectorAll('.modal').forEach(node=>node.addEventListener('pointerdown',e=>{if(e.target===node)goRoute('play');}));
   document.addEventListener('keydown',e=>{if(e.code==='Escape'&&ui.modal){e.preventDefault();goRoute('play');}});
@@ -153,10 +210,10 @@
   function renderDrawPad(){
     if(drawInput.pointer!==null&&!drawingAllowed())dropDraw();
     if(drawInput.pointer!==null)updateDrawingAim();
-    tickSummonDraft();
+    tickSummonDraft();updateLiveFace();updateLiveBody();
     const points=drawInput.pointer!==null?drawInput.points:drawInput.previewUntilMs>performance.now()?drawInput.finished:null;
     drawCtx.setTransform(drawDpr,0,0,drawDpr,0,0);drawCtx.clearRect(0,0,vw,vh);
-    drawCtx.save();drawCtx.lineCap='round';drawCtx.lineJoin='round';paintSummonDraft();
+    drawCtx.save();drawCtx.lineCap='round';drawCtx.lineJoin='round';paintSummonDraft();paintLiveGhost();
     if(!points?.length){drawCtx.restore();return;}
     if(drawInput.pointer!==null&&drawInput.center&&!summonDraft.active){const c=drawInput.center;drawCtx.strokeStyle='#315f68';drawCtx.lineWidth=2;drawCtx.beginPath();drawCtx.arc(c.x,c.y,18,0,Math.PI*2);drawCtx.stroke();}
     drawCtx.beginPath();points.forEach((p,i)=>i?drawCtx.lineTo(p.x,p.y):drawCtx.moveTo(p.x,p.y));drawCtx.lineWidth=6;drawCtx.strokeStyle='#fff7dd';drawCtx.stroke();drawCtx.lineWidth=3.5;drawCtx.strokeStyle='#34484e';drawCtx.stroke();drawCtx.restore();

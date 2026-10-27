@@ -57,15 +57,32 @@
 
 .bossbar small{display:block;font-size:10px;font-weight:800;color:#5f5663;margin:1px 0 3px;line-height:1.3}
 
-/* Face step: the bar takes the ribbon's place (same anchor and width at every breakpoint). */
-.spell-ribbon[hidden],.face-bar[hidden]{display:none}
-.face-bar{grid-template-columns:repeat(5,minmax(0,1fr));align-content:end}
-.face-guides{display:contents}
-.face-guide{display:block;text-align:center;border:1px solid #a8a093;background:#fffaf0e8;color:#37434d;padding:3px 2px;border-radius:10px;min-width:0;box-shadow:2px 3px 0 #a9a49a70;font-size:10px;font-weight:800}
-.face-guide svg{width:100%;height:34px;display:block}
-.face-guide svg path{fill:none;stroke:#34484e;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
-.face-guide svg circle{fill:#34484e}
-.face-actions{grid-column:1/-1;display:grid;grid-template-columns:2fr 1fr;gap:4px}
-.face-actions button{white-space:nowrap;min-height:44px;border:1px solid #a8a093;border-radius:10px;background:#fffaf0f2;color:#37434d;font-weight:900;font-size:13px;box-shadow:2px 3px 0 #a9a49a70;cursor:pointer}
+/* Face step bar: two buttons only; the reference faces live in the codex (help modal). */
+.face-bar[hidden]{display:none}
+.face-bar{position:absolute;right:max(12px,env(safe-area-inset-right));bottom:max(16px,env(safe-area-inset-bottom));width:min(250px,60vw);z-index:5;display:grid;grid-template-columns:1fr}
+.face-actions{display:grid;grid-template-columns:2fr 1fr;gap:6px}
+.face-actions button{white-space:nowrap;min-height:46px;border:1px solid #a8a093;border-radius:10px;background:#fffaf0f2;color:#37434d;font-weight:900;font-size:13px;box-shadow:2px 3px 0 #a9a49a70;cursor:pointer}
 .face-actions .face-primary{background:#d9a057;color:#fff;border-color:#b98644}
-@media(max-width:600px){.face-guide svg{height:24px}.face-guide{font-size:8px}.face-actions button{font-size:11px;min-height:42px;padding:0 2px}}
+.help-faces{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-top:6px}
+.face-guide{border:1px solid #a8a093;background:#fffaf0e8;border-radius:10px;padding:6px;text-align:center;font-size:11px}
+.face-guide b{display:block;font-size:12px;margin-top:2px}.face-guide span{display:block;color:#68747d;line-height:1.35}
+.face-guide svg{width:100%;height:46px;display:block}.face-guide svg path{fill:none;stroke:#34484e;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}.face-guide svg circle{fill:#34484e}
+.codex-title{margin:14px 0 4px;font-size:14px}
+
+/* HUD v2: compact top card, one menu button, no bottom guide panel (drawing needs the whole field). Later rules win over the older breakpoints above. */
+.logo,.brand,.ink-estimate,#inkRecovery,.draw-status,.action-hint{display:none!important}
+.hud-top{align-items:flex-start}
+.top-left{width:min(210px,56vw);max-width:56vw;padding:6px 9px;gap:4px;min-height:0}
+.top-left .identity{display:flex;flex-direction:column;gap:3px;width:100%}
+.hero-line{font-size:10px;margin:0}.hp-bg{height:6px;margin:0}
+.ink-meter{margin-top:2px}.ink-caption{font-size:10px}.ink-bar{height:6px}
+.top-right{position:relative;display:block}
+.quest{display:none}
+.menu-button{width:44px;height:44px;border:2px solid #313941;border-radius:12px;background:#fffaf0ec;font-size:20px;font-weight:900;color:#37434d;cursor:pointer;pointer-events:auto;box-shadow:3px 4px 0 #bdb6a288}
+.head-buttons[hidden]{display:none}
+.head-buttons{position:absolute;top:50px;right:0;z-index:9;display:grid;grid-template-columns:1fr;gap:6px;padding:8px;width:150px}
+.head-buttons button{min-height:40px;font-size:13px}
+.region-status{top:84px;left:max(8px,env(safe-area-inset-left));max-width:190px}
+.mini-map{top:62px;right:max(8px,env(safe-area-inset-right))}
+.roll-hud{width:auto;padding:5px 7px;gap:4px}
+@media(pointer:coarse),(max-width:900px){.roll-hud b,.roll-hud small{display:none}.roll-hud{bottom:max(150px,env(safe-area-inset-bottom) + 150px);left:max(14px,env(safe-area-inset-left))}}

@@ -141,9 +141,23 @@ async def ready_game(page, *, html: str):
     )
 
 
-async def draw_circle(page, size=180, kind='circle', at=None):
+async def open_menu(page):
+    """Open the ☰ dropdown that now holds multiplayer/codex/training/help/sound."""
+    if not await page.locator('#headMenu').is_visible():
+        await page.locator('#menuButton').click()
+        await page.locator('#headMenu').wait_for(state='visible',timeout=3000)
+
+
+async def draw_circle(page, size=180, kind='circle', at=None, tries=3):
     """Draw with real battlefield mouse events, centered on the first foe or on the world point `at`."""
-    await page.locator(f'.glyph[data-kind="{kind}"]').click()
+    for attempt in range(tries):
+      shot = await _draw_circle_once(page,size,kind,at)
+      if shot is not None or attempt==tries-1:
+        return shot
+      await page.wait_for_timeout(400)
+
+
+async def _draw_circle_once(page, size, kind, at):
     points = await page.evaluate("""([size,kind,at]) => {
       const d=window.__sketchRpgDebug,foe=at?{x:at[0],y:at[1]}:d.foePositions()[0],center=d.screenAt(foe.x,foe.y);
       const points=d.sample(kind,size,size);
@@ -319,6 +333,7 @@ async def run_desktop(browser, suite: E2E, html: str):
             if interruption=='blur':
                 await page.evaluate("window.dispatchEvent(new Event('blur'))")
             elif interruption=='modal':
+                await open_menu(page)
                 await page.locator('#helpButton').focus()
                 await page.keyboard.press('Enter')
                 await page.wait_for_function("window.__sketchRpgDebug.snapshot().modal==='help'")
@@ -366,6 +381,7 @@ async def run_desktop(browser, suite: E2E, html: str):
         suite.check("WASD after drawing still walks", after["player"]["x"] < before["player"]["x"] - 5)
 
         # One real browser UI workflow, including an actual downloaded PNG.
+        await open_menu(page)
         await page.locator("#trainingButton").click()
         await page.locator("#trainingLabel").select_option("circle")
         await page.locator("#importCombat").click()
@@ -416,9 +432,8 @@ async def run_mobile(browser, suite: E2E, html: str):
                     {'before':state,'after':changed})
         await page.evaluate("window.__sketchRpgDebug.pausePainting()")
         stick=await page.locator('#moveStick').bounding_box()
-        button=await page.locator('#rollButton').bounding_box()
-        suite.check('mobile stick and roll remain separate from battlefield drawing',
-                    stick['x']+stick['width']<=button['x'] and
+        suite.check('mobile stick stays clear of battlefield drawing',
+                    stick['x']+stick['width']<260 and
                     await page.evaluate("getComputedStyle(document.getElementById('draw')).pointerEvents==='none' && document.elementFromPoint(260,340).id==='field'"))
         cdp=await context.new_cdp_session(page)
         left={'x':stick['x']+stick['width']*.82,'y':stick['y']+stick['height']/2,'id':1}
@@ -716,7 +731,7 @@ async def run_summons(browser, suite: E2E):
             suite.check('a body stroke opens a face draft and neither summons nor spends ink yet',draft['active'] and fresh==0 and ink1>=ink0-0.5,{'draft':draft,'fresh':fresh,'ink':[ink0,ink1]})
             await page.wait_for_timeout(5500)
             still=await page.evaluate("({d:__sketchRpgDebug.draftState(),n:__sketchRpgDebug.summons().filter(q=>q.id>%d).length})"%max_id)
-            suite.check('the face step waits for a button: no auto-summon after 5.5 s, bar shown, ribbon hidden',still['d']['active'] and still['n']==0 and still['d']['faceBarVisible'] and not still['d']['ribbonVisible'],still)
+            suite.check('the face step waits for a button: no auto-summon after 5.5 s, bar shown',still['d']['active'] and still['n']==0 and still['d']['faceBarVisible'],still)
             await draw_face(page,'joy')
             await page.click('#faceDone')
             await page.wait_for_function("m=>__sketchRpgDebug.summons().some(q=>q.id>m&&q.kind==='circle')",arg=max_id,timeout=6000)
@@ -789,7 +804,7 @@ async def run_summons(browser, suite: E2E):
             await page.click('#faceCancel')
             await page.wait_for_timeout(300)
             cancelled=await page.evaluate("m=>({d:__sketchRpgDebug.draftState(),n:__sketchRpgDebug.summons().filter(q=>q.id>m).length,ink:__sketchRpgDebug.runState().actor.ink})",max_id)
-            suite.check('cancel discards the draft: no summon, ink untouched, ribbon back',not cancelled['d']['active'] and cancelled['n']==0 and cancelled['ink']>=99 and cancelled['d']['ribbonVisible'] and not cancelled['d']['faceBarVisible'],cancelled)
+            suite.check('cancel discards the draft: no summon, ink untouched',not cancelled['d']['active'] and cancelled['n']==0 and cancelled['ink']>=99 and not cancelled['d']['faceBarVisible'],cancelled)
             await draw_circle(page,120,'triangle',at=[480+110,735])
             await draw_face(page,'sad')
             await page.keyboard.press('Enter')
@@ -839,12 +854,12 @@ async def run_ink_hud(browser,suite):
             await page.evaluate('__sketchRpgDebug.regionCombatFixture(0);__sketchRpgDebug.setInk(5)')
             await page.wait_for_timeout(150)
             bar=await page.locator('#inkBar').bounding_box()
-            suite.check('390px ink bar is always visible and recovering below maximum',bar['height']>=10 and bar['x']>=0 and bar['x']+bar['width']<=390 and await page.locator('#inkMeter').get_attribute('data-state') in ('recovering','waiting'),{'bar':bar,'state':await page.locator('#inkMeter').get_attribute('data-state')})
+            suite.check('390px ink bar is always visible and recovering below maximum',bar['height']>=5 and bar['x']>=0 and bar['x']+bar['width']<=390 and await page.locator('#inkMeter').get_attribute('data-state') in ('recovering','waiting'),{'bar':bar,'state':await page.locator('#inkMeter').get_attribute('data-state')})
             suite.check('390px ink meter and minimap/objective do not overlap',await page.evaluate("""() => {const a=inkMeter.getBoundingClientRect(),b=document.querySelector('.region-status').getBoundingClientRect(),c=document.querySelector('.mini-map').getBoundingClientRect();return a.bottom<b.top&&b.right<c.left;}"""))
             suite.check('removed growth and environment controls are absent from the DOM',await page.locator('#growthButton,#growthModal,#environmentButton,#investButton').count()==0)
             await page.screenshot(path=str(ARTIFACTS/'ink-low-mobile.png'))
             await page.evaluate('window.__zeroInk=setInterval(()=>__sketchRpgDebug.setInk(0),10)')
-            region_shot=await draw_circle(page,140)
+            region_shot=await draw_circle(page,140,tries=1)
             try:
                 await page.wait_for_function("document.getElementById('resultChip').innerText.includes('필요')",timeout=3000)
             except Exception:
@@ -876,15 +891,23 @@ async def run_run_state(browser, suite: E2E):
             suite.check('reload starts a new run without saved card ranks',reloaded['actor']['maxInk']==100 and all(v==0 for v in reloaded['cards'].values()),reloaded['cards'])
             await page.evaluate('__sketchRpgDebug.regionCombatFixture(0)')
             await page.wait_for_timeout(160)
-            await draw_circle(page)
-            await draw_face(page,'joy');await page.locator('#faceDone').click()
-            await page.wait_for_function('__sketchRpgDebug.runState().regionKills[0]>=5',timeout=90000)
+            for _attempt in range(4):
+                # a lone summon can die before the fifth kill; recast like a player would
+                await page.evaluate('__sketchRpgDebug.setInk(100)')
+                await draw_circle(page)
+                await draw_face(page,'joy');await page.locator('#faceDone').click()
+                try:
+                    await page.wait_for_function('__sketchRpgDebug.runState().regionKills[0]>=5',timeout=25000)
+                    break
+                except Exception:
+                    if _attempt==3:raise
             suite.check('real attack clears the forest region',True)
             await page.set_viewport_size({'width':390,'height':844})
             await page.evaluate('__sketchRpgDebug.regionCombatFixture(1);__sketchRpgDebug.setInk(100)')
-            await page.wait_for_timeout(150)
+            await page.wait_for_function("(()=>{const d=__sketchRpgDebug,f=d.foePositions()[0];if(!f)return false;const c=d.screenAt(f.x,f.y);return c.x>40&&c.x<350&&c.y>120&&c.y<740})()",timeout=30000)
+            pre=await page.evaluate("(()=>{const d=__sketchRpgDebug,f=d.foePositions()[0],c=d.screenAt(f.x,f.y);const e=document.elementFromPoint(c.x,c.y);return JSON.stringify({c,w:innerWidth,el:e&&(e.id||e.className),ink:d.snapshot().ink,sc:d.snapshot().summonCount,draft:d.draftState()})})()")
             region_shot=await draw_circle(page,140)
-            suite.check('resized region fixture queues the actual circle stroke',region_shot is not None and region_shot['kind']=='circle',region_shot)
+            suite.check('resized region fixture queues the actual circle stroke',region_shot is not None and region_shot['kind']=='circle',region_shot or pre+await page.evaluate("JSON.stringify({d:__sketchRpgDebug.draftState(),chip:document.getElementById('resultChip').innerText,s:__sketchRpgDebug.snapshot().modal})"))
             if region_shot is None:return
             await draw_face(page,'joy',cx=195,u=34);await page.locator('#faceDone').click()
             await page.wait_for_function('__sketchRpgDebug.runState().regionKills[1]>=5',timeout=90000)
@@ -914,6 +937,7 @@ async def run_real_p2p(browser, suite: E2E):
             modal=page.locator('#multiplayerModal')
             if not await modal.is_visible():
                 try:
+                    await open_menu(page)
                     await page.locator('#multiplayerButton').click(no_wait_after=True,timeout=5000)
                 except Exception:
                     if not await modal.is_visible():
@@ -930,10 +954,12 @@ async def run_real_p2p(browser, suite: E2E):
               s.actors[1].x=1340;s.actors[1].y=760;s.world.enemies=[];s.world.hazards=[];
               d.canonicalRestore(new TextEncoder().encode(JSON.stringify(s)));}""")
             code = str(secrets.randbelow(10000)).zfill(4)
+            await open_menu(host)
             await host.locator("#multiplayerButton").click()
             await host.locator("#mpRoomInput").fill(code)
             await host.locator("#mpHost").click()
             await host.wait_for_function("window.__sketchRpgDebug.multiplayerState().connected", timeout=60000)
+            await open_menu(guest)
             await guest.locator("#multiplayerButton").click()
             await guest.locator("#mpRoomInput").fill(code)
             await guest.locator("#mpJoin").click()

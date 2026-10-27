@@ -297,7 +297,7 @@
         renderFrames++;if(!frameStarted)frameStarted=now;
         if(now-frameStarted>=1000){renderFPS=Math.round(renderFrames*1000/(now-frameStarted));frameStarted=now;renderFrames=0;}
       },
-      onInputRelease(){fieldInput.releaseAll('loop');stickInput.releaseAll('loop');rollButtonInput.releaseAll('loop');localMovementInput.fill(0);dropDraw();releaseTrain();},
+      onInputRelease(){fieldInput.releaseAll('loop');stickInput.releaseAll('loop');localMovementInput.fill(0);dropDraw();releaseTrain();},
       onError(error){pauseGameLoops();console.error(error);const el=$('error');el.style.display='block';el.textContent=`게임 실행 오류: ${error.stack||error.message||error}`;}
     });
     resetPresentation();capturePresentation();
@@ -319,7 +319,7 @@
     pauseGameLoops();
     if(event.persisted)return;
     sound.dispose();ro.disconnect();disposeVectorAssets();renderer.dispose();
-    fieldInput.dispose();stickInput.dispose();rollButtonInput.dispose();trainingInput.dispose();
+    fieldInput.dispose();stickInput.dispose();trainingInput.dispose();
   });
   window.addEventListener('pageshow',event=>{if(event.persisted)resumeGameLoops();});
   resizeAll();applyRoute();rebindGameLoop();
@@ -342,7 +342,7 @@
     castStroke(raw,aim=0,reach=120){const shot={...makeShotData(raw),...pointAt(aim,reach)};world.commands.push({type:'cast',shot});return {kind:shot.kind,baseDamage:shot.baseDamage};},
     spellSpec(raw){const shot=makeShotData(raw);return {kind:shot.kind,castMs:castDurationMs(shot),recoveryMs:spellRecoveryMs(),areaPower:shot.areaPower,baseDamage:shot.baseDamage};},
     draftShot(){return summonDraft.active?structuredClone(summonDraft.shot):null;},
-    draftState(){return {active:summonDraft.active,strokes:summonDraft.strokes.length,last:lastFaceResult,cancelMs:FACE_CANCEL_MS,faceBarVisible:!$('faceBar').hidden,ribbonVisible:!$('ribbon').hidden};},
+    draftState(){return {active:summonDraft.active,strokes:summonDraft.strokes.length,last:lastFaceResult,cancelMs:FACE_CANCEL_MS,faceBarVisible:!$('faceBar').hidden};},
     expressionGuide(id){return expressionOf(id).guide.map(stroke=>stroke.map(([x,y])=>({x,y})));},
     recognizeFace(strokes){const r=faceRecognizer.recognize(strokes);return {id:r.id,confidence:r.confidence,accepted:r.accepted,probabilities:r.probabilities};},
     expressions(){return EXPRESSIONS.map(e=>({id:e.id,name:e.name,summary:e.temperament.summary(),multipliers:{...e.temperament}}));},

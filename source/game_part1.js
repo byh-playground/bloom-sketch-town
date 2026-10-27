@@ -265,21 +265,14 @@
   }
   function shapeSvg(kind){const pts=normalizeStroke(samplePoints(kind,320,180)),d=pts.map((p,i)=>(i?'L':'M')+(48+p.x*28).toFixed(1)+' '+(42+p.y*28).toFixed(1)).join(' '),first=pts[0];return `<svg viewBox="0 0 96 84" aria-hidden="true"><path d="${d}"/><circle cx="${(48+first.x*28).toFixed(1)}" cy="${(42+first.y*28).toFixed(1)}" r="3"/></svg>`;}
   const glyphKinds=['line','circle','triangle','square','flame','water','lightning','star','shuriken','starcircle'];
-  let selectedGlyph='circle';
-  function selectGlyph(kind){
-    if(!referenceRules[kind])return;
-    selectedGlyph=kind;
-    for(const b of $('ribbon').querySelectorAll('button'))b.setAttribute('aria-pressed',String(b.dataset.kind===kind));
-    $('drawTip').textContent=`${shapeNames[kind]} · 예시를 따라 한 획`;
-  }
-  $('ribbon').innerHTML=glyphKinds.map(k=>`<button class="glyph" data-kind="${k}" aria-label="${shapeNames[k]} · ${shapeDesc[k]} 대표 그림 보기" aria-pressed="false">${shapeSvg(k)}<span>${shapeNames[k]}</span></button>`).join('');
+  // The manual 'pressed shape' recognition assist is gone: live ghost recognition shows the best match while drawing.
+  const selectedGlyph=null;
   // Easy reference faces shown while the face step is open (neutral is the no-face fallback, not a guide).
   function faceGuideSvg(e){
     const at=(x,y)=>`${(48+x*30).toFixed(1)} ${(42+y*30).toFixed(1)}`;
     return `<svg viewBox="0 0 96 84" aria-hidden="true">${e.guide.map(s=>s.length===1?`<circle cx="${(48+s[0][0]*30).toFixed(1)}" cy="${(42+s[0][1]*30).toFixed(1)}" r="2.6"/>`:`<path d="${s.map((q,i)=>(i?'L':'M')+at(q[0],q[1])).join(' ')}"/>`).join('')}</svg>`;
   }
-  $('faceGuides').innerHTML=EXPRESSIONS.filter(e=>e.id!=='neutral').map(e=>`<div class="face-guide" title="${e.name} · ${e.temperament.summary()}">${faceGuideSvg(e)}<span>${e.name}</span></div>`).join('');
+  $('helpFaceGuides').innerHTML=EXPRESSIONS.filter(e=>e.id!=='neutral').map(e=>`<div class="face-guide" title="${e.name} · ${e.temperament.summary()}">${faceGuideSvg(e)}<b>${e.name}</b><span>${e.temperament.summary()}</span></div>`).join('')+`<div class="face-guide">${faceGuideSvg({guide:[[[-.42,-.1],[-.18,-.1]],[[.18,-.1],[.42,-.1]]]})}<b>무표정</b><span>어느 표정과도 맞지 않으면 · 특성 없음</span></div>`;
   $('helpExpressions').innerHTML=EXPRESSIONS.map(e=>`<li><b>${e.name}</b> · ${e.temperament.summary()}</li>`).join('');
   $('helpReferences').innerHTML=glyphKinds.map(k=>`<div class="help-ref">${shapeSvg(k)}<div>${shapeNames[k]}</div></div>`).join('');
-  $('ribbon').addEventListener('click',e=>{const b=e.target.closest('[data-kind]');if(b){selectGlyph(b.dataset.kind);if(e.detail>0)field.focus({preventScroll:true});}});selectGlyph('circle');
 
