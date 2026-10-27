@@ -57,13 +57,9 @@
     P.oval(CFG.boss.x,CFG.boss.y,CFG.boss.radius*.89,CFG.boss.radius*.89,'#e6dde8',.4);
     P.ring(CFG.boss.x,CFG.boss.y,CFG.boss.radius,'#b4a7b4',.42,2,32);
     P.ring(CFG.boss.x,CFG.boss.y,CFG.boss.radius*.7,'#b7a8b7',.2,1.4,24);
-    drawGateTerrain();
-    // Village safety circle and the investment workbench.
+    // Village safety circle.
     P.oval(504,735,98,81,'#dceade',.65);P.ring(504,735,92,'#86a68e',.52,1.8,28);
     P.dot(503,730,16,'#fafbf3');P.ring(503,730,17,'#789b89',.73,2,24);P.dot(503,730,7,'#a5c9a3',.8);
-    P.box(683,616,58,38,'#a8886b');P.box(683,605,63,17,'#fbebcc');P.line(653,595,713,594,2,'#6f665b');P.dot(683,592,4,'#bd8760');
-    P.ring(683,615,74,'#ddbd87',.27,2.2,38);
-    P.line(695,630,673,636,4,'#6d6261');
     for(const d of world.decals){if(!visible(d.x,d.y,35))continue;drawEnvironmentDecal(d);}
   }
   function drawHouse(h){const {x,y,w,h:height,type}=h;if(!visible(x,y,140))return;drawEnvironmentProp('house',x,y,0,{type:type==='house'?'home':type,width:w,height});}
@@ -183,10 +179,9 @@
     for(const f of sceneViews.floater){if(!f||!visible(f.x,f.y,40))continue;renderer.worldToScreenInto(f.x,f.y,anchorReuse);const a=clamp(f.lifeMs/250,0,1);txtCtx.globalAlpha=a;txtCtx.textAlign='center';const life=1-f.lifeMs/680,pop=1+.38*Math.exp(-life*12),px=anchorReuse.x,py=anchorReuse.y;
       txtCtx.translate(px,py);txtCtx.scale(pop,pop);txtCtx.translate(-px,-py);
       txtCtx.font='1000 17px system-ui,sans-serif';txtCtx.lineWidth=4.0;txtCtx.strokeStyle='#fff9ee';txtCtx.strokeText(f.text,anchorReuse.x,anchorReuse.y);txtCtx.fillStyle=f.color;txtCtx.fillText(f.text,anchorReuse.x,anchorReuse.y);txtCtx.setTransform(screenDpr,0,0,screenDpr,0,0);}
-    txtCtx.globalAlpha=1;txtCtx.textAlign='left';if(visible(683,616,150)){renderer.worldToScreenInto(683,561,anchorReuse);txtCtx.textAlign='center';txtCtx.font='900 12px system-ui';txtCtx.lineWidth=3.4;txtCtx.strokeStyle='#fff8ee';txtCtx.strokeText('✎ 연필 공방 · E',anchorReuse.x,anchorReuse.y);txtCtx.fillStyle='#5e635c';txtCtx.fillText('✎ 연필 공방 · E',anchorReuse.x,anchorReuse.y);}
     if(visible(504,735,140)){renderer.worldToScreenInto(504,625,anchorReuse);txtCtx.textAlign='center';txtCtx.font='900 12px system-ui';txtCtx.lineWidth=3.4;txtCtx.strokeStyle='#fffaf0';txtCtx.strokeText('푸른 잉크 샘 · 회복',anchorReuse.x,anchorReuse.y);txtCtx.fillStyle='#568276';txtCtx.fillText('푸른 잉크 샘 · 회복',anchorReuse.x,anchorReuse.y);}
     if(world.bossSpawned&&!world.bossDefeated&&visible(CFG.boss.x,CFG.boss.y,100)){renderer.worldToScreenInto(CFG.boss.x,CFG.boss.y-112,anchorReuse);txtCtx.textAlign='center';txtCtx.font='900 13px system-ui';txtCtx.lineWidth=3.7;txtCtx.strokeStyle='#fffaf0';txtCtx.strokeText('잉크 감시자',anchorReuse.x,anchorReuse.y);txtCtx.fillStyle='#8c647e';txtCtx.fillText('잉크 감시자',anchorReuse.x,anchorReuse.y);}
-    txtCtx.globalAlpha=1;drawGateLabels();drawMapLabels();
+    txtCtx.globalAlpha=1;drawMapLabels();
   }
   let lastCameraAt=0;
   function cameraPose(){const z=vw<590?.80:vw<900?.88:1.03;camera.zoom=z;const hw=vw/(2*z),hh=vh/(2*z),targetX=clamp(player.x,Math.min(hw,CFG.world.width/2),Math.max(hw,CFG.world.width-hw)),targetY=clamp(player.y,Math.min(hh,CFG.world.height/2),Math.max(hh,CFG.world.height-hh));

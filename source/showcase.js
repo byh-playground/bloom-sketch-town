@@ -5,7 +5,7 @@ const SHOWCASE = installShowcase({
     launcher:'#helpButton',
     playSelector:'#field',
     durationMs:27000,
-    ready:win=>win.document.getElementById('gameVersion')?.textContent.includes('0.16.0')===true
+    ready:win=>win.document.getElementById('gameVersion')?.textContent.includes('0.17.0')===true
       &&!!win.document.querySelector('#field'),
     timeline:[
   {
