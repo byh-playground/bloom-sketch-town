@@ -175,6 +175,16 @@ GameKit PR47의 지연된 중첩 상태 전환과 PR48의 preview 복귀 수정�
 - 체크포인트 정본 배열 `projectiles`가 `summons`로 바뀝니다(소환수는 `shape`를 포함하는 소형 객체이며 최대 8). 투사체 코드(발사·반사·유도·궤도·궤적 표시)는 삭제했습니다.
 - 검증: `--flow summon` 11 PASS(11종 스펙·고정/끌어당김 성질, 11종 소환, 4마리 상한, 실제 마우스로 그린 위치에 소환, 잉크 소모, 소환수 단독 처치, 적이 소환수를 공격, 고정 포탑 불이동, 체크포인트 복원). `--flow boss` 10, `map` 12, `ux` 5, `progression` 8 PASS. `--flow all`의 데스크톱·모바일·실제 P2P 구간은 이 환경에서 실행하지 못했고(변경 전부터 실패, 외부 네트워크 차단) 해당 구간의 투사체 참조는 소환수 기준으로 고쳤으나 실행으로 확인하지 못했습니다.
 
+### 0.18.0 — 몸 + 표정으로 소환
+
+- 흐름: ① 몸을 한 획으로 그린다(기존 도형 CNN이 11종 중 하나로 인식) → ② 도감(화면의 표정 5종)처럼 쉬운 표정을 그린다(눈 2개와 입, 몇 획이든 가능, 점은 탭) → ③ 표정은 한붓그리기가 안 되므로 **‘✓ 소환’ 버튼**(또는 Enter)으로 끝낸다. 표정을 한 획도 안 그리면 소환되지 않고, ‘취소’(또는 Esc)는 그만둔다. 표정 단계에서는 자동 확정이 없고, 모달·사망·15초 무입력이면 잉크를 쓰지 않고 취소된다. 잉크와 명령은 소환 버튼을 누를 때 한 번만 쓰인다. 표정 단계 동안 도형 도감 자리에 표정 도감과 버튼이 나타난다(같은 위치·폭).
+- 쉬운 표정: 기쁨=점 눈+웃는 입, 슬픔=점 눈+처진 입, 놀람=점 눈+동그란 입, 화남=사선 눈(\\ /), 졸림=가로선 눈. 눈썹·눈물 같은 부가 획은 쓰지 않는다. 도감 그림은 `source/expressions.js`의 `guide`가 정본이며 e2e도 같은 그림을 그린다.
+- 표정 인식기: `source/train_face.py`가 합성 얼굴(무표정 포함 6클래스, 눈·입 생략·기울기·떨림 무작위)로 MLP(1024→128→6)를 학습해 `source/face-model.js`와 `source/face_report.json`을 만든다(numpy·Pillow만 필요). 합성 검증 정확도 97.4%(표시 기준), 다른 표정으로 잘못 나온 비율 1.0%. **사람이 그린 표정으로는 검증하지 않았다**(데이터 없음). 최고 확률이 0.62 미만이거나 무표정이면 무표정으로 처리한다. 인식은 로컬에서만 하고 명령에는 표정 id만 실린다.
+- 표정 정본은 `source/expressions.js`의 `EXPRESSION_TABLE`(id 순서는 인식기 라벨과 같아야 로드된다). `Temperament`가 체력·공격력·공격 속도·이동 속도 배율을 가지며 1보다 크면 이점, 작으면 약점이다(화면 문구는 숫자에서 만든다). 무표정은 배율이 모두 1이다.
+- 소환수는 그린 획을 몸으로 그리고(닫힌 도형은 안쪽을 같은 모양으로 채움, 충돌 원은 그리지 않음) 표정은 프리셋 애니메이션이다(눈 깜빡임·입 변화·표정별 몸짓: 기쁨은 튀고, 화남은 떨고, 졸림은 느리게 흔들리고 z가 뜨고, 놀람은 점프하고, 슬픔은 처지며 눈물이 흐른다). 화면 크기는 충돌 크기의 1.35배이다.
+- 명령 `cast`와 체크포인트(`casts`·`castQueue`·`summons`)에 `face`가 필수이며 알 수 없는 표정은 거부한다.
+- 검증: `--flow summon` 22 PASS(실제 포인터 몸·표정 5종 인식, 버튼 없이는 자동 소환 안 됨, 취소·Enter·15초 취소, 표정 없음·낙서는 무표정, 표정 배율, 알 수 없는 표정 체크포인트 거부 포함).
+
 ### SVG renderer migration candidate
 
 The branch authors static character and environment resources in `source/assets/*.svg`, compiled with the pinned GameKit Vector Assets 0.6.5 compiler at `curveSegments: 8`; live user strokes and transient combat effects remain runtime geometry. The renderer uses the official GameKit 0.15.1 rendering module (dist commit `50f835a801a8fae3c982e051290a26555ac031df`), while retaining the existing Vector Assets runtime/compiler, compiled geometry, and multiplayer modules. The non-radial pipeline passes its isolated comparison gate and final bundle E2E, but the SwiftShader comparison against legacy WebGL1 L still misses the performance gate: desktop p95 is 19.86% slower, and the mobile-sized viewport is 16.60% slower at median and 14.21% at p95. Stage 4's static-combine experiment was not adopted; Stage 5's DPR comparison was inconclusive. The explicitly approved merge does not imply a performance improvement or close that gate. See the [implementation notes](docs/svg-renderer.md) and [fixed-scene benchmark](docs/svg-renderer-benchmark-v0.16.0.md).

@@ -122,9 +122,9 @@
   function spawnSummon(owner,shot){
     const spec=summonSpecOf(shot.kind),point=summonSpawnPoint(owner,shot.aim,shot.reach,spec.r),id=actorId(owner),mine=world.summons.filter(s=>s.owner===id);
     if(mine.length>=SUMMON_LIMIT){const oldest=mine[0];world.summons.splice(world.summons.indexOf(oldest),1);burst(oldest.x,oldest.y,oldest.color,6,50);}
-    const maxHp=spec.maxHp(shot.areaPower);
-    const s={id:world.nextId++,owner:id,kind:shot.kind,name:spec.name,color:shot.color,shape:shot.shape,x:point.x,y:point.y,r:spec.r,
-      hp:maxHp,maxHp,power:+(spec.power(shot.areaPower)*owner.power).toFixed(3),cdMs:400,ageMs:0,hitMs:0,faceX:1,targetId:0};
+    const face=expressionOf(shot.face),temper=face.temperament,maxHp=Math.round(spec.maxHp(shot.areaPower)*temper.hp);
+    const s={id:world.nextId++,owner:id,kind:shot.kind,face:face.id,name:spec.name,color:shot.color,shape:shot.shape,x:point.x,y:point.y,r:spec.r,
+      hp:maxHp,maxHp,power:+(spec.power(shot.areaPower)*owner.power*temper.damage).toFixed(3),cdMs:400,ageMs:0,hitMs:0,faceX:1,targetId:0};
     world.summons.push(s);
     world.fields.push({kind:'ring',x:s.x,y:s.y,r:46,ageMs:0,lifeMs:420,color:s.color});
     burst(s.x,s.y,s.color,10,70);sfx('throw');
@@ -143,7 +143,7 @@
     return best;
   }
   function stepSummon(s,dt){
-    const spec=summonSpecOf(s.kind),owner=actorOf(s.owner);
+    const spec=summonSpecOf(s.kind),owner=actorOf(s.owner),temper=expressionOf(s.face).temperament,speed=spec.speed*temper.speed;
     s.ageMs+=dt;s.hitMs=Math.max(0,s.hitMs-dt);s.cdMs=Math.max(0,s.cdMs-dt);
     const ownerDistance=hypot(owner.x-s.x,owner.y-s.y);
     if(!spec.anchored&&ownerDistance>SUMMON_RETURN){const p=summonSpawnPoint(owner,0,SUMMON_FOLLOW,s.r);s.x=p.x;s.y=p.y;s.targetId=0;return;}
@@ -153,10 +153,10 @@
     if(enemy){
       const dx=enemy.x-s.x,dy=enemy.y-s.y,d=hypot(dx,dy)||1,engage=spec.strike.engageDistance(s,enemy);
       if(dx)s.faceX=dx>0?1:-1;
-      if(d>engage){if(!spec.anchored)moveCollider(s,dx/d*spec.speed*dt/1000,dy/d*spec.speed*dt/1000,s.r*.68);}
-      else if(s.cdMs<=0){s.cdMs=spec.strike.cooldownMs;spec.strike.execute(s,enemy,spec.effects);}
+      if(d>engage){if(!spec.anchored)moveCollider(s,dx/d*speed*dt/1000,dy/d*speed*dt/1000,s.r*.68);}
+      else if(s.cdMs<=0){s.cdMs=spec.strike.cooldownMs/temper.attackRate;spec.strike.execute(s,enemy,spec.effects);}
     }else if(!spec.anchored&&ownerDistance>SUMMON_FOLLOW){
-      const dx=owner.x-s.x,dy=owner.y-s.y;moveCollider(s,dx/ownerDistance*spec.speed*.9*dt/1000,dy/ownerDistance*spec.speed*.9*dt/1000,s.r*.68);
+      const dx=owner.x-s.x,dy=owner.y-s.y;moveCollider(s,dx/ownerDistance*speed*.9*dt/1000,dy/ownerDistance*speed*.9*dt/1000,s.r*.68);
     }
   }
   function tickSummons(dt){
