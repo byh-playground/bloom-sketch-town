@@ -164,7 +164,7 @@
     const main=units.reduce((a,b)=>summonSpecOf(b.kind).ink>summonSpecOf(a.kind).ink?b:a);
     const point=summonSpawnPoint(actor,{x:avg(u=>u.x),y:avg(u=>u.y)},r);
     for(const u of units){world.summons.splice(world.summons.indexOf(u),1);burst(u.x,u.y,u.color,6,50);}
-    const s={id:world.nextId++,owner,kind:plan.kind,...stepsOf(main),name:spec.name,color:plan.type==='fusion'?FUSION_COLORS[plan.kind]:main.color,shape:plan.type==='fusion'?FUSION_SHAPES[plan.kind].map(p=>({...p})):main.shape,x:point.x,y:point.y,r,
+    const s={id:world.nextId++,owner,kind:plan.kind,temper:main.temper,name:spec.name,color:plan.type==='fusion'?FUSION_COLORS[plan.kind]:main.color,shape:plan.type==='fusion'?FUSION_SHAPES[plan.kind].map(p=>({...p})):main.shape,x:point.x,y:point.y,r,
       hp:maxHp,maxHp,power,tier:plan.tier,cdMs:400,ageMs:0,hitMs:0,faceX:1,targetId:0};
     world.summons.push(s);
     world.fields.push({kind:'ring',x:s.x,y:s.y,r:70,ageMs:0,lifeMs:520,color:s.color});
@@ -188,7 +188,7 @@
     const spec=summonSpecOf(shot.kind),point=summonSpawnPoint(owner,shot,spec.r),id=actorId(owner),mine=world.summons.filter(s=>s.owner===id);
     if(mine.length>=SUMMON_LIMIT){const oldest=mine[0];world.summons.splice(world.summons.indexOf(oldest),1);burst(oldest.x,oldest.y,oldest.color,6,50);}
     const temper=temperamentOf(shot),maxHp=Math.round(spec.maxHp(shot.areaPower)*temper.hp);
-    const s={id:world.nextId++,owner:id,kind:shot.kind,...stepsOf(shot),name:spec.name,color:shot.color,shape:shot.shape,x:point.x,y:point.y,r:spec.r,
+    const s={id:world.nextId++,owner:id,kind:shot.kind,temper:shot.temper,name:spec.name,color:shot.color,shape:shot.shape,x:point.x,y:point.y,r:spec.r,
       hp:maxHp,maxHp,power:+(spec.power(shot.areaPower)*owner.power*temper.damage).toFixed(3),tier:1,cdMs:400,ageMs:0,hitMs:0,faceX:1,targetId:0};
     world.summons.push(s);
     world.fields.push({kind:'ring',x:s.x,y:s.y,r:46,ageMs:0,lifeMs:420,color:s.color});

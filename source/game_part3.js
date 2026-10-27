@@ -135,10 +135,10 @@
     let a=map(pts[0]);for(let i=1;i<pts.length;i++){const b=map(pts[i]);P.line(a[0],a[1],b[0],b[1],width,color,alpha);a=b;}
     if(mesh.closed){const b=map(pts[0]);P.line(a[0],a[1],b[0],b[1],width,color,alpha);}
   }
-  // The face is generated from the summon's temperament steps (TraitFace.marks); only blinking, quivering and accents move.
-  function drawFace(steps,cx,cy,u,t,look,seed){
-    const blink=(t+seed*.37)%3.4<.12,gx=look*.05*u,quiver=(steps.bold>=2?Math.sin(t*30+seed)*.02:0)*u;
-    for(const m of TraitFace.marks(steps)){
+  // The face is generated from the summon's personality look (TraitFace.marks); only blinking, quivering and accents move.
+  function drawFace(shape,cx,cy,u,t,look,seed){
+    const blink=(t+seed*.37)%3.4<.12,gx=look*.05*u,quiver=(shape.bold>=2?Math.sin(t*30+seed)*.02:0)*u;
+    for(const m of TraitFace.marks(shape)){
       if(m.type==='line')inkLine(cx+m.x1*u+gx*.5,cy+m.y1*u+quiver,cx+m.x2*u+gx*.5,cy+m.y2*u+quiver,2.4);
       else if(m.type==='arc'){
         if(blink&&m.ry>.05)inkLine(cx+(m.cx-m.rx)*u+gx,cy+m.cy*u+.04*u,cx+(m.cx+m.rx)*u+gx,cy+m.cy*u+.04*u,2.2);
@@ -170,7 +170,7 @@
     const rot=spec.anchored?paintClockMs*.0006:pose.rot;
     fillClosedShape(mesh,x,y,rot,pose.sx,pose.sy,scale,v.color,.22);
     drawStrokeSquashed(mesh,x,y,rot,pose.sx,pose.sy,scale,v.color,.97,spec.taunt?5:3);
-    drawFace(v,x,y+vr*.04*pose.sy,vr*.62*Math.min(pose.sx,pose.sy+.05),t,v.faceX,v.id);
+    drawFace(personalityOf(v).look,x,y+vr*.04*pose.sy,vr*.62*Math.min(pose.sx,pose.sy+.05),t,v.faceX,v.id);
     if(v.hitMs>0){const f=clamp(v.hitMs/SKETCH.hitFlashMs,0,1);drawStrokeSquashed(mesh,x,y,rot,pose.sx*1.06,pose.sy*1.06,scale,'#fff8d9',f*.9,5);}
     if(selectedUnits.has(v.id)){P.ring(v.x,v.y,vr*1.3+Math.sin(paintClockMs*.008)*2,'#e0a64a',.95,3,30);}
     if((v.tier||1)>1)for(let k=0;k<v.tier;k++)P.dot(v.x+(k-(v.tier-1)/2)*8,v.y+vr+10,3.2,'#e0a64a',.95);

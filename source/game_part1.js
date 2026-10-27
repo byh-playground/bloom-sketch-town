@@ -1,7 +1,7 @@
   const $=id=>document.getElementById(id);
   const clamp=(v,a,b)=>Math.min(b,Math.max(a,v)),mix=(a,b,t)=>a+(b-a)*t,hypot=Math.hypot;
   const art={normal:'#293846',line:'#344e58',circle:'#799c91',triangle:'#d08c63',square:'#8f8b80',flame:'#ce704e',water:'#519cbd',lightning:'#558fbc',star:'#d8a34a',shuriken:'#9887b0',starcircle:'#cd995c'};
-  const CFG=Object.freeze({version:'0.24.0',baseHz:60,renderHz:60,inputHz:60,tickMs:1000/30,maxCatchup:8,world:{width:WORLD_MAP.size,height:WORLD_MAP.size},player:{hp:120,radius:16,walkSpeed:140,roll:{capacity:2,rechargeMs:650,rangeDiameters:3,durationMinMs:110,durationMaxMs:270,travelSpeed:765,projectileInvulMs:145}},castLimit:4,maxParticles:360});
+  const CFG=Object.freeze({version:'0.25.0',baseHz:60,renderHz:60,inputHz:60,tickMs:1000/30,maxCatchup:8,world:{width:WORLD_MAP.size,height:WORLD_MAP.size},player:{hp:120,radius:16,walkSpeed:140,roll:{capacity:2,rechargeMs:650,rangeDiameters:3,durationMinMs:110,durationMaxMs:270,travelSpeed:765,projectileInvulMs:145}},castLimit:4,maxParticles:360});
   $('gameVersion').textContent=`v${CFG.version} · RPG`;
   const DRAWING_STATS=Object.freeze({width:280,height:150,penWidth:3.8,recognitionSize:150});
   const field=$('field'),renderer=new Renderer2D(field,{batchVertices:32768}),draw=$('draw'),drawCtx=draw.getContext('2d'),trainingPad=$('trainingPad'),trainingCtx=trainingPad.getContext('2d');
@@ -267,7 +267,7 @@
   const glyphKinds=['line','circle','triangle','square','flame','water','lightning','star','shuriken','starcircle'];
   // The manual 'pressed shape' recognition assist is gone: live ghost recognition shows the best match while drawing.
   const selectedGlyph=null;
-  // A face as an SVG, drawn from the same marks the world draws (TraitFace.marks); used by the slider dock and the help card.
+  // A face as an SVG, drawn from the same marks the world draws (TraitFace.marks); used by the personality selector and the help card.
   function traitFaceSvg(steps){
     const X=x=>(48+x*46).toFixed(1),Y=y=>(46+y*46).toFixed(1);let body='';
     for(const m of TraitFace.marks(steps)){
@@ -281,8 +281,7 @@
     }
     return `<svg viewBox="0 0 96 84" aria-hidden="true">${body}</svg>`;
   }
-  const HELP_FACE_STEPS=Object.freeze([{bold:0,quick:0},{bold:-3,quick:2},{bold:3,quick:0},{bold:-1,quick:-3},{bold:0,quick:3},{bold:-3,quick:-1}]);
-  $('helpFaceGuides').innerHTML=HELP_FACE_STEPS.map(steps=>`<div class="face-guide" title="${temperamentOf(steps).summary()}">${traitFaceSvg(steps)}<span>${temperamentOf(steps).summary()}</span></div>`).join('');
-  $('helpExpressions').innerHTML=TRAIT_AXES.map(axis=>`<li><b>${axis.name}</b> · ${axis.lowLabel} ← 슬라이더 → ${axis.highLabel}: 높일수록 ${Object.entries(axis.effects).map(([stat,d])=>`${TRAIT_STATS[stat]} ${d>0?'+':''}${Math.round(d*100)}%`).join(' · ')} (칸마다, 낮추면 반대)</li>`).join('');
+  $('helpFaceGuides').innerHTML=PERSONALITIES.map(p=>`<div class="face-guide" title="${p.temperament.summary()}">${traitFaceSvg(p.look)}<b>${p.name}</b><span>${p.temperament.summary()}</span></div>`).join('');
+  $('helpExpressions').innerHTML=PERSONALITIES.map(p=>`<li><b>${p.name}</b> · ${p.temperament.summary()}</li>`).join('');
   $('helpReferences').innerHTML=glyphKinds.map(k=>`<div class="help-ref">${shapeSvg(k)}<div>${shapeNames[k]}</div></div>`).join('');
 
