@@ -1,7 +1,7 @@
   const $=id=>document.getElementById(id);
   const clamp=(v,a,b)=>Math.min(b,Math.max(a,v)),mix=(a,b,t)=>a+(b-a)*t,hypot=Math.hypot;
   const art={normal:'#293846',line:'#344e58',circle:'#799c91',triangle:'#d08c63',square:'#8f8b80',flame:'#ce704e',water:'#519cbd',lightning:'#558fbc',star:'#d8a34a',shuriken:'#9887b0',starcircle:'#cd995c'};
-  const CFG=Object.freeze({version:'0.23.0',baseHz:60,renderHz:60,inputHz:60,tickMs:1000/30,maxCatchup:8,world:{width:WORLD_MAP.size,height:WORLD_MAP.size},player:{hp:120,radius:16,walkSpeed:140,roll:{capacity:2,rechargeMs:650,rangeDiameters:3,durationMinMs:110,durationMaxMs:270,travelSpeed:765,projectileInvulMs:145}},castLimit:4,maxParticles:360});
+  const CFG=Object.freeze({version:'0.24.0',baseHz:60,renderHz:60,inputHz:60,tickMs:1000/30,maxCatchup:8,world:{width:WORLD_MAP.size,height:WORLD_MAP.size},player:{hp:120,radius:16,walkSpeed:140,roll:{capacity:2,rechargeMs:650,rangeDiameters:3,durationMinMs:110,durationMaxMs:270,travelSpeed:765,projectileInvulMs:145}},castLimit:4,maxParticles:360});
   $('gameVersion').textContent=`v${CFG.version} · RPG`;
   const DRAWING_STATS=Object.freeze({width:280,height:150,penWidth:3.8,recognitionSize:150});
   const field=$('field'),renderer=new Renderer2D(field,{batchVertices:32768}),draw=$('draw'),drawCtx=draw.getContext('2d'),trainingPad=$('trainingPad'),trainingCtx=trainingPad.getContext('2d');
@@ -267,12 +267,22 @@
   const glyphKinds=['line','circle','triangle','square','flame','water','lightning','star','shuriken','starcircle'];
   // The manual 'pressed shape' recognition assist is gone: live ghost recognition shows the best match while drawing.
   const selectedGlyph=null;
-  // Easy reference faces shown while the face step is open (neutral is the no-face fallback, not a guide).
-  function faceGuideSvg(e){
-    const at=(x,y)=>`${(48+x*30).toFixed(1)} ${(42+y*30).toFixed(1)}`;
-    return `<svg viewBox="0 0 96 84" aria-hidden="true">${e.guide.map(s=>s.length===1?`<circle cx="${(48+s[0][0]*30).toFixed(1)}" cy="${(42+s[0][1]*30).toFixed(1)}" r="2.6"/>`:`<path d="${s.map((q,i)=>(i?'L':'M')+at(q[0],q[1])).join(' ')}"/>`).join('')}</svg>`;
+  // A face as an SVG, drawn from the same marks the world draws (TraitFace.marks); used by the slider dock and the help card.
+  function traitFaceSvg(steps){
+    const X=x=>(48+x*46).toFixed(1),Y=y=>(46+y*46).toFixed(1);let body='';
+    for(const m of TraitFace.marks(steps)){
+      if(m.type==='line')body+=`<path d="M${X(m.x1)} ${Y(m.y1)}L${X(m.x2)} ${Y(m.y2)}"/>`;
+      else if(m.type==='arc')body+=`<ellipse cx="${X(m.cx)}" cy="${Y(m.cy)}" rx="${(m.rx*46).toFixed(1)}" ry="${(m.ry*46).toFixed(1)}"/>`;
+      else if(m.type==='dot')body+=`<circle class="dot" cx="${X(m.x)}" cy="${Y(m.y)}" r="${Math.max(2,m.r*46).toFixed(1)}"/>`;
+      else if(m.type==='curve')body+=`<path d="M${X(m.x1)} ${Y(m.y1)}Q${X(m.cx)} ${Y(m.cy)} ${X(m.x2)} ${Y(m.y2)}"/>`;
+      else if(m.name==='blush')body+=`<circle class="blush" cx="${X(-.66)}" cy="${Y(.12)}" r="3"/><circle class="blush" cx="${X(.66)}" cy="${Y(.12)}" r="3"/>`;
+      else if(m.name==='vein')body+=`<path d="M${X(.52)} ${Y(-.7)}L${X(.74)} ${Y(-.5)}M${X(.74)} ${Y(-.7)}L${X(.52)} ${Y(-.5)}"/>`;
+      else if(m.name==='zzz')body+=`<path d="M${X(.6)} ${Y(-.6)}h6l-6 6h6"/>`;
+    }
+    return `<svg viewBox="0 0 96 84" aria-hidden="true">${body}</svg>`;
   }
-  $('helpFaceGuides').innerHTML=EXPRESSIONS.filter(e=>e.id!=='neutral').map(e=>`<div class="face-guide" title="${e.name} · ${e.temperament.summary()}">${faceGuideSvg(e)}<b>${e.name}</b><span>${e.temperament.summary()}</span></div>`).join('')+`<div class="face-guide">${faceGuideSvg({guide:[[[-.42,-.1],[-.18,-.1]],[[.18,-.1],[.42,-.1]]]})}<b>무표정</b><span>어느 표정과도 맞지 않으면 · 특성 없음</span></div>`;
-  $('helpExpressions').innerHTML=EXPRESSIONS.map(e=>`<li><b>${e.name}</b> · ${e.temperament.summary()}</li>`).join('');
+  const HELP_FACE_STEPS=Object.freeze([{bold:0,quick:0},{bold:-3,quick:2},{bold:3,quick:0},{bold:-1,quick:-3},{bold:0,quick:3},{bold:-3,quick:-1}]);
+  $('helpFaceGuides').innerHTML=HELP_FACE_STEPS.map(steps=>`<div class="face-guide" title="${temperamentOf(steps).summary()}">${traitFaceSvg(steps)}<span>${temperamentOf(steps).summary()}</span></div>`).join('');
+  $('helpExpressions').innerHTML=TRAIT_AXES.map(axis=>`<li><b>${axis.name}</b> · ${axis.lowLabel} ← 슬라이더 → ${axis.highLabel}: 높일수록 ${Object.entries(axis.effects).map(([stat,d])=>`${TRAIT_STATS[stat]} ${d>0?'+':''}${Math.round(d*100)}%`).join(' · ')} (칸마다, 낮추면 반대)</li>`).join('');
   $('helpReferences').innerHTML=glyphKinds.map(k=>`<div class="help-ref">${shapeSvg(k)}<div>${shapeNames[k]}</div></div>`).join('');
 

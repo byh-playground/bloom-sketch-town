@@ -107,7 +107,7 @@
     let ox=Math.sin(t*37+ph)*tremble,oy=spec.anchored?0:-Math.abs(w)*hop,sx=1+(spec.anchored?0:squash*w*.6),sy=1-(spec.anchored?0:squash*w*.6),rot=Math.sin(t*hz*Math.PI+ph)*sway;
     if(v.face==='sad'){sy*=.93;oy+=1.5;}
     if(v.face==='surprise'){const j=(t+ph)%2.4;if(j<.22){oy-=Math.sin(j/.22*Math.PI)*10;sy*=1.1;sx*=.94;}}
-    const total=spec.strike.cooldownMs/expressionOf(v.face).temperament.attackRate,since=total-v.cdMs;
+    const total=spec.strike.cooldownMs/temperamentOf(v).attackRate,since=total-v.cdMs;
     if(v.targetId&&since>=0&&since<190){const k=Math.sin(since/190*Math.PI);ox+=v.faceX*k*7;sx*=1+.12*k;sy*=1-.1*k;}
     return {ox,oy,sx,sy,rot};
   }
@@ -135,43 +135,28 @@
     let a=map(pts[0]);for(let i=1;i<pts.length;i++){const b=map(pts[i]);P.line(a[0],a[1],b[0],b[1],width,color,alpha);a=b;}
     if(mesh.closed){const b=map(pts[0]);P.line(a[0],a[1],b[0],b[1],width,color,alpha);}
   }
-  function drawFace(id,cx,cy,u,t,look,seed){
-    const blinkT=(t+seed*.37)%3.4,blink=blinkT<.12,L=-1,R=1;
-    const eyeY=cy-.2*u,gx=look*.05*u;
-    if(id==='neutral'){
-      // 무표정은 'ㅡㅡ': 눈 두 줄만 있고 입이 없다. 표정 신뢰도 미달일 때만 나온다.
-      for(const s of [L,R]){const ex=cx+s*.42*u+gx;inkLine(ex-.16*u,eyeY+.08*u,ex+.16*u,eyeY+.08*u,2.4);}
-    }else if(id==='joy'){
-      const open=.12*Math.sin(t*6)+1;
-      for(const s of [L,R])inkArc(cx+s*.42*u,eyeY+.1*u,.15*u,.13*u,Math.PI,Math.PI*2,2.2,7);
-      inkArc(cx,cy+.18*u,.34*u*open,.26*u*open,.1*Math.PI,.9*Math.PI,2.2,10);
-      P.dot(cx-.66*u,cy+.12*u,.1*u,'#e59a8f',.4);P.dot(cx+.66*u,cy+.12*u,.1*u,'#e59a8f',.4);
-    }else if(id==='anger'){
-      const q=Math.sin(t*30+seed)*.02*u;
-      for(const s of [L,R]){
-        inkLine(cx+s*.62*u,eyeY-.2*u+q,cx+s*.2*u,eyeY-.04*u+q,2.8);
-        if(blink)inkLine(cx+s*.42*u-.08*u,eyeY+.08*u,cx+s*.42*u+.08*u,eyeY+.08*u,2);else inkDot(cx+s*.42*u+gx,eyeY+.1*u,Math.max(1.8,.1*u));
+  // The face is generated from the summon's temperament steps (TraitFace.marks); only blinking, quivering and accents move.
+  function drawFace(steps,cx,cy,u,t,look,seed){
+    const blink=(t+seed*.37)%3.4<.12,gx=look*.05*u,quiver=(steps.bold>=2?Math.sin(t*30+seed)*.02:0)*u;
+    for(const m of TraitFace.marks(steps)){
+      if(m.type==='line')inkLine(cx+m.x1*u+gx*.5,cy+m.y1*u+quiver,cx+m.x2*u+gx*.5,cy+m.y2*u+quiver,2.4);
+      else if(m.type==='arc'){
+        if(blink&&m.ry>.05)inkLine(cx+(m.cx-m.rx)*u+gx,cy+m.cy*u+.04*u,cx+(m.cx+m.rx)*u+gx,cy+m.cy*u+.04*u,2.2);
+        else inkArc(cx+m.cx*u+(m.ry<.12?0:gx),cy+m.cy*u+quiver,m.rx*u,m.ry*u,m.a0,m.a1,2.2,12);
       }
-      const pts=[];for(let i=0;i<=6;i++)pts.push([cx-.3*u+.6*u*i/6,cy+.42*u+(i%2?-.06:.06)*u+q]);inkPath(pts,2.2);
-      const pulse=.7+.3*Math.sin(t*9);inkLine(cx+.52*u,cy-.7*u,cx+.74*u,cy-.5*u,2*pulse);inkLine(cx+.74*u,cy-.7*u,cx+.52*u,cy-.5*u,2*pulse);
-    }else if(id==='sleepy'){
-      const droop=.5+.5*Math.sin(t*1.1+seed),lid=.04*u+droop*.05*u;
-      for(const s of [L,R])inkArc(cx+s*.42*u,eyeY-lid*.4,.15*u,.07*u+lid,.05*Math.PI,.95*Math.PI,2.2,7);
-      const mr=.1*u*(1+.35*Math.sin(t*1.6));inkArc(cx,cy+.42*u,mr,mr,0,Math.PI*2,2,10);
-      const zt=(t*.45+seed*.13)%1;for(let k=0;k<2;k++){const f=(zt+k*.5)%1,zx=cx+.7*u+f*.35*u,zy=cy-.5*u-f*.8*u,zs=(.08+.07*f)*u;P.line(zx-zs,zy-zs,zx+zs,zy-zs,2,INK,.85*(1-f));P.line(zx+zs,zy-zs,zx-zs,zy+zs,2,INK,.85*(1-f));P.line(zx-zs,zy+zs,zx+zs,zy+zs,2,INK,.85*(1-f));}
-    }else if(id==='surprise'){
-      const wide=1+.14*Math.sin(t*7);
-      for(const s of [L,R]){inkArc(cx+s*.42*u,eyeY,.19*u*wide,.19*u*wide,0,Math.PI*2,2,12);inkDot(cx+s*.42*u+gx*2,eyeY,Math.max(1.4,.06*u));inkArc(cx+s*.42*u,eyeY-.38*u*wide,.2*u,.08*u,Math.PI*1.1,Math.PI*1.9,2,6);}
-      const m=.16*u*(1+.25*Math.sin(t*5));inkArc(cx,cy+.45*u,m*.9,m*1.2,0,Math.PI*2,2.2,12);
-      const bob=Math.sin(t*10)*1.5;inkLine(cx+.78*u,cy-.9*u+bob,cx+.78*u,cy-.55*u+bob,2.6);inkDot(cx+.78*u,cy-.4*u+bob,1.6);
-    }else if(id==='sad'){
-      const quiver=Math.sin(t*14+seed)*.015*u;
-      for(const s of [L,R]){
-        inkLine(cx+s*.6*u,eyeY-.3*u,cx+s*.22*u,eyeY-.46*u,2.4);
-        if(blink)inkLine(cx+s*.42*u-.08*u,eyeY+.02*u,cx+s*.42*u+.08*u,eyeY+.02*u,2);else{inkDot(cx+s*.42*u+gx,eyeY+.04*u,Math.max(1.8,.12*u));P.dot(cx+s*.42*u+gx+.03*u,eyeY,.04*u,'#fff',.9);}
+      else if(m.type==='dot'){if(!blink)inkDot(cx+m.x*u+gx*2,cy+m.y*u,Math.max(1.6,m.r*u));}
+      else if(m.type==='curve'){
+        const pts=[];for(let i=0;i<=8;i++){const q=i/8,w1=(1-q)*(1-q),w2=2*q*(1-q),w3=q*q;pts.push([cx+(w1*m.x1+w2*m.cx+w3*m.x2)*u,cy+(w1*m.y1+w2*m.cy+w3*m.y2)*u+quiver]);}
+        inkPath(pts,2.2);
       }
-      inkArc(cx,cy+.62*u+quiver,.28*u,.16*u,1.12*Math.PI,1.88*Math.PI,2.2,9);
-      const f=(t*.7+seed*.21)%1,tx=cx+.5*u,ty=eyeY+.15*u+f*.7*u;P.dot(tx,ty,.07*u,'#7fb6d4',.85*(1-f));
+      else if(m.type==='accent'){
+        if(m.name==='vein'){const pulse=.7+.3*Math.sin(t*9);inkLine(cx+.52*u,cy-.7*u,cx+.74*u,cy-.5*u,2*pulse);inkLine(cx+.74*u,cy-.7*u,cx+.52*u,cy-.5*u,2*pulse);}
+        else if(m.name==='blush'){P.dot(cx-.66*u,cy+.12*u,.1*u,'#e59a8f',.4);P.dot(cx+.66*u,cy+.12*u,.1*u,'#e59a8f',.4);}
+        else if(m.name==='zzz'){
+          const zt=(t*.45+seed*.13)%1;
+          for(let k=0;k<2;k++){const f=(zt+k*.5)%1,zx=cx+.7*u+f*.35*u,zy=cy-.5*u-f*.8*u,zs=(.08+.07*f)*u;P.line(zx-zs,zy-zs,zx+zs,zy-zs,2,INK,.85*(1-f));P.line(zx+zs,zy-zs,zx-zs,zy+zs,2,INK,.85*(1-f));P.line(zx-zs,zy+zs,zx+zs,zy+zs,2,INK,.85*(1-f));}
+        }
+      }
     }
   }
   function drawSummon(v){
@@ -185,7 +170,7 @@
     const rot=spec.anchored?paintClockMs*.0006:pose.rot;
     fillClosedShape(mesh,x,y,rot,pose.sx,pose.sy,scale,v.color,.22);
     drawStrokeSquashed(mesh,x,y,rot,pose.sx,pose.sy,scale,v.color,.97,spec.taunt?5:3);
-    drawFace(v.face,x,y+vr*.04*pose.sy,vr*.62*Math.min(pose.sx,pose.sy+.05),t,v.faceX,v.id);
+    drawFace(v,x,y+vr*.04*pose.sy,vr*.62*Math.min(pose.sx,pose.sy+.05),t,v.faceX,v.id);
     if(v.hitMs>0){const f=clamp(v.hitMs/SKETCH.hitFlashMs,0,1);drawStrokeSquashed(mesh,x,y,rot,pose.sx*1.06,pose.sy*1.06,scale,'#fff8d9',f*.9,5);}
     if(selectedUnits.has(v.id)){P.ring(v.x,v.y,vr*1.3+Math.sin(paintClockMs*.008)*2,'#e0a64a',.95,3,30);}
     if((v.tier||1)>1)for(let k=0;k<v.tier;k++)P.dot(v.x+(k-(v.tier-1)/2)*8,v.y+vr+10,3.2,'#e0a64a',.95);
