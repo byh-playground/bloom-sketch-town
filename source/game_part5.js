@@ -346,6 +346,7 @@
     expressionGuide(id){return expressionOf(id).guide.map(stroke=>stroke.map(([x,y])=>({x,y})));},
     recognizeFace(strokes){const r=faceRecognizer.recognize(strokes);return {id:r.id,confidence:r.confidence,accepted:r.accepted,probabilities:r.probabilities};},
     expressions(){return EXPRESSIONS.map(e=>({id:e.id,name:e.name,summary:e.temperament.summary(),multipliers:{...e.temperament}}));},
+    invulnerable(){player.invulMs=1e9;},
     mergeUnits(){return world.summons.map(s=>({id:s.id,kind:s.kind,tier:s.tier,hp:s.hp,maxHp:s.maxHp,r:s.r,power:s.power,x:s.x,y:s.y,owner:s.owner}));},
     mergeCommand(ids){world.commands.push({type:'merge',ids});},
     selectedUnits(){return [...selectedUnits];},

@@ -78,6 +78,14 @@
 .reward-choices button:hover,.reward-choices button:focus-visible{border-color:#3a4a50;background:#e8f1ec}
 .reward-choices svg{width:56px;height:46px}
 .reward-choices b{font-size:12px}.reward-choices small{font-size:10px;opacity:.75}
+/* Run end: defeat or clear; the only way on is a new run. */
+.run-end{position:absolute;inset:0;z-index:7;display:grid;place-items:center;background:#f1e8d2b8;animation:run-end-in .9s ease .9s both}
+.run-end[hidden]{display:none}
+.run-end-card{width:min(360px,calc(100vw - 32px));padding:18px;background:#fffaf0;border:2px solid #3a4a50;border-radius:16px;box-shadow:0 8px 0 #3a4a5033;text-align:center;display:grid;gap:10px;color:#3a4a50}
+.run-end-card h2{margin:0;font-size:22px}
+.run-end-card p{margin:0;font-size:14px;line-height:1.7}
+.run-end-card button{min-height:46px;border:2px solid #3a4a50;border-radius:12px;background:#d9a05b;color:#2f3a3f;font:inherit;font-size:16px;font-weight:700;cursor:pointer}
+@keyframes run-end-in{from{opacity:0}to{opacity:1}}
 /* Merge selection chip: always above the thumb zone, never over the drawing field center. */
 .select-chip{position:absolute;left:50%;bottom:max(96px,env(safe-area-inset-bottom) + 96px);transform:translateX(-50%);z-index:4;max-width:calc(100vw - 24px);display:flex;align-items:center;gap:8px;padding:6px 8px 6px 12px;background:#fffaf0f2;border:2px solid #e0a64a;border-radius:999px;font-size:12px;color:#3a4a50;box-shadow:0 3px 0 #3a4a5026}
 .select-chip[hidden]{display:none}
