@@ -39,7 +39,9 @@
       if(!strokes.length||!strokes.some(s=>s.length))return {id:'neutral',confidence:1,accepted:false,probabilities:null};
       const prob=this.probabilities(strokes);let best=0;for(let i=1;i<prob.length;i++)if(prob[i]>prob[best])best=i;
       const accepted=best!==0&&prob[best]>=this.minConfidence;
-      return {id:accepted?this.labels[best]:'neutral',confidence:prob[best],accepted,probabilities:prob};
+      // candidate: the most likely non-neutral expression even when it is not confident enough (the live ghost shows it faintly).
+      let cand=1;for(let i=2;i<prob.length;i++)if(prob[i]>prob[cand])cand=i;
+      return {id:accepted?this.labels[best]:'neutral',confidence:prob[best],accepted,candidate:this.labels[cand],probabilities:prob};
     }
   }
   const faceRecognizer=new FaceRecognizer(FACE_MODEL);
