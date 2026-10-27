@@ -262,3 +262,9 @@ The branch authors static character and environment resources in `source/assets/
 - 멀티플레이 사망은 기존처럼 `koMs` 동안 쓰러졌다가 동료가 되살립니다. 클리어(`clear`)는 두 플레이어에게 똑같이 적용됩니다.
 - `mode`에 `over`·`clear`가 추가되어 방 이름·simulationVersion을 0.22.0으로 올렸습니다.
 - 검증: `--flow ux` 8(사망 시 결과 화면·2.5초 뒤에도 정지 유지·보스 5/5 격파 시 클리어 화면), `progression` 8(테스트용 `invulnerable()` 훅으로 긴 대기 중 사망 방지). 미구현: 멀티플레이 전멸 처리.
+
+### 월드 맵 v2 프로토타입 (미연결)
+
+- `source/world-map.js`: 시드 하나로 해안(가장자리)→중앙 5개 구역 맵을 만드는 생성기입니다. 바이옴 셀(보로노이)·난이도 필드·강/절벽·거점(시작·보스·야영지·포털)·길(MST+루프, Dijkstra)·소품·몹 둥지를 생성하고 도달 가능성을 검증합니다. 아직 `bootstrap.js`에 연결하지 않았고 게임 동작은 바뀌지 않습니다.
+- 맵 프리뷰(몹 둥지·활성 반경 포함): [바로 보기](https://htmlpreview.github.io/?https://github.com/byh-playground/bloom-sketch-town/blob/main/docs/world-map-preview.html) (`docs/world-map-preview.html`, 병합 후 열림)
+- 시드 100개 검사(Node): 실패 0, 재시도 6, 평균 206ms, 둥지 64~74개, 몹 230~277마리, 보스 간 최소 거리 952px, 같은 시드 두 번 생성 결과 동일.
