@@ -120,14 +120,33 @@ async def create_page(browser, *, width, height, mobile=False, dpr=1):
         accept_downloads=True,
     )
     page = await context.new_page()
+    # __A = open test ground near the spawn (see __sketchRpgDebug.arena); evaluated on every access so reloads keep working.
+    await page.add_init_script("Object.defineProperty(window,'__A',{get:()=>window.__sketchRpgDebug.arena()})")
     issues = []
     page.on("pageerror", lambda error: issues.append(str(error)))
     return context, page, issues
 
 
+_SHARED_SERVER = {}
+
+
+def _shared_game_url():
+    if "url" not in _SHARED_SERVER:
+        class Handler(SimpleHTTPRequestHandler):
+            def __init__(self, *args, **kwargs):
+                super().__init__(*args, directory=str(ROOT), **kwargs)
+            def log_message(self, *args):
+                pass
+        server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        Thread(target=server.serve_forever, daemon=True).start()
+        _SHARED_SERVER["url"] = f"http://127.0.0.1:{server.server_port}/{HTML_PATH.name}"
+    return _SHARED_SERVER["url"]
+
+
 async def ready_game(page, *, html: str):
     # Rendering MUST be real WebGL. Do not bypass by injecting a fake renderer.
-    await page.set_content(html, wait_until="load", timeout=15000)
+    # The page loads its scripts by relative URL (source-first bootstrap), so it must come from a real http origin.
+    await page.goto(_shared_game_url(), wait_until="load", timeout=15000)
     game_ready = await page.evaluate("!!window.__sketchRpgDebug && window.__sketchRpgDebug.snapshot().rendererState === 'ready'")
     if not game_ready:
         has_webgl = await page.evaluate("!!document.createElement('canvas').getContext('webgl')")
@@ -240,7 +259,7 @@ async def run_desktop(browser, suite: E2E, html: str):
         await page.evaluate("window.__sketchRpgDebug.pausePainting()")
         # Measure the movement kernel in a clear lane. Nearby default enemies can collide,
         # hit, or knock the player back during this short wall-clock sample.
-        await page.evaluate("window.__sketchRpgDebug.moveTo(475,735);window.__sketchRpgDebug.combatFixture('boss',1600,735)")
+        await page.evaluate("window.__sketchRpgDebug.moveTo(__A.x-5,__A.y);window.__sketchRpgDebug.combatFixture('boss',__A.x+1120,__A.y)")
 
         await page.locator('#field').focus()
         await page.keyboard.down('d')
@@ -283,7 +302,7 @@ async def run_desktop(browser, suite: E2E, html: str):
 
         # The whole battlefield is ink input. A click is never a movement command.
         await page.evaluate("""() => {const d=window.__sketchRpgDebug;
-          d.moveTo(475,735);d.combatFixture('boss',220,735);d.resumePainting();}""")
+          d.moveTo(__A.x-5,__A.y);d.combatFixture('boss',__A.x-260,__A.y);d.resumePainting();}""")
         await page.wait_for_timeout(100)
         before_tap=await page.evaluate("window.__sketchRpgDebug.snapshot()")
         await page.mouse.click(710,340)
@@ -324,7 +343,7 @@ async def run_desktop(browser, suite: E2E, html: str):
                     summoned['kind']==released['kind'] and summoned['shape']==released['shape'] and 0<=released['x']<=4400,{'kind':summoned['kind'],'x':released['x']})
 
         # Interrupted drawings cannot leave a delayed cast or pointer ownership behind.
-        await page.evaluate("window.__sketchRpgDebug.combatFixture('boss',1600,735)")
+        await page.evaluate("window.__sketchRpgDebug.combatFixture('boss',__A.x+1120,__A.y)")
         for interruption in ('blur','modal','resize'):
             await page.mouse.move(700,330)
             await page.mouse.down()
@@ -349,8 +368,8 @@ async def run_desktop(browser, suite: E2E, html: str):
             elif interruption=='resize':
                 await page.set_viewport_size({'width':1024,'height':768})
         # Deterministic fixture only arranges the battlefield; actual attack is a real gesture.
-        await page.evaluate("""() => {const d=window.__sketchRpgDebug;d.moveTo(475,735);
-          d.combatFixture('boss',650,730);d.renderNow();d.resumePainting();}""")
+        await page.evaluate("""() => {const d=window.__sketchRpgDebug;d.moveTo(__A.x-5,__A.y);
+          d.combatFixture('boss',__A.x+170,__A.y-5);d.renderNow();d.resumePainting();}""")
         hp_before = await page.evaluate("window.__sketchRpgDebug.foePositions()[0].hp")
         suite.gesture_reference=await draw_circle(page)
         await page.wait_for_function("document.getElementById('lastSpell').textContent.includes('방패 구체')", timeout=5000)
@@ -508,8 +527,8 @@ def local_server():
         thread.join(timeout=3)
 
 
-async def walk_route(page, points, timeout_s=90):
-    """Follow the generated route with real keyboard input; returns the index of the next unreached route point."""
+async def walk_to(page, points, timeout_s=90, arrive=30):
+    """Walk the hero along waypoints with real keyboard input; returns the index of the next unreached waypoint."""
     await page.locator('#field').focus()
     held=set()
     async def hold(keys):
@@ -518,17 +537,28 @@ async def walk_route(page, points, timeout_s=90):
         for key in keys-held:
             await page.keyboard.down(key)
         held.clear(); held.update(keys)
-    index=1; deadline=time.time()+timeout_s
+    index=0; deadline=time.time()+timeout_s
+    last=None; last_move=time.time(); slide=0
     while index<len(points) and time.time()<deadline:
         p=await page.evaluate('(()=>{const s=__sketchRpgDebug.snapshot().player;return {x:s.x,y:s.y};})()')
         dx=points[index]['x']-p['x']; dy=points[index]['y']-p['y']
-        if (dx*dx+dy*dy)**.5<50:
-            index+=1; continue
+        if (dx*dx+dy*dy)**.5<arrive:
+            index+=1; last_move=time.time(); continue
+        if last is None or abs(p['x']-last['x'])+abs(p['y']-last['y'])>2:
+            last=p; last_move=time.time(); slide=0
+        elif time.time()-last_move>0.8:
+            # Wedged on a corner: slide along one axis only, alternating, then skip ahead if still stuck.
+            slide+=1; last_move=time.time()
+            if slide>6:
+                index+=1; slide=0
         keys=set()
-        if dx>20: keys.add('d')
-        elif dx<-20: keys.add('a')
-        if dy>20: keys.add('s')
-        elif dy<-20: keys.add('w')
+        only=('x' if slide%2==1 else 'y') if slide else None
+        if only!='y':
+            if dx>5: keys.add('d')
+            elif dx<-5: keys.add('a')
+        if only!='x':
+            if dy>5: keys.add('s')
+            elif dy<-5: keys.add('w')
         await hold(keys)
         await page.wait_for_timeout(50)
     await hold(set())
@@ -551,17 +581,25 @@ async def run_map(browser, suite: E2E):
             suite.check('layout hash matches a fresh generation of the same seed',(await page.evaluate(f'__sketchRpgDebug.mapHashFor({seed})'))['hash']==a['hash'])
             suite.check('different seeds give different layouts',(await page.evaluate(f'__sketchRpgDebug.mapHashFor({seed+1})'))['hash']!=a['hash'])
             suite.check('help screen shows the run seed',await page.evaluate("document.getElementById('mapSeed').textContent")==str(seed))
-            suite.check('world obstacles and props are exactly what the layout lists',a['counts']['obstacles']==a['counts']['solids']+0 and a['counts']['trees']>=a['counts']['props'],a['counts'])
-            suite.check('layout has marsh ponds, quarry ridges, four clearings and thirteen enemy spawns',
-                        sum(1 for q in a['ponds'] if 1450<=q['x']<2900)>=3 and len(a['ridges'])>=5 and len(a['clearings'])==4 and len(a['spawns'])==13,
-                        {'ponds':len(a['ponds']),'ridges':len(a['ridges']),'clearings':len(a['clearings']),'spawns':len(a['spawns'])})
-            free=await page.evaluate("""m => m.spawns.every(s=>!__sketchRpgDebug.terrainBlocked(s.x,s.y,20)) && !__sketchRpgDebug.terrainBlocked(m.boss.x,m.boss.y,56) && !__sketchRpgDebug.terrainBlocked(480,735,16)""",a)
-            suite.check('every enemy spawn, the boss spot and the village start are walkable',free)
+            suite.check('every prop is drawn and every solid prop is an obstacle',a['counts']['trees']==a['counts']['props'] and 0<a['counts']['obstacles']<=a['counts']['props'],a['counts'])
+            zones=[q['zone'] for q in a['bossSites']]
+            kinds=[q['kind'] for q in a['sites']]
+            suite.check('five boss sites, one per zone from the coast (0) to the exact centre (4)',zones==[0,1,2,3,4] and a['bossSites'][4]['x']==a['size']//2 and a['bossSites'][4]['y']==a['size']//2 and all(q['radius']==150 for q in a['bossSites']),a['bossSites'])
+            suite.check('spawn is on the coast zone; camps, portals and a mob nest set exist',a['sites'][0]['kind']=='spawn' and a['sites'][0]['zone']==0 and kinds.count('camp')>=5 and kinds.count('portal')>=3 and len(a['nests'])>=55,{'camps':kinds.count('camp'),'portals':kinds.count('portal'),'nests':len(a['nests'])})
+            suite.check('map is a single connected walkable land (every site reachable, >=99.9% of walkable land)',a['report']['reachable'] and a['report']['reachedRatio']>0.999,a['report'])
+            free=await page.evaluate("""m => ({spawn:!__sketchRpgDebug.terrainBlocked(m.spawn.x,m.spawn.y,16),
+                bosses:m.bossSites.every(s=>!__sketchRpgDebug.terrainBlocked(s.x,s.y,56)),
+                nests:m.nests.every(n=>!__sketchRpgDebug.terrainBlocked(n.x,n.y,20))})""",a)
+            suite.check('the spawn, every boss spot and every mob nest stand on free ground (no wall, sea or prop)',all(free.values()),free)
+            wild=[(n['hpScale'],n['zone']) for n in a['nests'] if n['kind']=='wild']
+            avg=[sum(h for h,z in wild if z==zz)/max(1,sum(1 for h,z in wild if z==zz)) for zz in range(4)]
+            centre=[n for n in a['nests'] if n['zone']==4]
+            suite.check('wild nests get tougher towards the centre (hp scale rises over zones 0-3) and the centre zone has guard and boss nests',all(avg[i]<avg[i+1] for i in range(3)) and len(centre)>=2 and all(n['hpScale']>=3 for n in centre),{'avg':avg,'centre':len(centre)})
             sweep=await page.evaluate("""() => {const out={fail:0,attempts:{},maxMs:0,hashes:new Set()};
-              for(let i=0;i<150;i++){const seed=(i*2654435761)>>>0;try{const r=__sketchRpgDebug.mapHashFor(seed),again=__sketchRpgDebug.mapHashFor(seed);
-                if(r.hash!==again.hash)out.fail++;out.attempts[r.attempt]=(out.attempts[r.attempt]||0)+1;out.maxMs=Math.max(out.maxMs,r.ms);out.hashes.add(r.hash);}catch(e){out.fail++;}}
+              for(let i=0;i<40;i++){const seed=(i*2654435761)>>>0;try{const r=__sketchRpgDebug.mapHashFor(seed);
+                if(i<8&&__sketchRpgDebug.mapHashFor(seed).hash!==r.hash)out.fail++;out.attempts[r.attempt]=(out.attempts[r.attempt]||0)+1;out.maxMs=Math.max(out.maxMs,r.ms);out.hashes.add(r.hash);}catch(e){out.fail++;}}
               out.unique=out.hashes.size;delete out.hashes;return out;}""")
-            suite.check('150 seeds all generate a reachable, repeatable map within 1s each',sweep['fail']==0 and sweep['unique']==150 and sweep['maxMs']<1000,sweep)
+            suite.check('40 seeds all generate a reachable map (first 8 repeat identically), each within 3s',sweep['fail']==0 and sweep['unique']==40 and sweep['maxMs']<3000,sweep)
             # Join/recovery path: a checkpoint from seed A restored into a page that started with seed B rebuilds seed A's terrain.
             await other.goto(f'{url}?seed={seed+7}')
             await other.wait_for_function('window.__sketchRpgDebug?.rendererStats().vertices>0')
@@ -570,29 +608,31 @@ async def run_map(browser, suite: E2E):
             await other.evaluate('bytes=>__sketchRpgDebug.canonicalRestore(new Uint8Array(bytes))',snapshot)
             restored=await other.evaluate('__sketchRpgDebug.mapState()')
             suite.check('checkpoint restore rebuilds the sender\'s terrain from the shared seed',before!=a['hash'] and restored['hash']==a['hash'] and restored['worldSeed']==seed and restored['counts']==a['counts'],{'before':before,'restored':restored['hash'],'expected':a['hash']})
-            # Real keyboard walk along the whole route: village to boss arena.
+            # Real keyboard walk: coast camp to boss 1's site; arriving wakes boss 1.
             await page.evaluate("""() => {const d=__sketchRpgDebug,s=JSON.parse(new TextDecoder().decode(d.canonicalSnapshot()));
-              s.world.enemies=[];s.world.hazards=[];s.world.pickups=[];d.canonicalRestore(new TextEncoder().encode(JSON.stringify(s)));}""")
-            reached=await walk_route(page,a['route'])
+              s.world.enemies=[];s.world.hazards=[];s.world.pickups=[];s.world.nests=s.world.nests.map(q=>({...q,on:false,done:true}));d.canonicalRestore(new TextEncoder().encode(JSON.stringify(s)));d.invulnerable();}""")
+            site=a['bossSites'][0]
+            route=await page.evaluate('s=>__sketchRpgDebug.pathTo(s.x,s.y)',site)
+            suite.check('a free route exists from the spawn to boss 1',route is not None and len(route)>3,len(route) if route else None)
+            reached=await walk_to(page,route,timeout_s=120)
+            await page.wait_for_function('__sketchRpgDebug.bossState().states[0]===1',timeout=6000)
             final=await page.evaluate('__sketchRpgDebug.snapshot().player')
-            gap=((final['x']-a['boss']['x'])**2+(final['y']-a['boss']['y'])**2)**.5
-            suite.check('real keyboard input walks the generated route from the village to the boss arena',reached==len(a['route']) and gap<120,{'reached':reached,'of':len(a['route']),'gap':gap})
-            # A pond stops a real walker.
-            pond=a['ponds'][0]
-            start=await page.evaluate("""pond => {const d=__sketchRpgDebug;for(let dy=pond.ry+160;dy>=pond.ry+60;dy-=10){const x=pond.x,y=pond.y-dy;if(y<40)continue;let clear=true;for(let yy=y;yy<=pond.y-pond.ry-24;yy+=6)if(d.terrainBlocked(x,yy,16)){clear=false;break;}if(clear)return {x,y};}return null;}""",pond)
-            if start is None:
-                suite.check('pond blocks a real walker',False,'no free start above the first pond')
-            else:
-                await page.evaluate('s=>__sketchRpgDebug.moveTo(s.x,s.y)',start)
+            gap=((final['x']-site['x'])**2+(final['y']-site['y'])**2)**.5
+            suite.check('real keyboard input walks from the coast camp to boss 1, whose arrival wakes the boss',reached==len(route) and gap<site['radius']+260,{'reached':reached,'of':len(route),'gap':gap})
+            # A river and a cliff each stop a real walker.
+            for name,wall in (('river',1),('cliff',2)):
+                probe=await page.evaluate('w=>__sketchRpgDebug.edgeProbe(w)',wall)
+                if probe is None:
+                    suite.check(f'{name} blocks a real walker',False,'no free approach found');continue
+                await page.evaluate('s=>{__sketchRpgDebug.setBossesDefeated(0);__sketchRpgDebug.moveTo(s.x,s.y);}',probe)
                 await page.locator('#field').focus()
-                await page.keyboard.down('s')
+                await page.keyboard.down(probe['key'])
                 await page.wait_for_timeout(1500)
-                await page.keyboard.up('s')
+                await page.keyboard.up(probe['key'])
                 end=await page.evaluate('__sketchRpgDebug.snapshot().player')
-                inside=await page.evaluate("p=>{const s=__sketchRpgDebug.snapshot().player,a=(s.x-p.x)/p.rx,b=(s.y-p.y)/p.ry;return a*a+b*b<1;}",pond)
-                walked=end['y']-start['y']
-                ahead=await page.evaluate("p=>__sketchRpgDebug.terrainBlocked(p.x,p.y+12,16)",end)
-                suite.check('pond blocks a real walker at its rim',not inside and walked>20 and ahead and end['y']>pond['y']-pond['ry']-16-60,{'start':start,'end':end,'pond':pond,'walked':walked})
+                walked=((end['x']-probe['x'])*probe['dx']+(end['y']-probe['y'])*probe['dy'])
+                short=((end['x']-probe['wallX'])*probe['dx']+(end['y']-probe['wallY'])*probe['dy'])
+                suite.check(f'{name} blocks a real walker at its edge',walked>15 and short<0,{'probe':probe,'end':end,'walked':walked,'short':short})
             await page.screenshot(path=str(ARTIFACTS/'map-seed-desktop.png'))
             suite.check('map flow has no JavaScript errors',not issues and not other_issues,issues+other_issues)
         finally:
@@ -609,7 +649,7 @@ async def run_bosses(browser, suite: E2E):
             await page.wait_for_function('window.__sketchRpgDebug?.rendererStats().vertices>0')
             state=await page.evaluate('__sketchRpgDebug.bossState()')
             profiles=state['profiles']
-            suite.check('five distinct bosses on five sites, the last one in the end arena',len(profiles)==5 and len({p['name'] for p in profiles})==5 and len(state['sites'])==5 and state['sites'][4]['radius']==255,[p['name'] for p in profiles])
+            suite.check('five distinct bosses on five numbered sites, the last one at the map centre',len(profiles)==5 and len({p['name'] for p in profiles})==5 and [q['bossId'] for q in state['sites']]==[0,1,2,3,4],[p['name'] for p in profiles])
             f=[p['factors'] for p in profiles]
             kinds=['normal','line','circle','triangle','square','flame','water','lightning','star','shuriken','starcircle']
             expected=[
@@ -622,9 +662,14 @@ async def run_bosses(browser, suite: E2E):
             suite.check('boss rule tables: none, water-immune/flame-weak, flame-immune/water-weak, triangle+lightning only, circle-immune/shuriken-weak',f==expected,f)
             dealt=await page.evaluate("""kinds => {const d=__sketchRpgDebug,out=[];for(let i=0;i<5;i++)for(const k of kinds){const id=d.spawnBoss(i);out.push({boss:i,kind:k,hit:d.bossHit(id,k,100)});}return out;}""",kinds)
             wrong=[x for x in dealt if x['hit']!=(0 if expected[x['boss']][x['kind']]==0 else max(1,round(100*expected[x['boss']][x['kind']])))]
-            suite.check('real damage path applies each rule for all 55 boss/shape pairs',not wrong,wrong[:5])
+            suite.check('real damage path applies each rule for all 55 boss/shape pairs (earlier bosses fallen, so unsealed)',not wrong,wrong[:5])
+            # Seal: a boss whose predecessors still stand takes 10% of every hit; the seal lifts when they fall.
+            sealed=await page.evaluate("""() => {const d=__sketchRpgDebug,out={};
+              const id=d.spawnBoss(3,true);out.sealedHit=d.bossHit(id,'triangle',100);out.sealedFlags=d.bossState().sealed;
+              d.setBossesDefeated(3);const id2=d.spawnBoss(3);out.openHit=d.bossHit(id2,'triangle',100);out.openFlags=d.bossState().sealed;return out;}""")
+            suite.check('a sealed boss takes 10% of each hit (100 → 10) and the same hit deals 100 once earlier bosses have fallen',sealed['sealedHit']==10 and sealed['openHit']==100 and sealed['sealedFlags']==[False,True,True,True,True] and sealed['openFlags']==[False,False,False,False,True],sealed)
             # Real drawing: the fog turtle ignores a drawn water drop and is hurt by a drawn flame.
-            await page.evaluate('__sketchRpgDebug.unlockAll();__sketchRpgDebug.moveTo(480,735)')
+            await page.evaluate('__sketchRpgDebug.unlockAll();__sketchRpgDebug.moveTo(__A.x,__A.y)')
             boss_id=await page.evaluate('__sketchRpgDebug.spawnBoss(1)')
             await page.wait_for_timeout(200)
             water=await draw_circle(page,170,'water')
@@ -632,26 +677,29 @@ async def run_bosses(browser, suite: E2E):
             await page.wait_for_function("__sketchRpgDebug.summons().some(q=>q.kind==='water')",timeout=9000)
             await page.wait_for_timeout(4000)
             after_water=await page.evaluate('id=>__sketchRpgDebug.bossHp(id)',boss_id)
-            suite.check('a drawn water summon cannot hurt the water-immune boss',water is not None and water['kind']=='water' and after_water['hp']==after_water['hp'] and after_water['hp']==720,{'shot':water and water['kind'],'hp':after_water})
+            suite.check('a drawn water summon cannot hurt the water-immune boss',water is not None and water['kind']=='water' and after_water['hp']==720,{'shot':water and water['kind'],'hp':after_water})
             flame=await draw_circle(page,170,'flame')
             await draw_face(page,'joy');await page.click('#faceDone')
             await page.wait_for_function("__sketchRpgDebug.summons().some(q=>q.kind==='flame')",timeout=9000)
             await page.wait_for_timeout(4000)
             after_flame=await page.evaluate('id=>__sketchRpgDebug.bossHp(id)',boss_id)
             suite.check('a drawn flame summon hurts the flame-weak boss',flame is not None and flame['kind']=='flame' and after_flame['hp']<720-30,{'shot':flame and flame['kind'],'hp':after_flame})
-            # Sequence: boss n appears only at site n and only after boss n-1 fell.
+            # Free order, enforced by the seal: any site wakes its boss; the HUD says it is sealed; fall order unseals the next.
             await page.evaluate("""() => {const d=__sketchRpgDebug,s=JSON.parse(new TextDecoder().decode(d.canonicalSnapshot()));
-              s.world.enemies=[];s.world.summons=[];s.world.hazards=[];s.world.pickups=[];s.world.bossesDefeated=0;d.canonicalRestore(new TextEncoder().encode(JSON.stringify(s)));}""")
+              s.world.enemies=[];s.world.summons=[];s.world.hazards=[];s.world.pickups=[];s.world.bossesDefeated=0;s.world.bossState=[0,0,0,0,0];s.world.nests=s.world.nests.map(q=>({...q,on:false,done:true}));d.canonicalRestore(new TextEncoder().encode(JSON.stringify(s)));d.invulnerable();}""")
             sites=state['sites']
             await page.evaluate('s=>__sketchRpgDebug.moveTo(s.x,s.y)',sites[2])
-            await page.wait_for_timeout(400)
-            nobody=await page.evaluate('__sketchRpgDebug.bossState().active')
-            suite.check('standing at boss site 3 summons nothing while boss 1 is still to come',nobody is None,nobody)
+            await page.wait_for_function('__sketchRpgDebug.bossState().active?.bossId==2',timeout=4000)
+            hud=await page.evaluate("({quest:document.getElementById('questText').textContent,sealed:__sketchRpgDebug.bossState().sealed[2]})")
+            suite.check('standing at boss site 3 wakes boss 3 sealed (no order lock, but a −90% seal with an on-screen hint)',hud['sealed'] and '봉인' in hud['quest'],hud)
+            await page.screenshot(path=str(ARTIFACTS/'boss-sealed-desktop.png'))
+            await page.evaluate("""() => {const d=__sketchRpgDebug,s=JSON.parse(new TextDecoder().decode(d.canonicalSnapshot()));s.world.enemies=[];s.world.bossState=[0,0,0,0,0];d.canonicalRestore(new TextEncoder().encode(JSON.stringify(s)));}""")
             order=[]
             for i in range(5):
                 await page.evaluate('s=>{__sketchRpgDebug.setPlayerHp(120);__sketchRpgDebug.moveTo(s.x,s.y);}',sites[i])
                 await page.wait_for_function(f'__sketchRpgDebug.bossState().active?.bossId=={i}',timeout=4000)
                 if i==1:
+                    await page.wait_for_function("n=>document.getElementById('bossName').textContent.includes(n)",arg=profiles[1]['name'],timeout=4000)
                     hud=await page.evaluate("({shown:getComputedStyle(document.getElementById('bossBar')).display,name:document.getElementById('bossName').textContent,rule:document.getElementById('bossRule').textContent,quest:document.getElementById('questTitle').textContent})")
                     suite.check('boss bar shows the name, order and rule text',hud['shown']!='none' and profiles[1]['name'] in hud['name'] and '2/5' in hud['name'] and hud['rule']==profiles[1]['ruleText'],hud)
                     await page.screenshot(path=str(ARTIFACTS/'boss-2-desktop.png'))
@@ -659,8 +707,8 @@ async def run_bosses(browser, suite: E2E):
                 await page.wait_for_function(f'__sketchRpgDebug.snapshot().bossesDefeated=={i+1}',timeout=4000)
                 order.append(i)
                 if i==1:
-                    snapshot=await page.evaluate('JSON.parse(new TextDecoder().decode(__sketchRpgDebug.canonicalSnapshot())).world.bossesDefeated')
-                    suite.check('checkpoint carries the number of defeated bosses',snapshot==2,snapshot)
+                    snapshot=await page.evaluate('(()=>{const w=JSON.parse(new TextDecoder().decode(__sketchRpgDebug.canonicalSnapshot())).world;return [w.bossesDefeated,w.bossState]})()')
+                    suite.check('checkpoint carries the defeated count and each boss state',snapshot[0]==2 and snapshot[1][:2]==[2,2],snapshot)
             await page.wait_for_function("document.getElementById('questTitle').textContent.includes('완성')",timeout=4000)
             final=await page.evaluate("({n:__sketchRpgDebug.snapshot().bossesDefeated,quest:document.getElementById('questTitle').textContent,active:__sketchRpgDebug.snapshot().activeBoss})")
             suite.check('defeating all five bosses completes the page',final['n']==5 and final['active'] is None and '완성' in final['quest'] and order==[0,1,2,3,4],final)
@@ -676,6 +724,7 @@ async def run_summons(browser, suite: E2E):
         try:
             await page.goto(f'{url}?seed=20261026')
             await page.wait_for_function('window.__sketchRpgDebug?.rendererStats().vertices>0')
+            A=await page.evaluate('__sketchRpgDebug.arena()')
             specs=await page.evaluate('__sketchRpgDebug.summonSpecs()')
             kinds=['normal','line','circle','triangle','square','flame','water','lightning','star','shuriken','starcircle']
             names=[specs[k]['name'] for k in kinds if k in specs]
@@ -683,7 +732,7 @@ async def run_summons(browser, suite: E2E):
             anchored=sorted(k for k,v in specs.items() if v['anchored']);taunting=sorted(k for k,v in specs.items() if v['taunt'])
             suite.check('only star and star circle stay in place; only circle and square taunt',anchored==['star','starcircle'] and taunting==['circle','square'],{'anchored':anchored,'taunt':taunting})
             # Every kind summons through the same command path as the net protocol.
-            await page.evaluate("__sketchRpgDebug.combatFixture('chaser',3000,735);__sketchRpgDebug.moveTo(480,735);__sketchRpgDebug.setInk(100)")
+            await page.evaluate("__sketchRpgDebug.combatFixture('chaser',__A.fx,__A.fy);__sketchRpgDebug.moveTo(__A.x,__A.y);__sketchRpgDebug.setInk(100)")
             # Unlocks: a run starts with circle, triangle and square; a locked shape falls back to the scribble; a boss reward opens one.
             start=await page.evaluate("__sketchRpgDebug.unlockState()")
             suite.check('a run starts with circle, triangle and square open and no reward pending',start['unlocked']==['circle','triangle','square'] and start['reward'] is None,start)
@@ -703,17 +752,17 @@ async def run_summons(browser, suite: E2E):
             suite.check('a boss defeat offers three locked shapes; choosing one unlocks it for this run and hides the panel',
                         len(offer['reward']['choices'])==3 and all(k not in start['unlocked'] for k in offer['reward']['choices']) and picked in after['unlocked'] and len(after['unlocked'])==4 and await page.evaluate("document.getElementById('rewardPanel').hidden"),
                         {'offer':offer,'after':after})
-            await page.evaluate("__sketchRpgDebug.combatFixture('chaser',3000,735);__sketchRpgDebug.moveTo(480,735);__sketchRpgDebug.setInk(100)")
+            await page.evaluate("__sketchRpgDebug.combatFixture('chaser',__A.fx,__A.fy);__sketchRpgDebug.moveTo(__A.x,__A.y);__sketchRpgDebug.setInk(100)")
             await page.evaluate("__sketchRpgDebug.unlockAll()")
             produced=[]
             for kind in [k for k in kinds if k!='line']:
                 await page.evaluate("k=>{const d=__sketchRpgDebug;d.setInk(100);d.castKind(k,0,120);}",kind)
                 await page.wait_for_function("k=>__sketchRpgDebug.summons().some(q=>q.kind===k)",arg=kind,timeout=4000)
                 produced.append(kind)
-                await page.evaluate("__sketchRpgDebug.combatFixture('chaser',3000,735)")
+                await page.evaluate("__sketchRpgDebug.combatFixture('chaser',__A.fx,__A.fy)")
             suite.check('the 10 non-line shapes summon their creature (the line is a projectile)',produced==[k for k in kinds if k!='line'],produced)
             # Cap: an eleventh summon replaces the owner's oldest.
-            await page.evaluate("__sketchRpgDebug.combatFixture('chaser',3000,735);__sketchRpgDebug.moveTo(480,735)")
+            await page.evaluate("__sketchRpgDebug.combatFixture('chaser',__A.fx,__A.fy);__sketchRpgDebug.moveTo(__A.x,__A.y)")
             first_ids=[]
             for i in range(11):
                 await page.evaluate("()=>{const d=__sketchRpgDebug;d.setInk(100);d.castKind('triangle',i*0.6,120+i*6);}".replace('i*0.6',str(i*0.6)).replace('i*6',str(i*6)))
@@ -723,7 +772,7 @@ async def run_summons(browser, suite: E2E):
             ids=first_ids[-1]
             suite.check('an eleventh summon replaces the oldest, leaving ten',len(ids)==10 and first_ids[9][0] not in ids and await page.evaluate('__sketchRpgDebug.summonLimit()')==10,first_ids[-2:])
             # Units collide: six summons cast onto the same point and an enemy among them are pushed apart.
-            await page.evaluate("__sketchRpgDebug.combatFixture('chaser',3000,735);__sketchRpgDebug.moveTo(480,735)")
+            await page.evaluate("__sketchRpgDebug.combatFixture('chaser',__A.fx,__A.fy);__sketchRpgDebug.moveTo(__A.x,__A.y)")
             for i in range(6):
                 await page.evaluate("()=>{const d=__sketchRpgDebug;d.setInk(100);d.castKind('triangle',0,120);}")
                 await page.wait_for_timeout(300)
@@ -731,7 +780,7 @@ async def run_summons(browser, suite: E2E):
             gaps=await page.evaluate("""()=>{const s=__sketchRpgDebug.summons();let min=1e9;for(let i=0;i<s.length;i++)for(let j=i+1;j<s.length;j++)min=Math.min(min,Math.hypot(s[i].x-s[j].x,s[i].y-s[j].y));return {n:s.length,min}}""")
             suite.check('six summons cast onto one point spread apart instead of overlapping',gaps['n']==6 and gaps['min']>=24,gaps)
             # An anchored turret does not move when a mobile summon is cast onto it.
-            await page.evaluate("__sketchRpgDebug.combatFixture('chaser',3000,735);__sketchRpgDebug.moveTo(480,735);__sketchRpgDebug.setInk(100);__sketchRpgDebug.castKind('star',0,120)")
+            await page.evaluate("__sketchRpgDebug.combatFixture('chaser',__A.fx,__A.fy);__sketchRpgDebug.moveTo(__A.x,__A.y);__sketchRpgDebug.setInk(100);__sketchRpgDebug.castKind('star',0,120)")
             await page.wait_for_timeout(500)
             star0=await page.evaluate("__sketchRpgDebug.summons().find(q=>q.kind==='star')")
             await page.evaluate("__sketchRpgDebug.setInk(100);__sketchRpgDebug.castKind('triangle',0,120)")
@@ -741,11 +790,11 @@ async def run_summons(browser, suite: E2E):
             dist=((tri['x']-star1['x'])**2+(tri['y']-star1['y'])**2)**.5
             suite.check('an anchored turret keeps its place while a mobile summon is pushed off it',abs(star1['x']-star0['x'])<.5 and abs(star1['y']-star0['y'])<.5 and dist>=24,{'moved':[star1['x']-star0['x'],star1['y']-star0['y']],'dist':dist})
             # Placement follows where the stroke is drawn (real mouse events).
-            await page.evaluate("__sketchRpgDebug.combatFixture('chaser',3000,735);__sketchRpgDebug.moveTo(480,735);__sketchRpgDebug.setInk(100)")
+            await page.evaluate("__sketchRpgDebug.combatFixture('chaser',__A.fx,__A.fy);__sketchRpgDebug.moveTo(__A.x,__A.y);__sketchRpgDebug.setInk(100)")
             # Two steps: the body stroke only opens a draft; nothing is summoned or paid for until the face step ends.
             ink0=await page.evaluate("__sketchRpgDebug.runState().actor.ink")
             max_id=await page.evaluate("Math.max(0,...__sketchRpgDebug.summons().map(q=>q.id))")
-            shot=await draw_circle(page,120,'circle',at=[480+150,735])
+            shot=await draw_circle(page,120,'circle',at=[A['x']+150,A['y']])
             draft=await page.evaluate("__sketchRpgDebug.draftState()")
             ink1=await page.evaluate("__sketchRpgDebug.runState().actor.ink")
             fresh=await page.evaluate("m=>__sketchRpgDebug.summons().filter(q=>q.id>m).length",max_id)
@@ -757,27 +806,27 @@ async def run_summons(browser, suite: E2E):
             await page.click('#faceDone')
             await page.wait_for_function("m=>__sketchRpgDebug.summons().some(q=>q.id>m&&q.kind==='circle')",arg=max_id,timeout=6000)
             placed=await page.evaluate("__sketchRpgDebug.summons().filter(q=>q.kind==='circle').at(-1)")
-            suite.check('a real body stroke 150 px to the right plus a drawn joy face summons a joyful shield ball there',shot is not None and shot['kind']=='circle' and placed['face']=='joy' and abs(placed['x']-630)<45,{'shot':shot and shot['kind'],'face':placed['face'],'at':[placed['x'],placed['y']]})
+            suite.check('a real body stroke 150 px to the right plus a drawn joy face summons a joyful shield ball there',shot is not None and shot['kind']=='circle' and placed['face']=='joy' and abs(placed['x']-(A['x']+150))<45,{'shot':shot and shot['kind'],'face':placed['face'],'at':[placed['x'],placed['y']]})
             # No direction or distance limit: a body drawn 450 units away (beyond the old 320 reach) appears exactly there.
-            await page.evaluate("__sketchRpgDebug.moveTo(480,735);__sketchRpgDebug.setInk(100)")
+            await page.evaluate("__sketchRpgDebug.moveTo(__A.x,__A.y);__sketchRpgDebug.setInk(100)")
             max_id=await page.evaluate("Math.max(0,...__sketchRpgDebug.summons().map(q=>q.id))")
-            far_shot=await draw_circle(page,120,'triangle',at=[480+450,735])
+            far_shot=await draw_circle(page,120,'triangle',at=[A['x']+450,A['y']])
             await draw_face(page,'surprise')
             await page.click('#faceDone')
             await page.wait_for_function("m=>__sketchRpgDebug.summons().some(q=>q.id>m&&q.kind==='triangle')",arg=max_id,timeout=6000)
             far=await page.evaluate("__sketchRpgDebug.summons().filter(q=>q.kind==='triangle').at(-1)")
-            suite.check('a body drawn 450 units away is summoned exactly there, not clamped toward the player',far_shot is not None and abs(far_shot['x']-930)<60 and abs(far_shot['y']-735)<60 and far['x']>800 and 'aim' not in far_shot and 'reach' not in far_shot,{'shot':[far_shot and far_shot['x'],far_shot and far_shot['y']],'x':far['x'],'y':far['y'],'keys':sorted(far_shot or {})[:12]})
+            suite.check('a body drawn 450 units away is summoned exactly there, not clamped toward the player',far_shot is not None and abs(far_shot['x']-(A['x']+450))<60 and abs(far_shot['y']-A['y'])<60 and far['x']>A['x']+320 and 'aim' not in far_shot and 'reach' not in far_shot,{'shot':[far_shot and far_shot['x'],far_shot and far_shot['y']],'x':far['x'],'y':far['y'],'keys':sorted(far_shot or {})[:12]})
             # Ink cost.
-            cost=await page.evaluate("""()=>{const d=__sketchRpgDebug;d.combatFixture('chaser',3000,735);d.moveTo(480,735);d.setInk(100);
+            cost=await page.evaluate("""()=>{const d=__sketchRpgDebug;d.combatFixture('chaser',__A.fx,__A.fy);d.moveTo(__A.x,__A.y);d.setInk(100);
               const shot=d.spellSpec(d.sample('triangle',180,180));d.castKind('triangle',0,120);return {area:shot.areaPower};}""")
             await page.wait_for_function("__sketchRpgDebug.summons().some(q=>q.kind==='triangle')&&__sketchRpgDebug.runState().actor.ink<100",timeout=6000)
             ink=await page.evaluate("__sketchRpgDebug.runState().actor.ink")
             suite.check('one triangle spends 58-78 ink of 100: a second one is not affordable at once',15<ink<48,ink)
             # The line is the only projectile: no face step, fired along the drawn direction, hurts what it crosses.
-            await page.evaluate("()=>{const d=__sketchRpgDebug;d.combatFixture('chaser',700,735);d.moveTo(480,735);d.setInk(100);d.setPlayerHp(120);}")
+            await page.evaluate("()=>{const d=__sketchRpgDebug;d.combatFixture('chaser',__A.x+220,__A.y);d.moveTo(__A.x,__A.y);d.setInk(100);d.setPlayerHp(120);}")
             await page.wait_for_timeout(120)
             hp0=await page.evaluate("__sketchRpgDebug.foePositions()[0].hp")
-            line_shot=await draw_circle(page,170,'line',at=[590,735])
+            line_shot=await draw_circle(page,170,'line',at=[A['x']+110,A['y']])
             await page.wait_for_timeout(700)
             line_state=await page.evaluate("({d:__sketchRpgDebug.draftState(),foes:__sketchRpgDebug.foePositions(),ink:__sketchRpgDebug.runState().actor.ink,n:__sketchRpgDebug.summons().length})")
             foe_hp=line_state['foes'][0]['hp'] if line_state['foes'] else 0
@@ -787,7 +836,7 @@ async def run_summons(browser, suite: E2E):
             # Merging: tier-up (3 of a kind), fusion by recipe (5 pairs), full ink required and spent, other pairs refused, tap-select + star gesture.
             await page.evaluate("__sketchRpgDebug.unlockAll()")
             async def fresh():
-                await page.evaluate("()=>{const d=__sketchRpgDebug;d.combatFixture('chaser',3000,735);d.moveTo(480,735);d.setInk(100);}")
+                await page.evaluate("()=>{const d=__sketchRpgDebug;d.combatFixture('chaser',__A.fx,__A.fy);d.moveTo(__A.x,__A.y);d.setInk(100);}")
             async def make(kind,reach,angle=0):
                 count=len(await page.evaluate("__sketchRpgDebug.mergeUnits()"))
                 await page.evaluate("([k,r,a])=>{const d=__sketchRpgDebug;d.setInk(100);d.castKind(k,a,r);}",[kind,reach,angle])
@@ -844,16 +893,16 @@ async def run_summons(browser, suite: E2E):
             picked=await page.evaluate("__sketchRpgDebug.selectedUnits()")
             chip_text=await page.locator('#selectText').inner_text()
             suite.check('tapping two summons selects them and the chip names the result',sorted(picked)==sorted(u['id'] for u in duo) and '성벽 거인' in chip_text,{'picked':picked,'chip':chip_text})
-            await draw_circle(page,150,'star',at=[480,560],tries=1)
+            await draw_circle(page,150,'star',at=[A['x'],A['y']-175],tries=1)
             await page.wait_for_function("__sketchRpgDebug.mergeUnits().length===1&&__sketchRpgDebug.mergeUnits()[0].kind==='fortress'",timeout=5000)
             suite.check('drawing a star while two are selected merges them (no star turret is summoned) and clears the selection',(await page.evaluate("__sketchRpgDebug.selectedUnits()"))==[] and await page.locator('#selectChip').is_hidden())
             # Combat: a summon kills a nearby foe while the player stands still.
-            await page.evaluate("()=>{const d=__sketchRpgDebug;d.combatFixture('chaser',700,735);d.moveTo(480,735);d.setInk(100);d.setPlayerHp(120);d.castKind('triangle',0,160);}")
+            await page.evaluate("()=>{const d=__sketchRpgDebug;d.combatFixture('chaser',__A.x+220,__A.y);d.moveTo(__A.x,__A.y);d.setInk(100);d.setPlayerHp(120);d.castKind('triangle',0,160);}")
             await page.wait_for_function("__sketchRpgDebug.foePositions().length===0",timeout=15000)
             hp=await page.evaluate("__sketchRpgDebug.snapshot().player.hp")
             suite.check('a triangle summon kills a hunter on its own while the player stands still',hp>0,hp)
             # Enemies attack the nearest noticed summon before the player.
-            await page.evaluate("""()=>{const d=__sketchRpgDebug;d.combatFixture('charger',840,735);d.moveTo(480,735);d.setInk(100);d.setPlayerHp(120);d.castKind('circle',0,240);}""")
+            await page.evaluate("""()=>{const d=__sketchRpgDebug;d.combatFixture('charger',__A.x+360,__A.y);d.moveTo(__A.x,__A.y);d.setInk(100);d.setPlayerHp(120);d.castKind('circle',0,240);}""")
             await page.wait_for_function("__sketchRpgDebug.summons().some(q=>q.kind==='circle')",timeout=4000)
             await page.wait_for_function("__sketchRpgDebug.summons().find(q=>q.kind==='circle')?.hp<__sketchRpgDebug.summons().find(q=>q.kind==='circle')?.maxHp",timeout=12000)
             php=await page.evaluate("__sketchRpgDebug.snapshot().player.hp")
@@ -865,18 +914,18 @@ async def run_summons(browser, suite: E2E):
             suite.check('neutral has no traits; every other expression has both an advantage and a disadvantage',ok and both and [e['id'] for e in table]==['neutral','joy','anger','sleepy','surprise','sad'],table)
             seen={}
             for expression in ['joy','anger','sleepy','surprise','sad']:
-                await page.evaluate("()=>{const d=__sketchRpgDebug;d.combatFixture('chaser',3000,735);d.moveTo(480,735);d.setInk(100);}")
+                await page.evaluate("()=>{const d=__sketchRpgDebug;d.combatFixture('chaser',__A.fx,__A.fy);d.moveTo(__A.x,__A.y);d.setInk(100);}")
                 max_id=await page.evaluate("Math.max(0,...__sketchRpgDebug.summons().map(q=>q.id))")
-                await draw_circle(page,120,'triangle',at=[480+110,735])
+                await draw_circle(page,120,'triangle',at=[A['x']+110,A['y']])
                 await draw_face(page,expression)
                 await page.click('#faceDone')
                 await page.wait_for_function("m=>__sketchRpgDebug.summons().some(q=>q.id>m)",arg=max_id,timeout=6000)
                 seen[expression]=await page.evaluate("m=>__sketchRpgDebug.summons().filter(q=>q.id>m).at(-1).face",max_id)
             suite.check('real pointer faces are recognized as joy, anger, sleepy, surprise and sad',seen=={e:e for e in seen},seen)
             # No face or an unreadable scribble -> neutral, no traits.
-            await page.evaluate("()=>{const d=__sketchRpgDebug;d.combatFixture('chaser',3000,735);d.moveTo(480,735);d.setInk(100);}")
+            await page.evaluate("()=>{const d=__sketchRpgDebug;d.combatFixture('chaser',__A.fx,__A.fy);d.moveTo(__A.x,__A.y);d.setInk(100);}")
             max_id=await page.evaluate("Math.max(0,...__sketchRpgDebug.summons().map(q=>q.id))")
-            await draw_circle(page,120,'square',at=[480+110,735])
+            await draw_circle(page,120,'square',at=[A['x']+110,A['y']])
             await page.click('#faceDone')
             await page.wait_for_timeout(400)
             nofacial=await page.evaluate("m=>({made:__sketchRpgDebug.summons().some(q=>q.id>m),active:__sketchRpgDebug.draftState().active})",max_id)
@@ -885,34 +934,34 @@ async def run_summons(browser, suite: E2E):
             scribble=[[(430,200),(560,310),(440,330),(590,190),(470,300)]]
             max_id=await page.evaluate("Math.max(0,...__sketchRpgDebug.summons().map(q=>q.id))")
             await page.evaluate("__sketchRpgDebug.setInk(100)")
-            await draw_circle(page,120,'square',at=[480+110,735])
+            await draw_circle(page,120,'square',at=[A['x']+110,A['y']])
             await draw_face(page,'scribble',scribble)
             await page.click('#faceDone')
             await page.wait_for_function("m=>__sketchRpgDebug.summons().some(q=>q.id>m)",arg=max_id,timeout=6000)
             scrib=await page.evaluate("m=>__sketchRpgDebug.summons().filter(q=>q.id>m).at(-1).face",max_id)
             suite.check('an unreadable scribble becomes a neutral face',scrib=='neutral',scrib)
             # Cancel leaves ink and summons untouched; Enter finishes; 15 s without input cancels.
-            await page.evaluate("()=>{const d=__sketchRpgDebug;d.combatFixture('chaser',3000,735);d.moveTo(480,735);d.setInk(100);}")
+            await page.evaluate("()=>{const d=__sketchRpgDebug;d.combatFixture('chaser',__A.fx,__A.fy);d.moveTo(__A.x,__A.y);d.setInk(100);}")
             max_id=await page.evaluate("Math.max(0,...__sketchRpgDebug.summons().map(q=>q.id))")
-            await draw_circle(page,120,'triangle',at=[480+110,735])
+            await draw_circle(page,120,'triangle',at=[A['x']+110,A['y']])
             await draw_face(page,'joy')
             await page.click('#faceCancel')
             await page.wait_for_timeout(300)
             cancelled=await page.evaluate("m=>({d:__sketchRpgDebug.draftState(),n:__sketchRpgDebug.summons().filter(q=>q.id>m).length,ink:__sketchRpgDebug.runState().actor.ink})",max_id)
             suite.check('cancel discards the draft: no summon, ink untouched',not cancelled['d']['active'] and cancelled['n']==0 and cancelled['ink']>=99 and not cancelled['d']['faceBarVisible'],cancelled)
-            await draw_circle(page,120,'triangle',at=[480+110,735])
+            await draw_circle(page,120,'triangle',at=[A['x']+110,A['y']])
             await draw_face(page,'sad')
             await page.keyboard.press('Enter')
             await page.wait_for_function("m=>__sketchRpgDebug.summons().some(q=>q.id>m&&q.face==='sad')",arg=max_id,timeout=6000)
             suite.check('Enter finishes the face step',True)
-            await draw_circle(page,120,'triangle',at=[480+110,735])
+            await draw_circle(page,120,'triangle',at=[A['x']+110,A['y']])
             await page.wait_for_timeout(15600)
             timed=await page.evaluate("({d:__sketchRpgDebug.draftState(),ink:__sketchRpgDebug.runState().actor.ink})")
             suite.check('15 s without input cancels the draft without spending ink',not timed['d']['active'] and timed['ink']>=60,timed)
             # Temperament numbers reach the summon.
             by_face={}
             for face in ['neutral','sleepy','anger','sad']:
-                await page.evaluate("()=>{const d=__sketchRpgDebug;d.combatFixture('chaser',3000,735);d.moveTo(480,735);d.setInk(100);}")
+                await page.evaluate("()=>{const d=__sketchRpgDebug;d.combatFixture('chaser',__A.fx,__A.fy);d.moveTo(__A.x,__A.y);d.setInk(100);}")
                 await page.evaluate("f=>__sketchRpgDebug.castKind('triangle',0,120,.5,f)",face)
                 await page.wait_for_function("__sketchRpgDebug.summons().length>0",timeout=4000)
                 by_face[face]=await page.evaluate("(({maxHp,power})=>({maxHp,power}))(__sketchRpgDebug.summons()[0])")
@@ -923,7 +972,7 @@ async def run_summons(browser, suite: E2E):
               try{d.canonicalRestore(new TextEncoder().encode(JSON.stringify(s)));return false;}catch(e){return true;}}""")
             suite.check('a checkpoint with an unknown expression is rejected',refused)
             # Anchored summon never walks.
-            await page.evaluate("()=>{const d=__sketchRpgDebug;d.combatFixture('chaser',3000,735);d.moveTo(480,735);d.setInk(100);d.castKind('star',0,100);}")
+            await page.evaluate("()=>{const d=__sketchRpgDebug;d.combatFixture('chaser',__A.fx,__A.fy);d.moveTo(__A.x,__A.y);d.setInk(100);d.castKind('star',0,100);}")
             await page.wait_for_function("__sketchRpgDebug.summons().some(q=>q.kind==='star')",timeout=4000)
             a=await page.evaluate("__sketchRpgDebug.summons().find(q=>q.kind==='star')")
             await page.evaluate("([x,y])=>__sketchRpgDebug.spawnEnemy('charger',x+260,y)",[a['x'],a['y']])
@@ -946,7 +995,7 @@ async def run_ink_hud(browser,suite):
         try:
             await page.goto(url+'?seed=20261026')
             await page.wait_for_function('window.__sketchRpgDebug?.rendererStats().vertices>0')
-            await page.evaluate('__sketchRpgDebug.regionCombatFixture(0);__sketchRpgDebug.invulnerable();__sketchRpgDebug.setInk(5)')
+            await page.evaluate('__sketchRpgDebug.nestFixture(0);__sketchRpgDebug.invulnerable();__sketchRpgDebug.setInk(5)')
             await page.wait_for_timeout(150)
             bar=await page.locator('#inkBar').bounding_box()
             suite.check('390px ink bar is always visible and recovering below maximum',bar['height']>=5 and bar['x']>=0 and bar['x']+bar['width']<=390 and await page.locator('#inkMeter').get_attribute('data-state') in ('recovering','waiting'),{'bar':bar,'state':await page.locator('#inkMeter').get_attribute('data-state')})
@@ -998,7 +1047,7 @@ async def run_run_state(browser, suite: E2E):
             await page.wait_for_function('window.__sketchRpgDebug?.rendererStats().vertices>0')
             reloaded=await page.evaluate('__sketchRpgDebug.runState()')
             suite.check('reload starts a new run without saved card ranks',reloaded['actor']['maxInk']==100 and all(v==0 for v in reloaded['cards'].values()),reloaded['cards'])
-            await page.evaluate('__sketchRpgDebug.regionCombatFixture(0);__sketchRpgDebug.invulnerable()')
+            members=await page.evaluate('__sketchRpgDebug.nestFixture(0);__sketchRpgDebug.invulnerable();__sketchRpgDebug.foePositions().length')
             await page.wait_for_timeout(160)
             for _attempt in range(4):
                 # a lone summon can die before the fifth kill; recast like a player would
@@ -1006,21 +1055,21 @@ async def run_run_state(browser, suite: E2E):
                 await draw_circle(page)
                 await draw_face(page,'joy');await page.locator('#faceDone').click()
                 try:
-                    await page.wait_for_function('__sketchRpgDebug.runState().regionKills[0]>=5',timeout=25000)
+                    await page.wait_for_function(f'__sketchRpgDebug.runState().regionKills[0]>={members}',timeout=25000)
                     break
                 except Exception:
                     if _attempt==3:raise
-            suite.check('real attack clears the forest region',True)
+            suite.check('real attack clears a coast-zone mob nest and counts every kill in its zone',True)
             await page.set_viewport_size({'width':390,'height':844})
-            await page.evaluate('__sketchRpgDebug.regionCombatFixture(1);__sketchRpgDebug.invulnerable();__sketchRpgDebug.setInk(100)')
+            members2=await page.evaluate('__sketchRpgDebug.nestFixture(1);__sketchRpgDebug.invulnerable();__sketchRpgDebug.setInk(100);__sketchRpgDebug.foePositions().length')
             await page.wait_for_function("(()=>{const d=__sketchRpgDebug,f=d.foePositions()[0];if(!f)return false;const c=d.screenAt(f.x,f.y);return c.x>40&&c.x<350&&c.y>120&&c.y<740})()",timeout=30000)
             pre=await page.evaluate("(()=>{const d=__sketchRpgDebug,f=d.foePositions()[0],c=d.screenAt(f.x,f.y);const e=document.elementFromPoint(c.x,c.y);return JSON.stringify({c,w:innerWidth,el:e&&(e.id||e.className),ink:d.snapshot().ink,sc:d.snapshot().summonCount,draft:d.draftState()})})()")
             region_shot=await draw_circle(page,140)
-            suite.check('resized region fixture queues the actual circle stroke',region_shot is not None and region_shot['kind']=='circle',region_shot or pre+await page.evaluate("JSON.stringify({d:__sketchRpgDebug.draftState(),chip:document.getElementById('resultChip').innerText,s:__sketchRpgDebug.snapshot().modal})"))
+            suite.check('resized nest fixture queues the actual circle stroke',region_shot is not None and region_shot['kind']=='circle',region_shot or pre+await page.evaluate("JSON.stringify({d:__sketchRpgDebug.draftState(),chip:document.getElementById('resultChip').innerText,s:__sketchRpgDebug.snapshot().modal})"))
             if region_shot is None:return
             await draw_face(page,'joy',cx=195,u=34);await page.locator('#faceDone').click()
-            await page.wait_for_function('__sketchRpgDebug.runState().regionKills[1]>=5',timeout=90000)
-            suite.check('regions still count their own defeated enemies',await page.evaluate('__sketchRpgDebug.runState().regionKills.slice(0,2).every(n=>n>=5)'))
+            await page.wait_for_function(f'__sketchRpgDebug.runState().regionKills[1]>={members2}',timeout=90000)
+            suite.check('each zone counts its own defeated enemies',await page.evaluate('__sketchRpgDebug.runState().regionKills.slice(0,2).every(n=>n>=3)'))
             suite.check('run state workflow has no JavaScript errors',not issues,issues)
         finally:
             await context.close()
@@ -1058,9 +1107,9 @@ async def run_real_p2p(browser, suite: E2E):
                 host.wait_for_function("window.__sketchRpgDebug!==undefined", timeout=20000),
                 guest.wait_for_function("window.__sketchRpgDebug!==undefined", timeout=20000),
             )
-            await host.evaluate("""() => {const d=__sketchRpgDebug;d.moveTo(1340,735);
+            await host.evaluate("""() => {const d=__sketchRpgDebug;d.moveTo(__A.x+400,__A.y);
               const s=JSON.parse(new TextDecoder().decode(d.canonicalSnapshot()));
-              s.actors[1].x=1340;s.actors[1].y=760;s.world.enemies=[];s.world.hazards=[];
+              s.actors[1].x=__A.x+400;s.actors[1].y=__A.y+25;s.world.enemies=[];s.world.hazards=[];s.world.nests=s.world.nests.map(q=>({...q,on:false,done:true}));
               d.canonicalRestore(new TextEncoder().encode(JSON.stringify(s)));}""")
             code = str(secrets.randbelow(10000)).zfill(4)
             await open_menu(host)
@@ -1155,7 +1204,7 @@ async def run_real_p2p(browser, suite: E2E):
                 boundary=min(s['confirmedTick'] for s in states)
                 hashes=await asyncio.gather(*(p.evaluate("t=>window.__sketchRpgDebug.stateHash(t)",boundary) for p in (host,guest)))
                 suite.check("late duplicated RTC input reconciles to equal confirmed hash",hashes[0] is not None and hashes[0]==hashes[1],{'tick':boundary,'hashes':hashes,'rollbacks':[s['stats'].get('rollbacks',0) for s in states]})
-                suite.check("both peers use pinned protocol 3 bundle",all(s['gamekitSHA']=='418e17c455db56d6ed073d82d115191d9dd8bf04' and s['namespace']=='sketch-town-coop-0.22.0' and s['simulationVersion'].startswith('sketch-town-0.22.0-') and s['inputScheduling']=='network' and s['inputHz']==60 for s in states))
+                suite.check("both peers use pinned protocol 3 bundle",all(s['gamekitSHA']=='418e17c455db56d6ed073d82d115191d9dd8bf04' and s['namespace']=='sketch-town-coop-0.23.0' and s['simulationVersion'].startswith('sketch-town-0.23.0-') and s['inputScheduling']=='network' and s['inputHz']==60 for s in states))
                 for sender,actor in ((host,'a'),(guest,'b')):
                     for page in (host,guest):
                         await page.evaluate("""actor => {

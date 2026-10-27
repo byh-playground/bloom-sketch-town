@@ -1,6 +1,6 @@
 # Sketch Town
 
-그림을 그려 소환수를 불러내 싸우는 BLOOM 기반 로그라이크 액션 게임입니다. WASD·모바일 스틱으로 시드 생성 맵을 오가며 서쪽부터 보스 5마리를 차례로 쓰러뜨리면 클리어입니다. 현재 버전은 **0.22.0**입니다. ChatGPT 원본 0.9.2에서 출발했으며 GameKit protocol 3의 동일 명령·롤백 경로를 사용합니다.
+그림을 그려 소환수를 불러내 싸우는 BLOOM 기반 로그라이크 액션 게임입니다. WASD·모바일 스틱으로 시드 생성 맵을 오가며 해안에서 중심으로 향하며 맵에 흩어진 보스 5마리를 쓰러뜨리면 클리어입니다. 현재 버전은 **0.23.0**입니다. ChatGPT 원본 0.9.2에서 출발했으며 GameKit protocol 3의 동일 명령·롤백 경로를 사용합니다.
 
 [게임 실행](https://byh-playground.github.io/bloom-sketch-town/)
 
@@ -263,8 +263,13 @@ The branch authors static character and environment resources in `source/assets/
 - `mode`에 `over`·`clear`가 추가되어 방 이름·simulationVersion을 0.22.0으로 올렸습니다.
 - 검증: `--flow ux` 8(사망 시 결과 화면·2.5초 뒤에도 정지 유지·보스 5/5 격파 시 클리어 화면), `progression` 8(테스트용 `invulnerable()` 훅으로 긴 대기 중 사망 방지). 미구현: 멀티플레이 전멸 처리.
 
-### 월드 맵 v2 프로토타입 (미연결)
+### 0.23.0 — 월드 맵 v2 연결
 
-- `source/world-map.js`: 시드 하나로 해안(가장자리)→중앙 5개 구역 맵을 만드는 생성기입니다. 바이옴 셀(보로노이)·난이도 필드·강/절벽·거점(시작·보스·야영지·포털)·길(MST+루프, Dijkstra)·소품·몹 둥지를 생성하고 도달 가능성을 검증합니다. 아직 `bootstrap.js`에 연결하지 않았고 게임 동작은 바뀌지 않습니다.
-- 맵 프리뷰(몹 둥지·활성 반경 포함): [바로 보기](https://htmlpreview.github.io/?https://github.com/byh-playground/bloom-sketch-town/blob/main/docs/world-map-preview.html) (`docs/world-map-preview.html`, 병합 후 열림)
-- 시드 100개 검사(Node): 실패 0, 재시도 6, 평균 206ms, 둥지 64~74개, 몹 230~277마리, 보스 간 최소 거리 952px, 같은 시드 두 번 생성 결과 동일.
+- 0.17.0의 `source/map-generator.js`(길·공터 방식)를 `source/world-map.js`로 교체했습니다(위 "시드 기반 절차 생성 맵" 절의 생성 순서·`map-generator.js` 설명은 이 절로 대체됨). 결정성 규칙(`+ - * /`·`Math.sqrt`·32비트 정수만)·`mapSeed` 체크포인트 복원·8회 재시도는 그대로입니다. 난수는 `source/seeded-random.js`입니다.
+- 생성: 바이옴 셀(보로노이 56점) + 난이도 필드(해안 0 → 중심 최대, 구역 5개 해안·외곽·중부·심부·중심) + 강·절벽 벽(여울) + 거점(시작·보스 5·야영지·포털) + 길(MST+루프, Dijkstra, 다리) + 소품 + 몹 둥지. 월드 4800², 격자 24px. 도달 가능성과 보스 구역 단조성을 검증합니다.
+- 목표: 맵에 흩어진 보스 5마리 격파(보스 1 해안 근처 … 보스 5 정중앙). **봉인**: 보스 N은 보스 1~N-1을 쓰러뜨리기 전까지 받는 피해 ×0.1(강제 잠금 아님, 순서 무관 소환 가능). 격파 보상은 카드 3장 중 1장.
+- 둥지: 활성 반경 900·비활성 1300·끈 520, 전멸 뒤 영웅이 1100px 밖일 때 25초 후 재생성, 구역별 체력·피해 배율, 야영지·포털 수호(정예 +2, 체력 ×1.5), 보스 둥지(보스+졸개 4, 재생성 없음). 동시 적 상한 60.
+- 방 namespace·simulationVersion 0.23.0 (`world.bossState`·`world.nests`·`world.regionKills` 추가).
+- 맵 프리뷰(몹 둥지 포함): [바로 보기](https://htmlpreview.github.io/?https://github.com/byh-playground/bloom-sketch-town/blob/main/docs/world-map-preview.html)
+- 시드 100개 검사(Node): 실패 0, 재시도 6, 평균 206ms, 보스 간 최소 거리 952px, 같은 시드 두 번 결과 동일.
+- 미확인: 실기기 FPS(샌드박스 소프트웨어 GL 4FPS), 공개 P2P(`--live-p2p`), 15분 진행 시간·밸런스 수치, 중심 구역 야생 둥지 0개인 시드 존재. `--flow all`의 데스크톱·모바일 구간과 "release freezes the drawing-center map position" 검사는 변경 전부터 실패.

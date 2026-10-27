@@ -53,15 +53,7 @@
   function visible(x,y,r=80){const hx=vw/(camera.zoom*2)+r,hy=vh/(camera.zoom*2)+r;return Math.abs(x-camera.x)<hx&&Math.abs(y-camera.y)<hy;}
   function ground(){
     regionGround();
-    P.oval(484,740,368,318,'#f2e5ca',.62);
-    // One ring per boss site: bold while that boss is still to come, faint once defeated.
-    for(const [i,site]of mapLayout.bossSites.entries()){const alive=i>=world.bossesDefeated,tint=BOSS_PROFILES[i].color;
-      P.oval(site.x,site.y,site.radius*.89,site.radius*.89,'#e6dde8',alive?.4:.14);
-      P.ring(site.x,site.y,site.radius,alive?tint:'#b4a7b4',alive?.62:.2,2,32);
-      P.ring(site.x,site.y,site.radius*.7,'#b7a8b7',alive?.3:.1,1.4,24);}
-    // Village safety circle.
-    P.oval(504,735,98,81,'#dceade',.65);P.ring(504,735,92,'#86a68e',.52,1.8,28);
-    P.dot(503,730,16,'#fafbf3');P.ring(503,730,17,'#789b89',.73,2,24);P.dot(503,730,7,'#a5c9a3',.8);
+    drawWorldSites();
     for(const d of world.decals){if(!visible(d.x,d.y,35))continue;drawEnvironmentDecal(d);}
   }
   function drawHouse(h){const {x,y,w,h:height,type}=h;if(!visible(x,y,140))return;drawEnvironmentProp('house',x,y,0,{type:type==='house'?'home':type,width:w,height});}
@@ -90,6 +82,7 @@
     drawVector('enemy-'+kind,expression,clip,paintClockMs+e.id*37,[s,0,0,s,x-config.pivotX*s,y-config.pivotY*s]);
     if(hit){const f=clamp(e.hitMs/SKETCH.hitFlashMs,0,1);for(let k=0;k<5;k++){const a=k*Math.PI*2/5+e.id*.31,len=(r*.66)+(1-f)*r*.28,px=x+Math.cos(a)*(r*.30),py=y+Math.sin(a)*(r*.30);P.line(px,py,px+Math.cos(a)*len,py+Math.sin(a)*len,1.8,'#fff8d9',f*.90);P.line(px+Math.sin(a)*2,py-Math.cos(a)*2,px+Math.cos(a)*len*.76+Math.sin(a)*2,py+Math.sin(a)*len*.76-Math.cos(a)*2,1.0,'#384650',f*.48);}}
     if(e.windupMs>0){const alpha=clamp(e.windupMs/700,.18,1);P.ring(x,y,e.r+19,'#bf6556',.78-alpha*.24,3,26);if(e.attackType==='charge'){const dx=player.x-x,dy=player.y-y,m=hypot(dx,dy)||1;P.line(x,y,x+dx/m*260,y+dy/m*260,4,'#c87961',.35);}}
+    if(kind==='boss'&&bossSealed(e.bossId)){P.ring(x,y,e.r+12,'#7d5a9e',.75,3.2,30);P.ring(x,y,e.r+19,'#b394e0',.45,1.6,30);}
     if(e.hp<e.maxHp){const pct=clamp(e.hp/e.maxHp,0,1),bar=Math.max(28,e.r*1.9);P.box(x,y-e.r-18,bar,5,'#605660',.65);if(pct>0)P.box(x-bar*(1-pct)/2,y-e.r-18,bar*pct,4,kind==='boss'?'#a75e84':'#a87e79');}
   }
   function drawStroke(points,x,y,angle=0,size=1,color='#4e6269',alpha=1,width=2.6,progress=1){if(!points?.length)return;const cs=Math.cos(angle),sn=Math.sin(angle);let total=0;for(let i=1;i<points.length;i++)total+=hypot(points[i].x-points[i-1].x,points[i].y-points[i-1].y);const upto=total*clamp(progress,0,1);let walked=0;
@@ -259,7 +252,7 @@
       txtCtx.translate(px,py);txtCtx.scale(pop,pop);txtCtx.translate(-px,-py);
       txtCtx.font='1000 17px system-ui,sans-serif';txtCtx.lineWidth=4.0;txtCtx.strokeStyle='#fff9ee';txtCtx.strokeText(f.text,anchorReuse.x,anchorReuse.y);txtCtx.fillStyle=f.color;txtCtx.fillText(f.text,anchorReuse.x,anchorReuse.y);txtCtx.setTransform(screenDpr,0,0,screenDpr,0,0);}
     if(visible(504,735,140)){renderer.worldToScreenInto(504,625,anchorReuse);txtCtx.textAlign='center';txtCtx.font='900 12px system-ui';txtCtx.lineWidth=3.4;txtCtx.strokeStyle='#fffaf0';txtCtx.strokeText('푸른 잉크 샘 · 회복',anchorReuse.x,anchorReuse.y);txtCtx.fillStyle='#568276';txtCtx.fillText('푸른 잉크 샘 · 회복',anchorReuse.x,anchorReuse.y);}
-    for(const boss of world.enemies)if(boss.kind==='boss'&&!boss.dead&&visible(boss.x,boss.y,100)){renderer.worldToScreenInto(boss.x,boss.y-boss.r-56,anchorReuse);txtCtx.textAlign='center';txtCtx.font='900 13px system-ui';txtCtx.lineWidth=3.7;txtCtx.strokeStyle='#fffaf0';txtCtx.strokeText(boss.name,anchorReuse.x,anchorReuse.y);txtCtx.fillStyle='#8c647e';txtCtx.fillText(boss.name,anchorReuse.x,anchorReuse.y);}
+    for(const boss of world.enemies)if(boss.kind==='boss'&&!boss.dead&&visible(boss.x,boss.y,100)){renderer.worldToScreenInto(boss.x,boss.y-boss.r-56,anchorReuse);txtCtx.textAlign='center';txtCtx.font='900 13px system-ui';txtCtx.lineWidth=3.7;txtCtx.strokeStyle='#fffaf0';{const label=bossSealed(boss.bossId)?`${boss.name} · 봉인 −90%`:boss.name;txtCtx.strokeText(label,anchorReuse.x,anchorReuse.y);txtCtx.fillStyle=bossSealed(boss.bossId)?'#7d5a9e':'#8c647e';txtCtx.fillText(label,anchorReuse.x,anchorReuse.y);}}
     txtCtx.globalAlpha=1;drawMapLabels();
   }
   let lastCameraAt=0;

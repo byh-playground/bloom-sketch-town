@@ -103,7 +103,7 @@ th{font-weight:500;color:var(--muted)}
   </section>
 </div>
 
-<script src="../source/map-generator.js"></script>
+<script src="../source/seeded-random.js"></script>
 <script src="../source/world-map.js"></script>
 <script>
 (function(){
@@ -151,7 +151,7 @@ th{font-weight:500;color:var(--muted)}
       if(s.kind==='spawn'){x.fillStyle='#1d8a4a';x.strokeStyle='#fff';x.lineWidth=2*u;x.beginPath();x.arc(px,py,8*u,0,6.283);x.fill();x.stroke();
         if(o.big){x.fillStyle='#0f4a28';x.font=`700 ${12*dpr}px "Noto Sans KR",sans-serif`;x.textAlign=px>size*.9?'right':'left';x.fillText('시작',px+(px>size*.9?-11:11)*dpr,py+4*dpr);x.textAlign='left';}}
       else if(s.kind==='boss'){x.fillStyle='#d23a3a';x.strokeStyle='#fff';x.lineWidth=2*u;star(x,{x:px,y:py},(s.final?15:11)*u,5);x.fill();x.stroke();
-        if(o.big){x.fillStyle='#5a1212';x.font=`700 ${12*dpr}px "Noto Sans KR",sans-serif`;x.fillText(s.final?'최종 보스':`보스 · ${Z[s.zone]}`,px+14*dpr,py+4*dpr);}}
+        if(o.big){x.fillStyle='#5a1212';x.font=`700 ${12*dpr}px "Noto Sans KR",sans-serif`;x.fillText(`${s.zone+1}번 보스${s.final?' (최종)':''}`,px+14*dpr,py+4*dpr);}}
       else if(s.kind==='camp'){x.strokeStyle='#b45a0a';x.lineWidth=2.4*u;x.beginPath();x.arc(px,py,s.r*k*.8,0,6.283);x.setLineDash([4*u,3*u]);x.stroke();x.setLineDash([]);
         if(o.big){x.fillStyle='#7a3a05';x.font=`500 ${11*dpr}px "Noto Sans KR",sans-serif`;x.fillText('야영지',px-14*dpr,py-s.r*k*.8-4*dpr);}}
       else if(s.kind==='portal'){x.strokeStyle='#7a3fc4';x.lineWidth=2.6*u;x.beginPath();x.arc(px,py,7*u,0,6.283);x.stroke();x.beginPath();x.arc(px,py,3*u,0,6.283);x.stroke();
@@ -210,10 +210,10 @@ th{font-weight:500;color:var(--muted)}
       `<b>둥지를 먼저 놓습니다.</b> 구역의 걸을 수 있는 면적 100만 px²당 ${M.nestPerMillionPx2.join(' / ')}개(해안 → 중심). 둥지끼리 ${M.nestGap}px, 시작 지점에서 ${M.safeRadius}px, 길에서 ${M.roadClearance}px 이상 떨어집니다.`,
       `<b>구성원은 시드에서 정합니다.</b> 둥지마다 몹 종류와 수를 만들 때 정하므로 같은 시드는 같은 몹을 만듭니다. 구성은 위 표의 비율, 수는 구역별 ${M.group.map(g=>g[0]+'~'+g[1]).join(' / ')}마리입니다.`,
       `<b>가까이 가면 생성합니다.</b> 어느 플레이어든 ${M.activeRadius}px 안으로 들어온 둥지만 실제 몹을 만듭니다. 화면 밖 몹을 계속 계산하지 않아 몹 수가 늘지 않습니다.`,
-      `<b>몹은 둥지에 묶입니다.</b> 둥지에서 ${M.leash}px 넘게 쫓아오지 않고 돌아갑니다. 구역이 올라갈수록 체력 ×${M.hpScale[4]}, 피해 ×${M.damageScale[4]}까지 커집니다.`,
+      `<b>몹은 둥지에 묶입니다.</b> 둥지에서 ${M.leash}px 넘게 쫓아가면 포기하고 돌아갑니다(돌아가는 동안은 플레이어를 무시). 구역이 올라갈수록 체력 ×${M.hpScale[4]}, 피해 ×${M.damageScale[4]}까지 커집니다.`,
       `<b>다시 생깁니다.</b> 둥지의 몹이 모두 쓰러지고 모든 플레이어가 ${M.respawnAwayPx}px 밖에 ${M.respawnMs/1000}초 있으면 같은 구성으로 다시 생성합니다.`,
       `<b>야영지·포털은 수호 둥지가 지킵니다.</b> 구성원 +${M.elite.groupBonus}마리, 체력 ×${M.elite.hpScale}. 쓰러뜨렸을 때의 보상은 아직 정하지 않았습니다.`,
-      `<b>보스 둥지는 보스 1마리 + 부하 ${M.bossMinions}마리입니다.</b> 보스는 다시 생기지 않습니다. 구역 순서대로 기존 보스 5종이 놓이고, 중앙 최종 보스는 빈 종이 거인입니다.`
+      `<b>보스 5마리는 번호가 있습니다.</b> 해안 1번 → 중앙 5번. 어느 보스든 가까이 가면 깨어나지만, 앞 번호 보스를 모두 쓰러뜨리기 전에는 받는 피해가 ×0.1(−90%)입니다. 보스 둥지는 보스 1 + 부하 ${M.bossMinions}마리이고 다시 생기지 않습니다. 5마리를 모두 쓰러뜨리면 클리어입니다.`
     ].map(t=>`<li>${t}</li>`).join('');
   }
 

@@ -1,4 +1,4 @@
-  // Five bosses fought in route order. A boss HAS rules; each rule maps the drawn shape that dealt the damage
+  // Five bosses, numbered from the coast (0) to the centre (4). A boss HAS rules; each rule maps the drawn shape that dealt the damage
   // (the CNN class of the stroke: 'circle', 'flame', ...) to a damage multiplier. The multipliers of all rules multiply.
   // Only shapes the CNN recognises at >= 95% validation accuracy are used, so a correct drawing is not misread.
   class ShapeRule{
@@ -30,6 +30,8 @@
     bestKind(){return SHAPE_KINDS.reduce((best,kind)=>this.multiplier(kind)>this.multiplier(best)?kind:best,SHAPE_KINDS[0]);}
   }
 
+  // Boss n takes only this share of every hit until bosses 0..n-1 have fallen (순서 유도: 막을 수는 없고 훨씬 오래 걸린다).
+  const BOSS_SEAL_DAMAGE_SCALE=0.1;
   const SHAPE_KINDS=Object.freeze(['normal','line','circle','triangle','square','flame','water','lightning','star','shuriken','starcircle']);
   const BOSS_PROFILES=Object.freeze([
     new BossProfile({id:'watcher',name:'잉크 감시자',hp:580,r:56,speed:55,damage:23,color:'#8d688e',tempo:1,rules:[]}),

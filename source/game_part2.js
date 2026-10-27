@@ -10,7 +10,7 @@
   function actorOf(id){return id==='b'?guestPlayer:hostPlayer;}
   function withActor(actor,fn){const before=player;player=actor;try{return fn();}finally{player=before;}}
   const camera={x:0,y:0,zoom:1};
-  const world={regionKills:[0,0,0],obstacles:[],grid:new Map(),decals:[],trees:[],houses:[],enemies:[],summons:[],hazards:[],casts:[],particles:[],floaters:[],pickups:[],fields:[],commands:[],castQueue:[],unlocked:['circle','triangle','square'],reward:null,rollMarks:[],rollTarget:null,nextId:1,seed:0x31415,clockMs:0,kills:0,bossesDefeated:0,hitstopMs:0,lastHitstopClockMs:-1000,hitFlashMs:0,slowRatio:1,screenTextMs:0,screenText:'',effectShakeMs:0,mode:'playing',deathMs:0,lastResult:null};
+  const world={regionKills:[0,0,0,0,0],bossState:[0,0,0,0,0],nests:[],obstacles:[],grid:new Map(),decals:[],trees:[],houses:[],enemies:[],summons:[],hazards:[],casts:[],particles:[],floaters:[],pickups:[],fields:[],commands:[],castQueue:[],unlocked:['circle','triangle','square'],reward:null,rollMarks:[],rollTarget:null,nextId:1,seed:0x31415,clockMs:0,kills:0,bossesDefeated:0,hitstopMs:0,lastHitstopClockMs:-1000,hitFlashMs:0,slowRatio:1,screenTextMs:0,screenText:'',effectShakeMs:0,mode:'playing',deathMs:0,lastResult:null};
   const audioRecipes={
     draw:{category:'sfx',layers:[{kind:'tone',type:'sine',hz:610,end:910,ms:90,gain:.3}]},
     throw:{category:'sfx',layers:[{kind:'tone',type:'triangle',hz:410,end:950,ms:128,gain:.42},{kind:'noise',hz:2100,ms:65,gain:.17}]},
@@ -34,11 +34,15 @@
   function moveCollider(e,dx,dy,r){if(!touchesObstacle(e.x+dx,e.y,r))e.x+=dx;if(!touchesObstacle(e.x,e.y+dy,r))e.y+=dy;}
   function createWorld(mapSeed){
     applyMapLayout(mapSeed);
-    REGIONS.forEach((_,i)=>spawnRegion(i));
+    world.nests=mapLayout.nests.map(()=>({on:false,cd:0,done:false}));
+    placeActorsAtSpawn();
   }
+  // Both heroes start (and are revived) at the coast camp; the guest stands a few steps beside the host.
+  function spawnPointFor(actor){const sp=mapLayout.spawn,x=sp.x+(actor===guestPlayer?36:0),y=sp.y+(actor===guestPlayer?14:0);return mapLayout.terrainBlocks(x,y,actor.r)?{x:sp.x,y:sp.y}:{x,y};}
+  function placeActorsAtSpawn(){for(const a of [hostPlayer,guestPlayer]){const p=spawnPointFor(a);a.x=p.x;a.y=p.y;a.dash.originX=p.x;a.dash.originY=p.y;}camera.x=hostPlayer.x;camera.y=hostPlayer.y;}
   const enemyDefs={chaser:{r:19,hp:55,speed:89,damage:11,color:'#a57673',name:'종이 사냥꾼'},spitter:{r:20,hp:48,speed:65,damage:9,color:'#8e8ba8',name:'잉크 투척수'},charger:{r:23,hp:85,speed:72,damage:18,color:'#c1966b',name:'낙서 돌격수'}};
   // Bosses take their stats from BOSS_PROFILES[bossId]; every enemy keeps its own copy of the stats the AI and renderer read.
-  function spawnEnemy(kind,x,y,bossId=kind==='boss'?0:-1){const profile=bossId>=0?BOSS_PROFILES[bossId]:null,d=profile||enemyDefs[kind],id=world.nextId++;const e={id,kind,bossId,name:d.name,color:d.color,speed:d.speed,damage:d.damage,region:regionAt(x),x,y,r:d.r,hp:d.hp,maxHp:d.hp,vx:0,vy:0,ageMs:0,aiMs:0,windupMs:0,attackMs:400+rand()*550,chargeMs:0,chargeDX:0,chargeDY:0,hitMs:0,burnMs:0,burnTickMs:400,burnAmount:0,wetMs:0,stunMs:0,tid:0,dead:false};world.enemies.push(e);return e;}
+  function spawnEnemy(kind,x,y,bossId=kind==='boss'?0:-1,nest=-1,hpScale=1,damageScale=1){const profile=bossId>=0?BOSS_PROFILES[bossId]:null,d=profile||enemyDefs[kind],id=world.nextId++;const e={id,kind,bossId,name:d.name,color:d.color,speed:d.speed,damage:+(d.damage*damageScale).toFixed(2),region:regionAt(x,y),nest,home:false,x,y,r:d.r,hp:Math.round(d.hp*hpScale),maxHp:Math.round(d.hp*hpScale),vx:0,vy:0,ageMs:0,aiMs:0,windupMs:0,attackMs:400+rand()*550,chargeMs:0,chargeDX:0,chargeDY:0,hitMs:0,burnMs:0,burnTickMs:400,burnAmount:0,wetMs:0,stunMs:0,tid:0,dead:false};world.enemies.push(e);return e;}
   function announce(text,time=1700){world.screenText=text;world.screenTextMs=time;if(!resimulatingGame){$('screenMessage').textContent=text;$('screenMessage').classList.add('show');}}
   createWorld(initialMapSeed());
 
@@ -112,8 +116,8 @@
     return withActor(actor,()=>beginRoll(actor.x+dx/length*distance,actor.y+dy/length*distance));
   }
   function takeDamage(amount,fromX,fromY){if(player.invulMs>0||world.mode!=='playing')return false;player.hp=Math.max(0,player.hp-Math.round(amount));player.invulMs=520;player.hits++;world.effectShakeMs=180;floating(player.x,player.y-32,`-${Math.round(amount)}`,'#bb604f');burst(player.x,player.y,'#d07962',10,83);sfx('hit');if(fromX!=null){const d=hypot(player.x-fromX,player.y-fromY)||1;moveCollider(player,(player.x-fromX)/d*17,(player.y-fromY)/d*17,player.r);}if(player.hp<=0){if(!resimulatingGame&&player===(mp.role==='join'?guestPlayer:hostPlayer))dropDraw();if(mp.shared){player.koMs=1150;announce('동료의 잉크가 번졌다 · 잠시 뒤 부활!',1100);}else{world.mode='over';world.deathMs=0;announce('먹물이 번졌다… 이번 판은 여기까지',2400);}}return true;}
-  function reviveActor(actor){withActor(actor,()=>{player.x=actor===guestPlayer?536:480;player.y=actor===guestPlayer?756:735;player.hp=Math.ceil(player.maxHp*.75);player.invulMs=1600;player.koMs=0;player.dash.leftMs=0;player.dash.charges=CFG.player.roll.capacity;player.dash.rechargeMs=0;player.nextCastAtMs=0;});}
-  function revive(){world.summons.length=0;player.x=480;player.y=735;player.hp=Math.ceil(player.maxHp*.75);player.invulMs=1600;player.dash.leftMs=0;player.dash.charges=CFG.player.roll.capacity;player.dash.rechargeMs=0;player.nextCastAtMs=0;world.hazards.length=0;world.casts.length=0;world.castQueue.length=0;world.rollMarks.length=0;world.mode='playing';}
+  function reviveActor(actor){withActor(actor,()=>{{const p=spawnPointFor(actor);player.x=p.x;player.y=p.y;}player.hp=Math.ceil(player.maxHp*.75);player.invulMs=1600;player.koMs=0;player.dash.leftMs=0;player.dash.charges=CFG.player.roll.capacity;player.dash.rechargeMs=0;player.nextCastAtMs=0;});}
+  function revive(){world.summons.length=0;{const p=spawnPointFor(player);player.x=p.x;player.y=p.y;}player.hp=Math.ceil(player.maxHp*.75);player.invulMs=1600;player.dash.leftMs=0;player.dash.charges=CFG.player.roll.capacity;player.dash.rechargeMs=0;player.nextCastAtMs=0;world.hazards.length=0;world.casts.length=0;world.castQueue.length=0;world.rollMarks.length=0;world.mode='playing';}
   function nearestEnemy(range=900,x=player.x,y=player.y,excludeId=null){
     let nearest=null,best=range;
     for(const e of world.enemies){if(e.dead||e.id===excludeId)continue;const d=hypot(e.x-x,e.y-y);if(d<best){best=d;nearest=e;}}
@@ -170,24 +174,57 @@
   }
   // `source` is the drawn shape (CNN class) that caused the damage; boss rules scale or cancel it.
   function damageEnemy(e,amount,x,y,color='#be7757',source='normal'){if(e.dead)return 0;
-    if(e.bossId>=0){const factor=BOSS_PROFILES[e.bossId].multiplier(source);if(factor===0){e.hitMs=SKETCH.hitFlashMs;floating(x??e.x,y??e.y-32,'면역','#8a8f93');return 0;}if(factor>1)floating((x??e.x)+16,(y??e.y-32)-16,'약점!','#d0803a');amount*=factor;}
+    if(e.bossId>=0){const factor=BOSS_PROFILES[e.bossId].multiplier(source);if(factor===0){e.hitMs=SKETCH.hitFlashMs;floating(x??e.x,y??e.y-32,'면역','#8a8f93');return 0;}if(factor>1)floating((x??e.x)+16,(y??e.y-32)-16,'약점!','#d0803a');amount*=factor;if(bossSealed(e.bossId)){amount*=BOSS_SEAL_DAMAGE_SCALE;if(world.clockMs-(e.sealMsgMs??-9999)>1400){e.sealMsgMs=world.clockMs;floating((x??e.x)-16,(y??e.y-32)-16,'봉인 −90%','#7d5a9e');}}}
     const d=Math.max(1,Math.round(amount));e.hp=Math.max(0,e.hp-d);e.hitMs=SKETCH.hitFlashMs;floating(x??e.x,y??e.y-32,`-${d}`,color);
     if(world.clockMs-world.lastHitstopClockMs>110){world.lastHitstopClockMs=world.clockMs;world.hitstopMs=Math.max(world.hitstopMs,e.kind==='boss'?64:43);world.hitFlashMs=155;world.effectShakeMs=Math.max(world.effectShakeMs,e.kind==='boss'?190:110);}
     // Radial scratch and high-contrast paper sparks at the real contact point.
     world.fields.push({kind:'impact',x:e.x,y:e.y-3,r:e.kind==='boss'?59:33,ageMs:0,lifeMs:260,color});
     burst(e.x,e.y,color,e.kind==='boss'?11:7,99);
-if(e.hp<=0){e.dead=true;world.kills++;if(e.kind!=='boss')world.regionKills[e.region]++;burst(e.x,e.y,e.color,9,100);tearEnemyInk(e);sfx('kill');if(e.kind!=='boss'){world.pickups.push({x:e.x,y:e.y,r:8,lifeMs:24000,kind:'ink',amount:1+Math.floor(rand()*3)});}else{world.bossesDefeated++;offerUnlockReward();if(world.bossesDefeated>=BOSS_PROFILES.length){world.reward=null;world.mode='clear';}announce(world.bossesDefeated>=BOSS_PROFILES.length?`${e.name} 격파 · 스케치 타운을 되찾았다!`:`${e.name} 격파 · ${world.bossesDefeated}/${BOSS_PROFILES.length}`,3500);world.pickups.push({x:e.x,y:e.y,r:15,lifeMs:30000,kind:'ink',amount:24});}}
+if(e.hp<=0){e.dead=true;world.kills++;if(e.kind!=='boss')world.regionKills[e.region]++;burst(e.x,e.y,e.color,9,100);tearEnemyInk(e);sfx('kill');if(e.kind!=='boss'){world.pickups.push({x:e.x,y:e.y,r:8,lifeMs:24000,kind:'ink',amount:1+Math.floor(rand()*3)});}else{world.bossState[e.bossId]=2;world.bossesDefeated++;offerUnlockReward();if(world.bossesDefeated>=BOSS_PROFILES.length){world.reward=null;world.mode='clear';}announce(world.bossesDefeated>=BOSS_PROFILES.length?`${e.name} 격파 · 스케치 타운을 되찾았다!`:`${e.name} 격파 · ${world.bossesDefeated}/${BOSS_PROFILES.length} · ${nextBossId()+1}번 보스`,3500);world.pickups.push({x:e.x,y:e.y,r:15,lifeMs:30000,kind:'ink',amount:24});}}
     else sfx('hit');return d;}
 
   function enemyProjectile(x,y,tx,ty,kind='ink',speed=260,damage=9){const dx=tx-x,dy=ty-y,m=hypot(dx,dy)||1;world.hazards.push({x,y,prevX:x,prevY:y,vx:dx/m*speed,vy:dy/m*speed,r:kind==='orb'?11:7,kind,color:kind==='orb'?'#9d729c':'#9f8fb1',damage,ageMs:0,lifeMs:2100});}
-  function activeBoss(){return world.enemies.find(e=>e.kind==='boss'&&!e.dead)||null;}
-  // Boss n appears when an able player nears boss site n, and only after boss n-1 has fallen.
+  // Boss UI follows the nearest living boss; several can be alive at once because they stand in different zones.
+  function activeBoss(){let best=null,bd=1e18;for(const e of world.enemies){if(e.kind!=='boss'||e.dead)continue;const d=hypot(e.x-player.x,e.y-player.y);if(d<bd){bd=d;best=e;}}return best;}
+  // Boss n is sealed (takes BOSS_SEAL_DAMAGE_SCALE of every hit) until bosses 0..n-1 have fallen.
+  function bossSealed(id){for(let j=0;j<id;j++)if(world.bossState[j]!==2)return true;return false;}
+  function nextBossId(){const i=world.bossState.findIndex(v=>v!==2);return i<0?BOSS_PROFILES.length-1:i;}
+  // A boss appears when an able player comes within its site radius + 220, in any order; only its seal enforces the order.
   function updateBossSummon(){
-    const next=world.bossesDefeated;if(next>=BOSS_PROFILES.length||activeBoss())return;
-    const site=mapLayout.bossSites[next],actors=mp.shared?[hostPlayer,guestPlayer]:[hostPlayer];
-    if(!actors.some(a=>a.hp>0&&!(a.koMs>0)&&hypot(a.x-site.x,a.y-site.y)<site.radius+220))return;
-    const profile=BOSS_PROFILES[next];spawnEnemy('boss',site.x,site.y,next);
-    announce(`${profile.name} 등장 · ${profile.ruleText()}`,3200);
+    const live=actors().filter(a=>a.hp>0&&!(a.koMs>0));
+    for(const site of mapLayout.bossSites){
+      const i=site.bossId;if(world.bossState[i]!==0)continue;
+      if(!live.some(a=>hypot(a.x-site.x,a.y-site.y)<site.radius+220))continue;
+      const profile=BOSS_PROFILES[i];world.bossState[i]=1;spawnEnemy('boss',site.x,site.y,i);
+      announce(bossSealed(i)?`${profile.name} 등장 · 봉인됨(피해 −90%) · ${i}번 보스를 먼저 쓰러뜨리세요`:`${profile.name} 등장 · ${profile.ruleText()}`,3200);
+    }
+  }
+  // Mob nests (WORLD_MAP.mobs): a nest wakes when a living hero comes within activeRadius, sleeps (members removed) when every
+  // hero is beyond despawnRadius, and refills respawnMs after its last member fell while all heroes stayed beyond respawnAwayPx.
+  const ENEMY_CAP=60;
+  function spawnNestMembers(index){
+    const n=mapLayout.nests[index],M=WORLD_MAP.mobs,count=n.members.length;
+    for(let k=0;k<count;k++){
+      const a=(k+rand())*Math.PI*2/count,rr=34+rand()*56;let x=n.x+Math.cos(a)*rr,y=n.y+Math.sin(a)*rr;
+      if(mapLayout.terrainBlocks(x,y,20)){x=n.x;y=n.y;}
+      spawnEnemy(n.members[k],x,y,-1,index,n.hpScale,M.damageScale[n.zone]).region=n.zone;
+    }
+  }
+  function tickNests(dt){
+    const M=WORLD_MAP.mobs,nests=mapLayout.nests,live=actors().filter(a=>a.hp>0&&!(a.koMs>0));
+    const near=(n,r)=>live.some(a=>{const dx=a.x-n.x,dy=a.y-n.y;return dx*dx+dy*dy<r*r;});
+    const alive=new Array(nests.length).fill(0);let total=0;
+    for(const e of world.enemies){if(e.dead)continue;total++;if(e.nest>=0)alive[e.nest]++;}
+    for(let i=0;i<nests.length;i++){
+      const n=nests[i],s=world.nests[i];if(!s)continue;
+      if(s.on){
+        if(alive[i]===0){s.on=false;if(n.respawn)s.cd=M.respawnMs;else s.done=true;}
+        else if(!near(n,M.despawnRadius)){for(const e of world.enemies)if(e.nest===i&&!e.dead)e.dead=true;s.on=false;s.cd=0;total-=alive[i];}
+      }else if(!s.done){
+        if(s.cd>0){if(!near(n,M.respawnAwayPx))s.cd=Math.max(0,s.cd-dt);}
+        else if(near(n,M.activeRadius)&&total+n.members.length<=ENEMY_CAP){spawnNestMembers(i);s.on=true;total+=n.members.length;}
+      }
+    }
   }
   function enemyAction(e){if(e.dead||world.mode!=='playing')return;const summon=summonById(e.tid),tgt=summon&&summon.hp>0?summon:player,dx=tgt.x-e.x,dy=tgt.y-e.y,d=hypot(dx,dy)||1;
     if(e.attackType==='melee'){if(d<e.r+tgt.r+48){if(tgt===player)takeDamage(e.damage,e.x,e.y);else hurtSummon(tgt,e.damage);}burst(e.x+dx/d*20,e.y+dy/d*20,'#a87978',6,38);}
@@ -201,6 +238,8 @@ if(e.hp<=0){e.dead=true;world.kills++;if(e.kind!=='boss')world.regionKills[e.reg
       // Inactive far-off enemies never simulate AI, but status timers remain consistent.
       const tgt=enemyTarget(e,player),dx=tgt.x-e.x,dy=tgt.y-e.y,d=hypot(dx,dy)||1;e.tid=tgt===player?0:tgt.id;if(hypot(player.x-e.x,player.y-e.y)>970&&tgt===player&&e.kind!=='boss')continue;
       if(e.stunMs>0){moveCollider(e,e.vx*dt/1000,e.vy*dt/1000,e.r*.68);e.vx*=.85;e.vy*=.85;continue;}
+      // A nest member that strayed past its leash walks home and ignores heroes until it is back.
+      if(e.nest>=0){const n=mapLayout.nests[e.nest],hx=n.x-e.x,hy=n.y-e.y,hd=hypot(hx,hy)||1;if(!e.home&&hd>n.leash)e.home=true;if(e.home){if(hd<70)e.home=false;else moveEnemy(e,dt,hx/hd*enemyDefs[e.kind].speed,hy/hd*enemyDefs[e.kind].speed);continue;}}
       if(e.chargeMs>0){e.chargeMs=Math.max(0,e.chargeMs-dt);moveCollider(e,e.chargeDX*(e.kind==='boss'?490:570)*dt/1000,e.chargeDY*(e.kind==='boss'?490:570)*dt/1000,e.r*.67);if(hypot(player.x-e.x,player.y-e.y)<player.r+e.r+6){takeDamage(e.damage,e.x,e.y);e.chargeMs=0;}else{const hitSummon=world.summons.find(s=>s.hp>0&&hypot(s.x-e.x,s.y-e.y)<s.r+e.r+6);if(hitSummon){hurtSummon(hitSummon,e.damage);e.chargeMs=0;}}continue;}
       if(e.windupMs>0){e.windupMs-=dt;if(e.windupMs<=0){e.windupMs=0;enemyAction(e);}continue;}
       e.attackMs-=dt;
@@ -323,7 +362,7 @@ if(e.hp<=0){e.dead=true;world.kills++;if(e.kind!=='boss')world.regionKills[e.reg
     // Time dilation is local-only; online rollback must not depend on device pointer state.
     const hostileDt=!mp.connected&&drawInput.pointer!==null?dt*.25:dt;
     world.slowRatio=hostileDt/dt;
-    updateBossSummon();updateEnemies(hostileDt);tickCasts(dt);tickBolts(dt);tickSummons(dt);separateUnits();tickHazards(hostileDt);tickEffects(dt);
+    tickNests(dt);updateBossSummon();updateEnemies(hostileDt);tickCasts(dt);tickBolts(dt);tickSummons(dt);separateUnits();tickHazards(hostileDt);tickEffects(dt);
     // Dead enemies have already delivered their XP, drops and ink fragments. Their records must NOT
     // survive forever in the canonical rollback history or AI scans. Stable IDs never get reused.
     for(let i=world.enemies.length-1;i>=0;i--)if(world.enemies[i].dead)world.enemies.splice(i,1);
