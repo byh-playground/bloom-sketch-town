@@ -95,17 +95,17 @@
   class TauntMobileSpec extends withTaunt(MobileSpec){}
 
   const SUMMON_SPECS=Object.freeze({
-    normal:   new MobileSpec({name:'낙서병',role:'근접',hp:40,r:13,ink:4,speed:120,strike:new MeleeStrike({damage:7,cooldownMs:650,range:14})}),
-    line:     new MobileSpec({name:'잉크 사수',role:'원거리',hp:32,r:12,ink:6,speed:105,strike:new RangedBolt({damage:6,cooldownMs:520,range:300})}),
-    circle:   new TauntMobileSpec({name:'방패 구체',role:'방어',hp:130,r:17,ink:14,speed:90,strike:new MeleeStrike({damage:5,cooldownMs:800,range:14}),effects:[new SplashEffect(60,.5)]}),
-    triangle: new MobileSpec({name:'창병',role:'근접',hp:62,r:14,ink:15,speed:135,strike:new MeleeStrike({damage:19,cooldownMs:720,range:16})}),
-    square:   new TauntMobileSpec({name:'벽돌 골렘',role:'방어',hp:170,r:19,ink:18,speed:70,strike:new MeleeStrike({damage:11,cooldownMs:950,range:14}),effects:[new StunEffect(700)]}),
-    flame:    new MobileSpec({name:'불씨 정령',role:'원거리',hp:46,r:13,ink:16,speed:100,strike:new RangedBolt({damage:8,cooldownMs:900,range:280}),effects:[new BurnEffect()]}),
-    water:    new MobileSpec({name:'물방울 정령',role:'원거리',hp:52,r:13,ink:14,speed:105,strike:new RangedBolt({damage:6,cooldownMs:800,range:280}),effects:[new WetEffect()]}),
-    lightning:new MobileSpec({name:'번개새',role:'원거리',hp:40,r:12,ink:17,speed:150,strike:new RangedBolt({damage:9,cooldownMs:850,range:320}),effects:[new ChainEffect(230,320,.31)]}),
-    star:     new AnchoredSpec({name:'별 포탑',role:'고정·범위',hp:80,r:16,ink:26,strike:new AreaPulse({damage:14,cooldownMs:1000,range:170}),effects:[new StunEffect(350)]}),
-    shuriken: new MobileSpec({name:'표창 닌자',role:'근접',hp:50,r:12,ink:16,speed:175,strike:new MeleeStrike({damage:9,cooldownMs:330,range:14}),effects:[new StunEffect(130)]}),
-    starcircle:new AnchoredSpec({name:'마법진',role:'고정·범위·회복',hp:100,r:20,ink:32,strike:new AreaPulse({damage:11,cooldownMs:600,range:200}),effects:[new HealOwnerEffect(1)]})
+    normal:   new MobileSpec({name:'낙서병',role:'근접',hp:40,r:13,ink:45,speed:120,strike:new MeleeStrike({damage:7,cooldownMs:650,range:14})}),
+    line:     new MobileSpec({name:'잉크 사수',role:'원거리',hp:32,r:12,ink:35,speed:105,strike:new RangedBolt({damage:6,cooldownMs:520,range:300})}),
+    circle:   new TauntMobileSpec({name:'방패 구체',role:'방어',hp:130,r:17,ink:62,speed:90,strike:new MeleeStrike({damage:5,cooldownMs:800,range:14}),effects:[new SplashEffect(60,.5)]}),
+    triangle: new MobileSpec({name:'창병',role:'근접',hp:62,r:14,ink:68,speed:135,strike:new MeleeStrike({damage:19,cooldownMs:720,range:16})}),
+    square:   new TauntMobileSpec({name:'벽돌 골렘',role:'방어',hp:170,r:19,ink:78,speed:70,strike:new MeleeStrike({damage:11,cooldownMs:950,range:14}),effects:[new StunEffect(700)]}),
+    flame:    new MobileSpec({name:'불씨 정령',role:'원거리',hp:46,r:13,ink:68,speed:100,strike:new RangedBolt({damage:8,cooldownMs:900,range:280}),effects:[new BurnEffect()]}),
+    water:    new MobileSpec({name:'물방울 정령',role:'원거리',hp:52,r:13,ink:62,speed:105,strike:new RangedBolt({damage:6,cooldownMs:800,range:280}),effects:[new WetEffect()]}),
+    lightning:new MobileSpec({name:'번개새',role:'원거리',hp:40,r:12,ink:72,speed:150,strike:new RangedBolt({damage:9,cooldownMs:850,range:320}),effects:[new ChainEffect(230,320,.31)]}),
+    star:     new AnchoredSpec({name:'별 포탑',role:'고정·범위',hp:80,r:16,ink:88,strike:new AreaPulse({damage:14,cooldownMs:1000,range:170}),effects:[new StunEffect(350)]}),
+    shuriken: new MobileSpec({name:'표창 닌자',role:'근접',hp:50,r:12,ink:68,speed:175,strike:new MeleeStrike({damage:9,cooldownMs:330,range:14}),effects:[new StunEffect(130)]}),
+    starcircle:new AnchoredSpec({name:'마법진',role:'고정·범위·회복',hp:100,r:20,ink:95,strike:new AreaPulse({damage:11,cooldownMs:600,range:200}),effects:[new HealOwnerEffect(1)]})
   });
   function summonSpecOf(kind){return SUMMON_SPECS[kind]||SUMMON_SPECS.normal;}
 
