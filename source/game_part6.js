@@ -28,7 +28,7 @@
     $('mpHost').disabled=active;$('mpJoin').disabled=active;
     $('mpLeave').textContent=active?'연결 종료':'취소';
   }
-  const canonicalKeys=['nextId','seed','clockMs','kills','bossSpawned','bossDefeated',
+  const canonicalKeys=['nextId','seed','mapSeed','clockMs','kills','bossSpawned','bossDefeated',
     'hitstopMs','lastHitstopClockMs','hitFlashMs','slowRatio','screenTextMs','screenText',
     'effectShakeMs','mode','deathMs','regionKills'];
   const canonicalArrays=['enemies','projectiles','hazards','casts','pickups','fields','castQueue'];
@@ -44,6 +44,7 @@
     try{if(snapshot.byteLength<20||snapshot.byteLength>MP_PROFILE.maxSnapshotBytes)return false;
       const data=JSON.parse(MP_READER.decode(snapshot));if(data.version!==CFG.version||!data.world||!Array.isArray(data.actors)||data.actors.length!==2)return false;
       const w=data.world;
+      if(!Number.isSafeInteger(w.mapSeed)||w.mapSeed<0||w.mapSeed>0xFFFFFFFF)return false;
       if(!Number.isSafeInteger(w.nextId)||w.nextId<1||!Number.isSafeInteger(w.seed)||w.seed<0||!Number.isFinite(w.clockMs)||w.clockMs<0)return false;
       for(const name of canonicalArrays)if(!Array.isArray(w[name])||w[name].length>({enemies:75,projectiles:65,hazards:150,casts:8,pickups:120,fields:350,castQueue:8}[name]))return false;
       // Recovery must preserve the released direction; missing/invalid aim is not an old-schema fallback.
@@ -58,6 +59,8 @@
     if(!validateState(snapshot))throw new Error('부적합한 스케치 타운 롤백 체크포인트');
     const data=JSON.parse(MP_READER.decode(snapshot));
     for(const key of canonicalKeys)world[key]=data.world[key];
+    // Terrain is not in the checkpoint; it is re-derived from the shared seed, and only when the seed changed.
+    if(mapLayout.seed!==world.mapSeed)applyMapLayout(world.mapSeed);
     for(const name of canonicalArrays)world[name]=name==='projectiles'
       ?data.world[name].map(p=>({...p,hitAt:new Map(p.hitAt)}))
       :data.world[name];

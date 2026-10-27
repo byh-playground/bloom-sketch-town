@@ -30,18 +30,16 @@
   const cellSize=160,gridKey=(x,y)=>`${Math.floor(x/cellSize)},${Math.floor(y/cellSize)}`;
   function addObstacle(o){world.obstacles.push(o);for(let gx=Math.floor((o.x-o.r)/cellSize);gx<=Math.floor((o.x+o.r)/cellSize);gx++)for(let gy=Math.floor((o.y-o.r)/cellSize);gy<=Math.floor((o.y+o.r)/cellSize);gy++){const key=`${gx},${gy}`;if(!world.grid.has(key))world.grid.set(key,[]);world.grid.get(key).push(o);}}
   function circleBounds(x,y,r){return x>=r&&y>=r&&x<=CFG.world.width-r&&y<=CFG.world.height-r;}
-  function touchesObstacle(x,y,r){if(!circleBounds(x,y,r)||mapTerrainBlocked(x,y,r))return true;const list=world.grid.get(gridKey(x,y))||[];for(const o of list){if(hypot(o.x-x,o.y-y)<o.r+r)return true;}return false;}
+  function touchesObstacle(x,y,r){if(!circleBounds(x,y,r)||mapLayout.terrainBlocks(x,y,r))return true;const list=world.grid.get(gridKey(x,y))||[];for(const o of list){if(hypot(o.x-x,o.y-y)<o.r+r)return true;}return false;}
   function moveCollider(e,dx,dy,r){if(!touchesObstacle(e.x+dx,e.y,r))e.x+=dx;if(!touchesObstacle(e.x,e.y+dy,r))e.y+=dy;}
-  function createWorld(){
-    // Deterministic generated props. No hand-authored image assets, texture uploads, or runtime network.
-    for(const h of [{x:275,y:540,w:173,h:127,type:'house'},{x:575,y:462,w:167,h:119,type:'library'},{x:360,y:960,w:162,h:112,type:'shop'}]){world.houses.push(h);addObstacle({x:h.x,y:h.y+16,r:h.w*.46,kind:'house'});}
-    populateRegionMap();
+  function createWorld(mapSeed){
+    applyMapLayout(mapSeed);
     REGIONS.forEach((_,i)=>spawnRegion(i));
   }
   const enemyDefs={chaser:{r:19,hp:55,speed:89,damage:11,color:'#a57673',name:'종이 사냥꾼'},spitter:{r:20,hp:48,speed:65,damage:9,color:'#8e8ba8',name:'잉크 투척수'},charger:{r:23,hp:85,speed:72,damage:18,color:'#c1966b',name:'낙서 돌격수'},boss:{r:56,hp:580,speed:55,damage:23,color:'#8d688e',name:'잉크 감시자'}};
   function spawnEnemy(kind,x,y){const d=enemyDefs[kind],id=world.nextId++;const e={id,kind,region:regionAt(x),x,y,r:d.r,hp:d.hp,maxHp:d.hp,vx:0,vy:0,ageMs:0,aiMs:0,windupMs:0,attackMs:400+rand()*550,chargeMs:0,chargeDX:0,chargeDY:0,hitMs:0,burnMs:0,burnTickMs:400,burnAmount:0,wetMs:0,stunMs:0,dead:false};world.enemies.push(e);return e;}
   function announce(text,time=1700){world.screenText=text;world.screenTextMs=time;if(!resimulatingGame){$('screenMessage').textContent=text;$('screenMessage').classList.add('show');}}
-  createWorld();
+  createWorld(initialMapSeed());
 
   // The canonical actor movement kernel is shared by authority and GameKit's detached preview fork.
   // Neither helper reads input devices, queues effects, changes world simulation, or plays audio.
@@ -175,7 +173,7 @@
     world.fields.push({kind:'impact',x:e.x,y:e.y-3,r:e.kind==='boss'?59:33,ageMs:0,lifeMs:260,color});
     burst(e.x,e.y,color,e.kind==='boss'?11:7,99);
 if(e.hp<=0){e.dead=true;world.kills++;if(e.kind!=='boss')world.regionKills[e.region]++;burst(e.x,e.y,enemyDefs[e.kind].color,9,100);tearEnemyInk(e);sfx('kill');if(e.kind!=='boss'){world.pickups.push({x:e.x,y:e.y,r:8,lifeMs:24000,kind:'ink',amount:1+Math.floor(rand()*3)});}else{world.bossDefeated=true;announce('잉크 감시자 격파 · 스케치 타운을 되찾았다!',3500);world.pickups.push({x:e.x,y:e.y,r:15,lifeMs:30000,kind:'ink',amount:24});}
-      if(allRegionsCleared()&&!world.bossSpawned){world.bossSpawned=true;spawnEnemy('boss',CFG.boss.x,CFG.boss.y);announce('고대 원형장에 잉크 감시자가 나타났다!',2600);}}
+      if(allRegionsCleared()&&!world.bossSpawned){world.bossSpawned=true;spawnEnemy('boss',mapLayout.boss.x,mapLayout.boss.y);announce('고대 원형장에 잉크 감시자가 나타났다!',2600);}}
     else sfx('hit');return d;}
 
   function enemyProjectile(x,y,tx,ty,kind='ink',speed=260,damage=9){const dx=tx-x,dy=ty-y,m=hypot(dx,dy)||1;world.hazards.push({x,y,prevX:x,prevY:y,vx:dx/m*speed,vy:dy/m*speed,r:kind==='orb'?11:7,kind,color:kind==='orb'?'#9d729c':'#9f8fb1',damage,ageMs:0,lifeMs:2100});}

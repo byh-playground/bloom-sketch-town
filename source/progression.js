@@ -6,11 +6,12 @@
     {id:'attack',name:'붓끝의 힘',step:6,unit:'공격력 %',max:5},
     {id:'hp',name:'종이 갑옷',step:12,unit:'최대 HP',max:5}
   ]);
+  // Region bands and enemy kinds are rules; where each enemy stands comes from the seeded MapLayout.
   const REGIONS=Object.freeze([
-    {id:'forest',name:'잉크 숲',min:0,max:1450,goal:5,color:'#e7eedc',spawns:[['chaser',930,590],['spitter',1120,910],['charger',1220,680],['chaser',1030,750],['spitter',1270,1000]]},
-    {id:'marsh',name:'안개 습지',min:1450,max:2900,goal:5,color:'#dce9e6',spawns:[['spitter',1770,570],['chaser',1940,930],['charger',2260,710],['spitter',2450,1010],['chaser',2600,580]]},
-    {id:'quarry',name:'종이 채석장',min:2900,max:4400,goal:3,color:'#e7e1d9',spawns:[['charger',3170,580],['spitter',3360,900],['charger',3590,670]]}
-  ]);
+    {id:'forest',name:'잉크 숲',color:'#e7eedc',spawnKinds:['chaser','spitter','charger','chaser','spitter']},
+    {id:'marsh',name:'안개 습지',color:'#dce9e6',spawnKinds:['spitter','chaser','charger','spitter','chaser']},
+    {id:'quarry',name:'종이 채석장',color:'#e7e1d9',spawnKinds:['charger','spitter','charger']}
+  ].map((r,i)=>Object.freeze({...r,min:REGION_BANDS[i][0],max:REGION_BANDS[i][1],goal:r.spawnKinds.length})));
   const emptyCards=()=>Object.fromEntries(CARD_DEFS.map(s=>[s.id,0]));
   function validCards(c){return !!c&&CARD_DEFS.every(s=>Number.isSafeInteger(c[s.id])&&c[s.id]>=0&&c[s.id]<=s.max);}
   function derivedStats(cards){return {maxInk:100+15*cards.inkMax,inkRegen:8+cards.inkRegen,inkCostRate:1-.05*cards.inkDiscount,maxHp:CFG.player.hp+12*cards.hp,power:1+.06*cards.attack};}
@@ -23,7 +24,7 @@
   function regionAt(x){return x<REGIONS[0].max?0:x<REGIONS[1].max?1:2;}
   function regionCleared(i){return world.regionKills[i]>=REGIONS[i].goal;}
   function allRegionsCleared(){return REGIONS.every((_,i)=>regionCleared(i));}
-  function spawnRegion(index){for(const [kind,x,y]of REGIONS[index].spawns)spawnEnemy(kind,x,y);}
+  function spawnRegion(index){for(const s of mapLayout.spawns)if(s.region===index)spawnEnemy(s.kind,s.x,s.y);}
   function progressionQuest(){
     if(world.bossDefeated)return {title:'새 페이지를 완성했어요',text:'잉크 감시자를 쓰러뜨렸어요',value:1,max:1};
     if(world.bossSpawned)return {title:'잉크 감시자',text:'잉크 감시자를 쓰러뜨리세요',value:0,max:1};

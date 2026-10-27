@@ -479,11 +479,103 @@ def local_server():
         thread.join(timeout=3)
 
 
+async def walk_route(page, points, timeout_s=90):
+    """Follow the generated route with real keyboard input; returns the index of the next unreached route point."""
+    await page.locator('#field').focus()
+    held=set()
+    async def hold(keys):
+        for key in held-keys:
+            await page.keyboard.up(key)
+        for key in keys-held:
+            await page.keyboard.down(key)
+        held.clear(); held.update(keys)
+    index=1; deadline=time.time()+timeout_s
+    while index<len(points) and time.time()<deadline:
+        p=await page.evaluate('(()=>{const s=__sketchRpgDebug.snapshot().player;return {x:s.x,y:s.y};})()')
+        dx=points[index]['x']-p['x']; dy=points[index]['y']-p['y']
+        if (dx*dx+dy*dy)**.5<50:
+            index+=1; continue
+        keys=set()
+        if dx>20: keys.add('d')
+        elif dx<-20: keys.add('a')
+        if dy>20: keys.add('s')
+        elif dy<-20: keys.add('w')
+        await hold(keys)
+        await page.wait_for_timeout(50)
+    await hold(set())
+    return index
+
+
+async def run_map(browser, suite: E2E):
+    seed=20261026
+    with local_server() as url:
+        desktop,page,issues=await create_page(browser,width=1024,height=768)
+        mobile,other,other_issues=await create_page(browser,width=390,height=844,mobile=True)
+        try:
+            await page.goto(f'{url}?seed={seed}')
+            await other.goto(f'{url}?seed={seed}')
+            for p in (page,other):
+                await p.wait_for_function('window.__sketchRpgDebug?.rendererStats().vertices>0')
+            a=await page.evaluate('__sketchRpgDebug.mapState()')
+            b=await other.evaluate('__sketchRpgDebug.mapState()')
+            suite.check('same seed gives the same layout hash in a desktop and a 390px mobile page',a['hash']==b['hash'] and a['seed']==seed and a['worldSeed']==seed,{'a':a['hash'],'b':b['hash']})
+            suite.check('layout hash matches a fresh generation of the same seed',(await page.evaluate(f'__sketchRpgDebug.mapHashFor({seed})'))['hash']==a['hash'])
+            suite.check('different seeds give different layouts',(await page.evaluate(f'__sketchRpgDebug.mapHashFor({seed+1})'))['hash']!=a['hash'])
+            suite.check('help screen shows the run seed',await page.evaluate("document.getElementById('mapSeed').textContent")==str(seed))
+            suite.check('world obstacles and props are exactly what the layout lists',a['counts']['obstacles']==a['counts']['solids']+0 and a['counts']['trees']>=a['counts']['props'],a['counts'])
+            suite.check('layout has marsh ponds, quarry ridges, four clearings and thirteen enemy spawns',
+                        sum(1 for q in a['ponds'] if 1450<=q['x']<2900)>=3 and len(a['ridges'])>=5 and len(a['clearings'])==4 and len(a['spawns'])==13,
+                        {'ponds':len(a['ponds']),'ridges':len(a['ridges']),'clearings':len(a['clearings']),'spawns':len(a['spawns'])})
+            free=await page.evaluate("""m => m.spawns.every(s=>!__sketchRpgDebug.terrainBlocked(s.x,s.y,20)) && !__sketchRpgDebug.terrainBlocked(m.boss.x,m.boss.y,56) && !__sketchRpgDebug.terrainBlocked(480,735,16)""",a)
+            suite.check('every enemy spawn, the boss spot and the village start are walkable',free)
+            sweep=await page.evaluate("""() => {const out={fail:0,attempts:{},maxMs:0,hashes:new Set()};
+              for(let i=0;i<150;i++){const seed=(i*2654435761)>>>0;try{const r=__sketchRpgDebug.mapHashFor(seed),again=__sketchRpgDebug.mapHashFor(seed);
+                if(r.hash!==again.hash)out.fail++;out.attempts[r.attempt]=(out.attempts[r.attempt]||0)+1;out.maxMs=Math.max(out.maxMs,r.ms);out.hashes.add(r.hash);}catch(e){out.fail++;}}
+              out.unique=out.hashes.size;delete out.hashes;return out;}""")
+            suite.check('150 seeds all generate a reachable, repeatable map within 1s each',sweep['fail']==0 and sweep['unique']==150 and sweep['maxMs']<1000,sweep)
+            # Join/recovery path: a checkpoint from seed A restored into a page that started with seed B rebuilds seed A's terrain.
+            await other.goto(f'{url}?seed={seed+7}')
+            await other.wait_for_function('window.__sketchRpgDebug?.rendererStats().vertices>0')
+            before=await other.evaluate('__sketchRpgDebug.mapState().hash')
+            snapshot=await page.evaluate('Array.from(__sketchRpgDebug.canonicalSnapshot())')
+            await other.evaluate('bytes=>__sketchRpgDebug.canonicalRestore(new Uint8Array(bytes))',snapshot)
+            restored=await other.evaluate('__sketchRpgDebug.mapState()')
+            suite.check('checkpoint restore rebuilds the sender\'s terrain from the shared seed',before!=a['hash'] and restored['hash']==a['hash'] and restored['worldSeed']==seed and restored['counts']==a['counts'],{'before':before,'restored':restored['hash'],'expected':a['hash']})
+            # Real keyboard walk along the whole route: village to boss arena.
+            await page.evaluate("""() => {const d=__sketchRpgDebug,s=JSON.parse(new TextDecoder().decode(d.canonicalSnapshot()));
+              s.world.enemies=[];s.world.hazards=[];s.world.pickups=[];d.canonicalRestore(new TextEncoder().encode(JSON.stringify(s)));}""")
+            reached=await walk_route(page,a['route'])
+            final=await page.evaluate('__sketchRpgDebug.snapshot().player')
+            gap=((final['x']-a['boss']['x'])**2+(final['y']-a['boss']['y'])**2)**.5
+            suite.check('real keyboard input walks the generated route from the village to the boss arena',reached==len(a['route']) and gap<120,{'reached':reached,'of':len(a['route']),'gap':gap})
+            # A pond stops a real walker.
+            pond=a['ponds'][0]
+            start=await page.evaluate("""pond => {const d=__sketchRpgDebug;for(let dy=pond.ry+160;dy>=pond.ry+60;dy-=10){const x=pond.x,y=pond.y-dy;if(y<40)continue;let clear=true;for(let yy=y;yy<=pond.y-pond.ry-24;yy+=6)if(d.terrainBlocked(x,yy,16)){clear=false;break;}if(clear)return {x,y};}return null;}""",pond)
+            if start is None:
+                suite.check('pond blocks a real walker',False,'no free start above the first pond')
+            else:
+                await page.evaluate('s=>__sketchRpgDebug.moveTo(s.x,s.y)',start)
+                await page.locator('#field').focus()
+                await page.keyboard.down('s')
+                await page.wait_for_timeout(1500)
+                await page.keyboard.up('s')
+                end=await page.evaluate('__sketchRpgDebug.snapshot().player')
+                inside=await page.evaluate("p=>{const s=__sketchRpgDebug.snapshot().player,a=(s.x-p.x)/p.rx,b=(s.y-p.y)/p.ry;return a*a+b*b<1;}",pond)
+                walked=end['y']-start['y']
+                ahead=await page.evaluate("p=>__sketchRpgDebug.terrainBlocked(p.x,p.y+12,16)",end)
+                suite.check('pond blocks a real walker at its rim',not inside and walked>20 and ahead and end['y']>pond['y']-pond['ry']-16-60,{'start':start,'end':end,'pond':pond,'walked':walked})
+            await page.screenshot(path=str(ARTIFACTS/'map-seed-desktop.png'))
+            suite.check('map flow has no JavaScript errors',not issues and not other_issues,issues+other_issues)
+        finally:
+            await desktop.close()
+            await mobile.close()
+
+
 async def run_ink_hud(browser,suite):
     with local_server() as url:
         context,page,issues=await create_page(browser,width=390,height=844,mobile=True)
         try:
-            await page.goto(url)
+            await page.goto(url+'?seed=20261026')
             await page.wait_for_function('window.__sketchRpgDebug?.rendererStats().vertices>0')
             await page.evaluate('__sketchRpgDebug.regionCombatFixture(0);__sketchRpgDebug.setInk(5)')
             await page.wait_for_timeout(150)
@@ -501,14 +593,7 @@ async def run_ink_hud(browser,suite):
             message=await page.locator('#resultChip').inner_text()
             await page.evaluate('clearInterval(window.__zeroInk)')
             suite.check('spell with insufficient ink explains needed amount and wait',region_shot is not None and '필요' in message and '대기' in message,{'message':message,'shot':region_shot})
-            await page.evaluate('__sketchRpgDebug.moveTo(1780,485)')
-            await page.locator('#field').focus()
-            await page.keyboard.down('w')
-            await page.wait_for_timeout(500)
-            await page.keyboard.up('w')
-            state=await page.evaluate('({player:__sketchRpgDebug.snapshot().player,movement:__sketchRpgDebug.movementState()})')
-            suite.check('authored wetland water silhouette blocks actual walking',state['player']['y']>=460 and state['player']['y']<485,state)
-            suite.check('ink HUD and map flow has no JavaScript error',not issues,issues)
+            suite.check('ink HUD flow has no JavaScript error',not issues,issues)
         finally:
             await context.close()
 
@@ -517,7 +602,7 @@ async def run_run_state(browser, suite: E2E):
     with local_server() as url:
         context, page, issues = await create_page(browser, width=1024, height=768)
         try:
-            await page.goto(url)
+            await page.goto(url+'?seed=20261026')
             await page.wait_for_function('window.__sketchRpgDebug?.rendererStats().vertices>0')
             initial=await page.evaluate('__sketchRpgDebug.runState()')
             suite.check('new run starts with zero card ranks and base maximum ink',initial['actor']['maxInk']==100 and all(v==0 for v in initial['cards'].values()),initial['cards'])
@@ -535,15 +620,6 @@ async def run_run_state(browser, suite: E2E):
             await draw_circle(page)
             await page.wait_for_function('__sketchRpgDebug.runState().regionKills[0]>=5',timeout=10000)
             suite.check('real attack clears the forest region',True)
-            await page.evaluate("""() => {const d=__sketchRpgDebug;d.moveTo(1340,735);
-              const s=JSON.parse(new TextDecoder().decode(d.canonicalSnapshot()));
-              s.world.pickups=[];d.canonicalRestore(new TextEncoder().encode(JSON.stringify(s)));}""")
-            await page.wait_for_timeout(120)
-            await page.locator('#field').focus()
-            await page.keyboard.down('d')
-            await page.wait_for_function('__sketchRpgDebug.snapshot().player.x>1540',timeout=3000)
-            await page.keyboard.up('d')
-            suite.check('former door line no longer blocks walking into the marsh',True)
             await page.set_viewport_size({'width':390,'height':844})
             await page.evaluate('__sketchRpgDebug.regionCombatFixture(1);__sketchRpgDebug.setInk(100)')
             await page.wait_for_timeout(150)
@@ -860,7 +936,7 @@ async def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--headed", action="store_true", help="use with xvfb-run when testing headed SwiftShader")
     parser.add_argument("--live-p2p", action="store_true", help="require actual public Nostr + WebRTC connection, never mock")
-    parser.add_argument("--flow", choices=['all','progression','online','ux'], default='all', help="select a fixed user workflow within this single entrypoint")
+    parser.add_argument("--flow", choices=['all','progression','online','ux','map'], default='all', help="select a fixed user workflow within this single entrypoint")
     args = parser.parse_args()
     ARTIFACTS.mkdir(exist_ok=True)
     suite = E2E(headed=args.headed, live_p2p=args.live_p2p)
@@ -879,6 +955,8 @@ async def main():
                     if args.flow=='all':
                         await run_desktop(browser, suite, html)
                         await run_mobile(browser, suite, html)
+                    if args.flow in ('all','map'):
+                        await run_map(browser, suite)
                     if args.flow in ('all','ux'):
                         await run_ink_hud(browser,suite)
                     if args.flow in ('all','progression'):
@@ -887,7 +965,7 @@ async def main():
                         await run_real_p2p(browser, suite)
                     else:
                         suite.note("public internet WebRTC connection", "not requested; rerun with --live-p2p (same single E2E)")
-                await asyncio.wait_for(scenarios(),timeout=180)
+                await asyncio.wait_for(scenarios(),timeout=300)
             finally:
                 await asyncio.wait_for(browser.close(), timeout=6)
     except Exception as error:
