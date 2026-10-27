@@ -624,7 +624,7 @@ async def run_bosses(browser, suite: E2E):
             wrong=[x for x in dealt if x['hit']!=(0 if expected[x['boss']][x['kind']]==0 else max(1,round(100*expected[x['boss']][x['kind']])))]
             suite.check('real damage path applies each rule for all 55 boss/shape pairs',not wrong,wrong[:5])
             # Real drawing: the fog turtle ignores a drawn water drop and is hurt by a drawn flame.
-            await page.evaluate('__sketchRpgDebug.moveTo(480,735)')
+            await page.evaluate('__sketchRpgDebug.unlockAll();__sketchRpgDebug.moveTo(480,735)')
             boss_id=await page.evaluate('__sketchRpgDebug.spawnBoss(1)')
             await page.wait_for_timeout(200)
             water=await draw_circle(page,170,'water')
@@ -684,6 +684,26 @@ async def run_summons(browser, suite: E2E):
             suite.check('only star and star circle stay in place; only circle and square taunt',anchored==['star','starcircle'] and taunting==['circle','square'],{'anchored':anchored,'taunt':taunting})
             # Every kind summons through the same command path as the net protocol.
             await page.evaluate("__sketchRpgDebug.combatFixture('chaser',3000,735);__sketchRpgDebug.moveTo(480,735);__sketchRpgDebug.setInk(100)")
+            # Unlocks: a run starts with circle, triangle and square; a locked shape falls back to the scribble; a boss reward opens one.
+            start=await page.evaluate("__sketchRpgDebug.unlockState()")
+            suite.check('a run starts with circle, triangle and square open and no reward pending',start['unlocked']==['circle','triangle','square'] and start['reward'] is None,start)
+            await page.evaluate("__sketchRpgDebug.castKind('flame',0,120)")
+            await page.wait_for_function("__sketchRpgDebug.summons().length>0",timeout=6000)
+            locked_kinds=await page.evaluate("__sketchRpgDebug.summons().map(q=>q.kind)")
+            suite.check('a locked shape is summoned as the plain scribble instead',locked_kinds==['normal'],locked_kinds)
+            await page.evaluate("()=>{const d=__sketchRpgDebug;d.spawnBoss(0);const e=world.enemies.find(x=>x.kind==='boss');damageEnemy(e,1e6,e.x,e.y,'#fff','circle');}")
+            await page.wait_for_function("__sketchRpgDebug.unlockState().reward!==null",timeout=4000)
+            offer=await page.evaluate("__sketchRpgDebug.unlockState()")
+            await page.wait_for_function("!document.getElementById('rewardPanel').hidden",timeout=4000)
+            picked=offer['reward']['choices'][0]
+            await page.locator(f'#rewardChoices button[data-kind="{picked}"]').click()
+            await page.wait_for_function("__sketchRpgDebug.unlockState().reward===null",timeout=4000)
+            after=await page.evaluate("__sketchRpgDebug.unlockState()")
+            suite.check('a boss defeat offers three locked shapes; choosing one unlocks it for this run and hides the panel',
+                        len(offer['reward']['choices'])==3 and all(k not in start['unlocked'] for k in offer['reward']['choices']) and picked in after['unlocked'] and len(after['unlocked'])==4 and await page.evaluate("document.getElementById('rewardPanel').hidden"),
+                        {'offer':offer,'after':after})
+            await page.evaluate("__sketchRpgDebug.combatFixture('chaser',3000,735);__sketchRpgDebug.moveTo(480,735);__sketchRpgDebug.setInk(100)")
+            await page.evaluate("__sketchRpgDebug.unlockAll()")
             produced=[]
             for kind in [k for k in kinds if k!='line']:
                 await page.evaluate("k=>{const d=__sketchRpgDebug;d.setInk(100);d.castKind(k,0,120);}",kind)
@@ -1058,7 +1078,7 @@ async def run_real_p2p(browser, suite: E2E):
                 boundary=min(s['confirmedTick'] for s in states)
                 hashes=await asyncio.gather(*(p.evaluate("t=>window.__sketchRpgDebug.stateHash(t)",boundary) for p in (host,guest)))
                 suite.check("late duplicated RTC input reconciles to equal confirmed hash",hashes[0] is not None and hashes[0]==hashes[1],{'tick':boundary,'hashes':hashes,'rollbacks':[s['stats'].get('rollbacks',0) for s in states]})
-                suite.check("both peers use pinned protocol 3 bundle",all(s['gamekitSHA']=='418e17c455db56d6ed073d82d115191d9dd8bf04' and s['namespace']=='sketch-town-coop-0.19.0' and s['simulationVersion'].startswith('sketch-town-0.19.0-') and s['inputScheduling']=='network' and s['inputHz']==60 for s in states))
+                suite.check("both peers use pinned protocol 3 bundle",all(s['gamekitSHA']=='418e17c455db56d6ed073d82d115191d9dd8bf04' and s['namespace']=='sketch-town-coop-0.20.0' and s['simulationVersion'].startswith('sketch-town-0.20.0-') and s['inputScheduling']=='network' and s['inputHz']==60 for s in states))
                 for sender,actor in ((host,'a'),(guest,'b')):
                     for page in (host,guest):
                         await page.evaluate("""actor => {
