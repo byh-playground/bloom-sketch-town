@@ -227,20 +227,24 @@ if(e.hp<=0){e.dead=true;world.kills++;if(e.kind!=='boss')world.regionKills[e.reg
   // A summon is drawn in, so the pause is a short, fixed summoning pose (longer strokes take slightly longer).
   function castDurationMs(shot){return clamp(220+shot.geo.length*.04,220,380);}
   function spellRecoveryMs(){return 120;}
-  function makeCast(shot){
+  // Ink is paid in installments while the body is inked in along the pre-drawn stroke: progress = paid/cost.
+  // With enough ink the pace equals the old fixed pose duration; with little ink it stalls to the regen rate.
+  function makeCast(shot,cost){
     const duration=castDurationMs(shot);
-    world.casts.push({id:world.nextId++,owner:actorId(player),shot,ageMs:0,durationMs:duration,x:player.x,y:player.y});
-    player.nextCastAtMs=world.clockMs+duration+spellRecoveryMs(shot);
-    showResult(`${shot.name} 소환 · ${summonSpecOf(shot.kind).role} · 체력 ${summonSpecOf(shot.kind).maxHp(shot.areaPower)}`,1450);sfx('draw');
+    world.casts.push({id:world.nextId++,owner:actorId(player),shot,ageMs:0,durationMs:duration,x:player.x,y:player.y,cost,paid:0});
+    showResult(`${shot.name} 그리는 중 · ${summonSpecOf(shot.kind).role} · 체력 ${summonSpecOf(shot.kind).maxHp(shot.areaPower)}`,1450);sfx('draw');
   }
-  function submitSpell(shot){if(player.hp<=0||player.koMs>0||world.castQueue.filter(c=>c.owner===actorId(player)).length>=3||!spendInk(player,spellInkCost(player,shot)))return false;world.castQueue.push({shot,owner:actorId(player)});return true;}
+  function submitSpell(shot){if(player.hp<=0||player.koMs>0||world.castQueue.filter(c=>c.owner===actorId(player)).length>=3)return false;world.castQueue.push({shot,owner:actorId(player),cost:spellInkCost(player,shot)});return true;}
   function tickCasts(dt){
-    for(let i=world.casts.length-1;i>=0;i--){const c=world.casts[i];const actor=actorOf(c.owner);c.ageMs+=dt;c.x=actor.x;c.y=actor.y;
-      if(c.ageMs>=c.durationMs){withActor(actor,()=>spawnSummon(actor,c.shot));world.casts.splice(i,1);}}
+    for(let i=world.casts.length-1;i>=0;i--){const c=world.casts[i];const actor=actorOf(c.owner);c.x=actor.x;c.y=actor.y;
+      const pay=Math.min(actor.ink,c.cost-c.paid,c.cost*dt/c.durationMs);
+      if(pay>0){actor.ink-=pay;c.paid+=pay;}
+      c.ageMs=c.durationMs*(c.cost>0?c.paid/c.cost:1);
+      if(c.paid>=c.cost-1e-6){actor.inkDelayMs=400;actor.nextCastAtMs=world.clockMs+spellRecoveryMs();withActor(actor,()=>spawnSummon(actor,c.shot));world.casts.splice(i,1);}}
     for(const actor of actors()){
       const id=actorId(actor);if(world.clockMs<actor.nextCastAtMs||world.casts.some(c=>c.owner===id))continue;
       const index=world.castQueue.findIndex(c=>c.owner===id);if(index>=0&&world.casts.length<CFG.castLimit){
-        const queued=world.castQueue.splice(index,1)[0];withActor(actor,()=>makeCast(queued.shot));}
+        const queued=world.castQueue.splice(index,1)[0];withActor(actor,()=>makeCast(queued.shot,queued.cost));}
     }
   }
   function segmentCircle(x1,y1,x2,y2,cx,cy,r){const vx=x2-x1,vy=y2-y1,l=vx*vx+vy*vy,t=l?clamp(((cx-x1)*vx+(cy-y1)*vy)/l,0,1):0;return hypot(cx-(x1+vx*t),cy-(y1+vy*t))<=r;}

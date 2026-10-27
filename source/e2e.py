@@ -749,9 +749,9 @@ async def run_summons(browser, suite: E2E):
             # Ink cost.
             cost=await page.evaluate("""()=>{const d=__sketchRpgDebug;d.combatFixture('chaser',3000,735);d.moveTo(480,735);d.setInk(100);
               const shot=d.spellSpec(d.sample('triangle',180,180));d.castKind('triangle',0,120);return {area:shot.areaPower};}""")
-            await page.wait_for_function("__sketchRpgDebug.runState().actor.ink<100",timeout=4000)
+            await page.wait_for_function("__sketchRpgDebug.summons().some(q=>q.kind==='triangle')&&__sketchRpgDebug.runState().actor.ink<100",timeout=6000)
             ink=await page.evaluate("__sketchRpgDebug.runState().actor.ink")
-            suite.check('summoning spends the spec ink and no more',70<ink<92,ink)
+            suite.check('one triangle spends 58-78 ink of 100: a second one is not affordable at once',15<ink<48,ink)
             # Combat: a summon kills a nearby foe while the player stands still.
             await page.evaluate("()=>{const d=__sketchRpgDebug;d.combatFixture('chaser',700,735);d.moveTo(480,735);d.setInk(100);d.setPlayerHp(120);d.castKind('triangle',0,160);}")
             await page.wait_for_function("__sketchRpgDebug.foePositions().length===0",timeout=15000)
@@ -860,13 +860,14 @@ async def run_ink_hud(browser,suite):
             await page.screenshot(path=str(ARTIFACTS/'ink-low-mobile.png'))
             await page.evaluate('window.__zeroInk=setInterval(()=>__sketchRpgDebug.setInk(0),10)')
             region_shot=await draw_circle(page,140,tries=1)
-            try:
-                await page.wait_for_function("document.getElementById('resultChip').innerText.includes('필요')",timeout=3000)
-            except Exception:
-                pass
-            message=await page.locator('#resultChip').inner_text()
+            await draw_face(page,'joy',cx=195,u=34)
+            await page.locator('#faceDone').click()
+            await page.wait_for_timeout(1200)
+            held=await page.evaluate("({n:__sketchRpgDebug.summons().length,casts:__sketchRpgDebug.castInProgress()})")
             await page.evaluate('clearInterval(window.__zeroInk)')
-            suite.check('spell with insufficient ink explains needed amount and wait',region_shot is None and '필요' in message and '대기' in message,{'message':message,'shot':region_shot})
+            suite.check('with no ink a drawn summon stays pending (drawing kept, not lost)',region_shot is not None and held['n']==0 and held['casts']==1,{'shot':bool(region_shot),'held':held})
+            await page.wait_for_function("__sketchRpgDebug.summons().length==1",timeout=8000)
+            suite.check('the pending summon appears once ink has refilled',True)
             suite.check('ink HUD flow has no JavaScript error',not issues,issues)
         finally:
             await context.close()
@@ -1046,7 +1047,7 @@ async def run_real_p2p(browser, suite: E2E):
                 boundary=min(s['confirmedTick'] for s in states)
                 hashes=await asyncio.gather(*(p.evaluate("t=>window.__sketchRpgDebug.stateHash(t)",boundary) for p in (host,guest)))
                 suite.check("late duplicated RTC input reconciles to equal confirmed hash",hashes[0] is not None and hashes[0]==hashes[1],{'tick':boundary,'hashes':hashes,'rollbacks':[s['stats'].get('rollbacks',0) for s in states]})
-                suite.check("both peers use pinned protocol 3 bundle",all(s['gamekitSHA']=='418e17c455db56d6ed073d82d115191d9dd8bf04' and s['namespace']=='sketch-town-coop-0.18.1' and s['simulationVersion'].startswith('sketch-town-0.18.1-') and s['inputScheduling']=='network' and s['inputHz']==60 for s in states))
+                suite.check("both peers use pinned protocol 3 bundle",all(s['gamekitSHA']=='418e17c455db56d6ed073d82d115191d9dd8bf04' and s['namespace']=='sketch-town-coop-0.19.0' and s['simulationVersion'].startswith('sketch-town-0.19.0-') and s['inputScheduling']=='network' and s['inputHz']==60 for s in states))
                 for sender,actor in ((host,'a'),(guest,'b')):
                     for page in (host,guest):
                         await page.evaluate("""actor => {

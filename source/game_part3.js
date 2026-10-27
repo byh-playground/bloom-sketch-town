@@ -96,9 +96,9 @@
     for(let i=1;i<points.length;i++){const a=points[i-1],b=points[i],d=hypot(b.x-a.x,b.y-a.y);if(walked>=upto)break;const t=clamp((upto-walked)/Math.max(.00001,d),0,1);const ax=x+(a.x*cs-a.y*sn)*size,ay=y+(a.x*sn+a.y*cs)*size,bx=x+((a.x+(b.x-a.x)*t)*cs-(a.y+(b.y-a.y)*t)*sn)*size,by=y+((a.x+(b.x-a.x)*t)*sn+(a.y+(b.y-a.y)*t)*cs)*size;
       P.line(ax,ay,bx,by,width+1.6,'#fff5dc',alpha*.70);P.line(ax,ay,bx,by,width,color,alpha);walked+=d;}
   }
-  function drawCast(c){if(!visible(c.x,c.y,100))return;const p=clamp(c.ageMs/c.durationMs,0,1),angle=0;P.ring(c.x,c.y,37+p*15,c.shot.color,(1-p)*.28,1.7,23);
-    drawStroke(c.shot.shape,c.x,c.y-42,angle,1.35,c.shot.color,.95,2.6,p);
-    const pts=c.shot.shape,n=pts.length-1; if(n>0){const fi=Math.min(n,Math.floor(n*p)),head=pts[fi];P.dot(c.x+head.x*1.35,c.y-42+head.y*1.35,4.8,'#fff1a1',.77);P.dot(c.x+head.x*1.35,c.y-42+head.y*1.35,2.6,c.shot.color,.95);}
+  function drawCast(c){const x=c.shot.x,y=c.shot.y;if(!visible(x,y,100))return;const p=clamp(c.ageMs/c.durationMs,0,1),angle=0;P.ring(x,y,37+p*15,c.shot.color,(1-p)*.28,1.7,23);
+    drawStroke(c.shot.shape,x,y,angle,1.35,c.shot.color,.95,2.6,p);
+    const pts=c.shot.shape,n=pts.length-1; if(n>0){const fi=Math.min(n,Math.floor(n*p)),head=pts[fi];P.dot(x+head.x*1.35,y+head.y*1.35,4.8,'#fff1a1',.77);P.dot(x+head.x*1.35,y+head.y*1.35,2.6,c.shot.color,.95);}
   }
   // The summon IS the player's drawing: the body is the stroke as drawn (only scaled to the collider), and the face
   // is an animated preset chosen by the expression the player drew. Body and face move together.

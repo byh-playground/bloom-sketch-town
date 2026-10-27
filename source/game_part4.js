@@ -122,7 +122,6 @@
     gesture.lastCombatStroke=points.map(p=>({...p}));
     try{
       const shot=normalizeCommand({type:'cast',shot:{...makeShotData(points),x:at.x,y:at.y,face:'neutral'}}).shot,cost=spellInkCost(player,shot);
-      if(cost>player.ink+1e-6){showResult(`잉크 ${cost.toFixed(1)} 필요 · 현재 ${player.ink.toFixed(1)} · 약 ${inkWait(player,cost).toFixed(1)}초 회복 대기`,2200);return;}
       beginSummonDraft(shot,points,center);
     }catch(error){console.error(error);showResult('소환 분석 실패 · 다시 그려 보세요',950);}}
   function collectCombatDrawing(e){
