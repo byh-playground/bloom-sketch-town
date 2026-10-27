@@ -1,14 +1,15 @@
-  // World population and drawing for the run's MapLayout (see map-generator.js).
-  // Nothing in this file decides where terrain is: ponds, ridges, props, spawns and the boss arena all come from mapLayout.
+  // World population and drawing for the run's WorldMapLayout (see world-map.js).
+  // Nothing in this file decides where terrain is: coast, rivers, cliffs, roads, props, sites and mob nests all come from mapLayout.
   let mapLayout=null;
+  // The starting camp: three houses inland of the spawn (towards the map centre), drawn only where there is land.
+  const CAMP_HOUSES=Object.freeze([{along:230,side:-170,w:173,h:127,type:'house'},{along:300,side:150,w:167,h:119,type:'library'},{along:120,side:240,w:162,h:112,type:'shop'}]);
   function applyMapLayout(mapSeed){
-    mapLayout=generateMapLayout(mapSeed);
+    mapLayout=generateWorldMap(mapSeed);
     world.mapSeed=mapSeed;
     world.obstacles.length=0;world.grid.clear();world.houses.length=0;world.trees.length=0;world.decals.length=0;
-    for(const h of VILLAGE.houses)world.houses.push({...h});
-    for(const o of mapLayout.solids)addObstacle({...o});
-    for(const t of mapLayout.props)world.trees.push({...t});
-    for(const l of mapLayout.landmarks)world.trees.push({...l,variant:0});
+    const sp=mapLayout.spawn,half=mapLayout.size/2,dx=half-sp.x,dy=half-sp.y,len=Math.sqrt(dx*dx+dy*dy)||1,ux=dx/len,uy=dy/len;
+    for(const h of CAMP_HOUSES){const x=Math.round(sp.x+ux*h.along-uy*h.side),y=Math.round(sp.y+uy*h.along+ux*h.side);if(!mapLayout.terrainBlocks(x,y,h.w*.5))world.houses.push({x,y,w:h.w,h:h.h,type:h.type});}
+    for(const p of mapLayout.props){world.trees.push({x:p.x,y:p.y,r:p.r,kind:p.kind,variant:p.variant,solid:p.solid});if(p.solid)addObstacle({x:p.x,y:p.y,r:p.r*WORLD_MAP.solidScale,kind:p.kind});}
     for(const d of mapLayout.decals)world.decals.push({...d});
     $('mapSeed').textContent=String(mapSeed);
   }
@@ -18,21 +19,79 @@
     if(raw!==null&&/^\d{1,10}$/.test(raw)&&+raw<=0xFFFFFFFF)return +raw;
     return crypto.getRandomValues(new Uint32Array(1))[0];
   }
-  function sketchPolygon(points,color,alpha=1){const center={x:points.reduce((n,p)=>n+p[0],0)/points.length,y:points.reduce((n,p)=>n+p[1],0)/points.length};for(let i=0;i<points.length;i++){const a=points[i],b=points[(i+1)%points.length];P.tri(center,{x:a[0],y:a[1]},{x:b[0],y:b[1]},color,alpha);}}
-  function sketchOutline(points,width,color,alpha=1){for(let i=0;i<points.length;i++){const a=points[i],b=points[(i+1)%points.length];P.line(a[0],a[1],b[0],b[1],width,color,alpha);}}
+
+  // Ground colours: biome tint, slightly inked towards the centre so the difficulty rings read on screen.
+  const GROUND_INK=[0x5a,0x54,0x70];
+  const hexRgb=h=>[parseInt(h.slice(1,3),16),parseInt(h.slice(3,5),16),parseInt(h.slice(5,7),16)];
+  const rgbHex=c=>'#'+c.map(v=>Math.round(v).toString(16).padStart(2,'0')).join('');
+  const mixHex=(a,b,t)=>{const x=hexRgb(a);return rgbHex(x.map((v,i)=>v+(b[i]-v)*t));};
+  const GROUND_PAPER=Object.freeze(['#bcd3df','#f1e6c8','#e0e9ca','#cadccc','#f1f4f3','#ded2c4','#b6b3cc']);
+  const GROUND_TABLE=GROUND_PAPER.map(c=>Array.from({length:WORLD_MAP.zoneCount},(_,z)=>mixHex(c,GROUND_INK,.045*z)));
+  const WALL_COLOR=Object.freeze({[WALL_RIVER]:'#9cc1d3',[WALL_CLIFF]:'#9a8a76'}),ROAD_COLOR='#dcc9a2',ROAD_EDGE='#bfa97f';
+  function groundColor(g,k){
+    if(!g.land[k])return GROUND_TABLE[0][0];
+    if(g.road[k])return ROAD_COLOR;
+    if(g.wall[k])return WALL_COLOR[g.wall[k]];
+    return GROUND_TABLE[g.biome[k]][g.zone[k]];
+  }
+  // One filled box per run of same-coloured cells in each visible row (about two hundred boxes per frame).
   function regionGround(){
-    const [e1,e2]=mapLayout.edges,height=CFG.world.height,width=CFG.world.width;
-    P.box(width/2,height/2,width,height,'#f4efdf');
-    sketchPolygon([[0,0],...e1,[0,height]],'#e7ecd9');
-    sketchPolygon([...e1,...e2.slice().reverse()],'#e1e9e2');
-    sketchPolygon([...e2,[width,height],[width,0]],'#ebe4d8');
-    for(const c of mapLayout.clearings){P.oval(c.x,c.y,c.rx,c.ry,c.color,.9);P.oval(c.x+20,c.y+15,c.rx*.83,c.ry*.78,'#f7f0df',.34);}
-    for(const p of mapLayout.ponds){if(!visible(p.x,p.y,p.rx+40))continue;P.oval(p.x,p.y,p.rx+16,p.ry+16,'#b8c9bb',.48);P.oval(p.x,p.y,p.rx,p.ry,'#aac3c3',.56);for(let k=0;k<5;k++){const yy=p.y+(k-2)*p.ry*.29,len=p.rx*Math.sqrt(1-((yy-p.y)/p.ry)**2)*.7;P.line(p.x-len,yy,p.x+len*.65,yy+3,1.4,'#7faaa9',.29);}for(let k=0;k<9;k++){const a=k*Math.PI*2/9,x=p.x+Math.cos(a)*(p.rx+12),y=p.y+Math.sin(a)*(p.ry+8);P.line(x,y,x-7,y-19,1.1,'#879e91',.42);P.line(x,y,x+5,y-24,1.1,'#879e91',.42);}}
-    for(const p of mapLayout.ridges){if(!visible(p.x,p.y,p.r+50))continue;const points=[[p.x-p.r,p.y+20],[p.x-p.r*.8,p.y-p.r*.8],[p.x+p.r*.1,p.y-p.r],[p.x+p.r,p.y-p.r*.35],[p.x+p.r*.9,p.y+p.r*.65],[p.x-p.r*.55,p.y+p.r*.85]];sketchPolygon(points,'#c4bcad',.7);sketchOutline(points,2,'#a99f90',.48);for(let i=0;i<3;i++)P.line(p.x-p.r*.65,p.y+i*18,p.x+p.r*.7,p.y-15+i*18,1.3,'#a69b8d',.34);}
-    const route=mapLayout.routePoints;
-    P.path(route,78,'#cabc9d',.25);P.path(route,60,'#f3e8d1',.82);P.path(route,1.4,'#aa9c82',.32);
-    // Pencil edge marks give the route direction without competing with combat outlines.
-    for(let i=2;i<route.length;i++){const a=route[i];P.line(a.x-8,a.y-46,a.x+9,a.y-43,1,'#a99f87',.36);}
+    const g=mapLayout.grid,cell=g.cell,hx=vw/(camera.zoom*2)+cell,hy=vh/(camera.zoom*2)+cell;
+    const i0=Math.max(0,Math.floor((camera.x-hx)/cell)),i1=Math.min(g.cols-1,Math.floor((camera.x+hx)/cell)),j0=Math.max(0,Math.floor((camera.y-hy)/cell)),j1=Math.min(g.rows-1,Math.floor((camera.y+hy)/cell));
+    P.box(camera.x,camera.y,hx*2+cell*2,hy*2+cell*2,GROUND_TABLE[0][0]);
+    for(let j=j0;j<=j1;j++){
+      let runStart=i0,runColor=groundColor(g,g.index(i0,j));
+      for(let i=i0+1;i<=i1+1;i++){
+        const color=i<=i1?groundColor(g,g.index(i,j)):null;
+        if(color!==runColor){if(runColor!==GROUND_TABLE[0][0]){const w=(i-runStart)*cell+1;P.box(runStart*cell+w/2-.5,j*cell+cell/2,w,cell+1,runColor);}runStart=i;runColor=color;}
+      }
+    }
+    // Pencil marks: ripples on rivers, hatching on cliffs, edge lines along roads.
+    for(let j=j0;j<=j1;j++)for(let i=i0;i<=i1;i++){
+      const k=g.index(i,j),x=i*cell,y=j*cell;
+      if(g.road[k]){if(!g.road[k-1]||!g.road[k+1]||!g.road[k-g.cols]||!g.road[k+g.cols])P.dot(x+cell/2,y+cell/2,2.2,ROAD_EDGE,.35);}
+      else if(g.wall[k]===WALL_RIVER&&((i+j)&1)===0)P.line(x+4,y+cell/2,x+cell-4,y+cell/2+2,1.3,'#6f9fb8',.5);
+      else if(g.wall[k]===WALL_CLIFF&&((i+j)&1)===0)P.line(x+3,y+cell-4,x+cell-3,y+4,1.5,'#6e604f',.55);
+    }
+    // Coast: a short surf line on every land cell that touches the sea.
+    for(let j=j0;j<=j1;j++)for(let i=i0;i<=i1;i++){const k=g.index(i,j);if(g.land[k]&&(i>0&&!g.land[k-1]||i<g.cols-1&&!g.land[k+1]||j>0&&!g.land[k-g.cols]||j<g.rows-1&&!g.land[k+g.cols]))P.dot(i*cell+cell/2,j*cell+cell/2,cell*.5,'#ffffff',.22);}
+  }
+  // Camps, portals, the spawn camp and the boss rings. Boss rings go grey while the boss is sealed.
+  function drawWorldSites(){
+    for(const s of mapLayout.sites){
+      if(!visible(s.x,s.y,s.r+60))continue;
+      if(s.kind==='spawn'){P.oval(s.x,s.y,s.r,s.r*.82,'#f6efd9',.5);P.ring(s.x,s.y,s.r*.9,'#86a68e',.55,1.8,32);P.dot(s.x,s.y,14,'#fafbf3');P.ring(s.x,s.y,15,'#789b89',.75,2,24);P.dot(s.x,s.y,6,'#a5c9a3',.85);}
+      else if(s.kind==='camp'){P.oval(s.x,s.y,s.r,s.r*.8,'#f0dcc0',.5);P.ring(s.x,s.y,s.r,'#c98a4a',.6,2,28);P.dot(s.x,s.y,7,'#e0a35e',.9);}
+      else if(s.kind==='portal'){P.ring(s.x,s.y,s.r,'#8a5cc4',.8,2.6,28);P.ring(s.x,s.y,s.r*.55,'#b394e0',.8,2,24);P.dot(s.x,s.y,6,'#d9c8f3',.9);}
+    }
+    for(const site of mapLayout.bossSites){
+      if(!visible(site.x,site.y,site.radius+60))continue;
+      const i=site.bossId,down=world.bossState[i]===2,sealed=!down&&bossSealed(i),tint=sealed?'#9a949c':BOSS_PROFILES[i].color;
+      P.oval(site.x,site.y,site.radius*.89,site.radius*.89,'#e6dde8',down?.14:.4);
+      P.ring(site.x,site.y,site.radius,down?'#b4a7b4':tint,down?.2:.7,2,36);
+      P.ring(site.x,site.y,site.radius*.7,'#b7a8b7',down?.1:.32,1.4,24);
+      if(sealed)P.ring(site.x,site.y,site.radius*.45,'#7d5a9e',.75,3,18);
+    }
   }
   function drawRegionProp(t){if(!['canopy','reed','slab','stump','bell','crane','crystal'].includes(t.kind))return false;const {x,y,r,kind}=t;if(!visible(x,y,r+70))return true;drawEnvironmentProp(kind,x,y,r);return true;}
-  function drawMapLabels(){for(const landmark of mapLayout.landmarks){if(!visible(landmark.x,landmark.y,150))continue;renderer.worldToScreenInto(landmark.x,landmark.y-landmark.r-75,anchorReuse);txtCtx.textAlign='center';txtCtx.font='600 11px system-ui';txtCtx.lineWidth=3;txtCtx.strokeStyle='#f5f0e1';txtCtx.strokeText(landmark.label,anchorReuse.x,anchorReuse.y);txtCtx.fillStyle='#7c8478';txtCtx.fillText(landmark.label,anchorReuse.x,anchorReuse.y);}}
+  // Numbers on the boss rings, names on camps and portals: the order of the five bosses is readable from the ground.
+  function drawMapLabels(){
+    txtCtx.textAlign='center';
+    for(const s of mapLayout.sites){
+      if(!visible(s.x,s.y,s.r+90))continue;
+      let text=null,font='600 11px system-ui',fill='#7c8478';
+      if(s.kind==='spawn'){text='해안 야영지';fill='#5f8a6c';}
+      else if(s.kind==='camp'){text='야영지 수호';fill='#a8691f';}
+      else if(s.kind==='portal'){text='포털 수호';fill='#6d44a8';}
+      if(!text)continue;
+      renderer.worldToScreenInto(s.x,s.y-s.r-14,anchorReuse);txtCtx.font=font;txtCtx.lineWidth=3;txtCtx.strokeStyle='#f5f0e1';txtCtx.strokeText(text,anchorReuse.x,anchorReuse.y);txtCtx.fillStyle=fill;txtCtx.fillText(text,anchorReuse.x,anchorReuse.y);
+    }
+    for(const site of mapLayout.bossSites){
+      if(!visible(site.x,site.y,site.radius+120))continue;
+      const i=site.bossId,down=world.bossState[i]===2,sealed=!down&&bossSealed(i);
+      renderer.worldToScreenInto(site.x,site.y-site.radius-16,anchorReuse);
+      txtCtx.font='700 15px system-ui';txtCtx.lineWidth=4;txtCtx.strokeStyle='#f5f0e1';
+      const label=`${i+1}번 ${BOSS_PROFILES[i].name}${down?' · 격파':sealed?' · 봉인':''}`;
+      txtCtx.strokeText(label,anchorReuse.x,anchorReuse.y);txtCtx.fillStyle=down?'#a7a0a8':sealed?'#7d5a9e':BOSS_PROFILES[i].color;txtCtx.fillText(label,anchorReuse.x,anchorReuse.y);
+    }
+  }

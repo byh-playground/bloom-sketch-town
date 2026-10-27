@@ -6,19 +6,31 @@
     const tr=trainingPad.getBoundingClientRect();if(tr.width>0&&tr.height>0){tw=tr.width;th=tr.height;trainingDpr=dpr;trainingPad.width=Math.round(tw*trainingDpr);trainingPad.height=Math.round(th*trainingDpr);}
     const mr=mini.getBoundingClientRect();mini.width=Math.round(Math.max(1,mr.width)*dpr);mini.height=Math.round(Math.max(1,mr.height)*dpr);miniCtx.setTransform(dpr,0,0,dpr,0,0);
     previewDataset();}
-  function paintMinimap(){const w=mini.width/dpr,h=mini.height/dpr;miniCtx.setTransform(dpr,0,0,dpr,0,0);miniCtx.clearRect(0,0,w,h);miniCtx.fillStyle='#f5eddf';miniCtx.fillRect(0,0,w,h);
+  // The terrain layer of the minimap is painted once per layout and size; only sites, enemies and heroes move each frame.
+  let miniTerrain=null,miniTerrainKey='';
+  function miniTerrainLayer(w,h){
+    const key=`${mapLayout.seed}:${w}x${h}:${dpr}`;if(miniTerrain&&miniTerrainKey===key)return miniTerrain;
+    const g=mapLayout.grid,small=document.createElement('canvas');small.width=g.cols;small.height=g.rows;
+    const sx=small.getContext('2d'),img=sx.createImageData(g.cols,g.rows);
+    for(let k=0;k<g.land.length;k++){const c=hexRgb(groundColor(g,k));img.data[k*4]=c[0];img.data[k*4+1]=c[1];img.data[k*4+2]=c[2];img.data[k*4+3]=255;}
+    sx.putImageData(img,0,0);
+    const layer=document.createElement('canvas');layer.width=Math.max(1,Math.round(w*dpr));layer.height=Math.max(1,Math.round(h*dpr));
+    const lx=layer.getContext('2d');lx.imageSmoothingEnabled=true;lx.drawImage(small,0,0,layer.width,layer.height);
+    miniTerrain=layer;miniTerrainKey=key;return layer;
+  }
+  function paintMinimap(){const w=mini.width/dpr,h=mini.height/dpr;miniCtx.setTransform(dpr,0,0,dpr,0,0);miniCtx.clearRect(0,0,w,h);
+    miniCtx.drawImage(miniTerrainLayer(w,h),0,0,w,h);
     const xx=x=>x/CFG.world.width*w, yy=y=>y/CFG.world.height*h;
-    for(const [i,r]of REGIONS.entries()){miniCtx.fillStyle=['#dbe5cc','#ccddda','#e3d8c6'][i];miniCtx.fillRect(xx(r.min),0,xx(r.max-r.min),h);}
-    miniCtx.fillStyle='#91b2b6';for(const p of mapLayout.ponds){miniCtx.beginPath();miniCtx.ellipse(xx(p.x),yy(p.y),xx(p.rx),yy(p.ry),0,0,Math.PI*2);miniCtx.fill();}
-    miniCtx.fillStyle='#bdb5a6';for(const p of mapLayout.ridges){miniCtx.beginPath();miniCtx.ellipse(xx(p.x),yy(p.y),xx(p.r),yy(p.r),0,0,Math.PI*2);miniCtx.fill();}
-    miniCtx.strokeStyle='#bcb18f';miniCtx.lineWidth=2;miniCtx.beginPath();mapLayout.routePoints.forEach(({x,y},i)=>i?miniCtx.lineTo(xx(x),yy(y)):miniCtx.moveTo(xx(x),yy(y)));miniCtx.stroke();
-
-    miniCtx.fillStyle='#9eae9a';for(const t of world.trees)miniCtx.fillRect(xx(t.x),yy(t.y),1.8,1.8);
-    miniCtx.fillStyle='#9c7c6a';for(const b of world.houses)miniCtx.fillRect(xx(b.x)-3,yy(b.y)-2.5,6,5);
-    for(const [i,site]of mapLayout.bossSites.entries()){miniCtx.strokeStyle=i<world.bossesDefeated?'#c5bfc4':'#9a6e96';miniCtx.beginPath();miniCtx.arc(xx(site.x),yy(site.y),Math.max(4,site.radius/CFG.world.width*w),0,Math.PI*2);miniCtx.stroke();}
-    miniCtx.fillStyle='#a66b70';for(const e of world.enemies)if(!e.dead){miniCtx.beginPath();miniCtx.arc(xx(e.x),yy(e.y),e.kind==='boss'?4:2,0,Math.PI*2);miniCtx.fill();}
+    const spawn=mapLayout.spawn;miniCtx.fillStyle='#1d8a4a';miniCtx.beginPath();miniCtx.arc(xx(spawn.x),yy(spawn.y),3,0,Math.PI*2);miniCtx.fill();
+    for(const s of mapLayout.sites){if(s.kind==='camp'){miniCtx.fillStyle='#c98a4a';miniCtx.fillRect(xx(s.x)-1.5,yy(s.y)-1.5,3,3);}else if(s.kind==='portal'){miniCtx.strokeStyle='#8a5cc4';miniCtx.lineWidth=1.2;miniCtx.beginPath();miniCtx.arc(xx(s.x),yy(s.y),2.4,0,Math.PI*2);miniCtx.stroke();}}
+    // Boss rings carry their number: grey = fallen, purple = sealed, orange = the next one to fight.
+    const next=world.bossesDefeated<BOSS_PROFILES.length?nextBossId():-1;miniCtx.font='700 8px system-ui';miniCtx.textAlign='center';miniCtx.textBaseline='middle';
+    for(const site of mapLayout.bossSites){const i=site.bossId,down=world.bossState[i]===2,col=down?'#b8b2b8':i===next?'#e0792a':'#7d5a9e',cx=xx(site.x),cy=yy(site.y);
+      miniCtx.fillStyle=down?'#ece8ec':'#fff8ee';miniCtx.beginPath();miniCtx.arc(cx,cy,5,0,Math.PI*2);miniCtx.fill();miniCtx.lineWidth=i===next?2:1.4;miniCtx.strokeStyle=col;miniCtx.stroke();miniCtx.fillStyle=col;miniCtx.fillText(String(i+1),cx,cy+.4);}
+    miniCtx.textBaseline='alphabetic';
+    miniCtx.fillStyle='#a66b70';for(const e of world.enemies)if(!e.dead){miniCtx.beginPath();miniCtx.arc(xx(e.x),yy(e.y),e.kind==='boss'?4:1.6,0,Math.PI*2);miniCtx.fill();}
     if(mp.shared){const other=player===hostPlayer?guestPlayer:hostPlayer;miniCtx.beginPath();miniCtx.arc(xx(other.x),yy(other.y),3.9,0,Math.PI*2);miniCtx.fillStyle='#639ac4';miniCtx.fill();}
-    const px=xx(player.x),py=yy(player.y);miniCtx.beginPath();miniCtx.arc(px,py,5,0,Math.PI*2);miniCtx.fillStyle='#fff';miniCtx.fill();miniCtx.lineWidth=2;miniCtx.strokeStyle='#396c6b';miniCtx.stroke();miniCtx.beginPath();miniCtx.arc(px,py,2.5,0,Math.PI*2);miniCtx.fillStyle='#396c6b';miniCtx.fill();
+    const px=xx(player.x),py=yy(player.y);miniCtx.beginPath();miniCtx.arc(px,py,4.4,0,Math.PI*2);miniCtx.fillStyle='#fff';miniCtx.fill();miniCtx.lineWidth=2;miniCtx.strokeStyle='#396c6b';miniCtx.stroke();miniCtx.beginPath();miniCtx.arc(px,py,2.2,0,Math.PI*2);miniCtx.fillStyle='#396c6b';miniCtx.fill();
   }
   function updateHud(){const pct=100*player.hp/player.maxHp;$('hpFill').style.width=`${clamp(pct,0,100)}%`;$('hpText').textContent=`HP ${Math.ceil(player.hp)} / ${player.maxHp}`;
     updateProgressionHud();
@@ -325,6 +337,7 @@
   resizeAll();applyRoute();rebindGameLoop();
   // E2E probes observe the actual SDK frame / tick / draw / gameplay pipeline.
   function pointAt(aim,reach){return {x:+clamp(player.x+Math.cos(aim)*reach,0,CFG.world.width).toFixed(1),y:+clamp(player.y+Math.sin(aim)*reach,0,CFG.world.height).toFixed(1)};}
+  let arenaCache=null;
   window.__sketchRpgDebug={
     source:{renderer:'BLOOM GameKit Renderer2D · WebGL1',input:'ActionState/createDOMInput + LocalInputPreview',time:'GameKit createDeadlineScheduler 30TPS + separate RAF capped 60FPS + InterpolationTimeline/PresentationRuntime',audio:'AudioPlayer'},
     analyze(raw){const s=makeShotData(raw);return {name:s.name,kind:s.kind,area:s.areaPx2,damage:s.baseDamage,cnn:s.cnn.prob,reference:s.reference};},
@@ -357,7 +370,8 @@
     movementState(){return {x:player.moveX,y:player.moveY,speed:CFG.player.walkSpeed};},rollState(){return {...player.dash};},slowState(){return {ratio:world.slowRatio,drawing:drawInput.pointer!==null,hitstopMs:world.hitstopMs};},
     advanceSession(){const result=gameSession.advance(SOLO_INPUT);if(result.status==='advanced')capturePresentation();return result;},pauseRendering(){pauseGameLoops();},resumeRendering(){resumeGameLoops();},pausePainting(){stopPainting();},resumePainting(){startPainting();},renderFrame(){loop.render();},selectGlyph(kind){selectGlyph(kind);},
     renderNow(){renderInterpolated();},
-    combatFixture(kind='boss',x=680,y=730){world.enemies.length=0;world.bossesDefeated=0;world.summons.length=0;world.casts.length=0;world.castQueue.length=0;world.hazards.length=0;world.fields.length=0;return spawnEnemy(kind,x,y).id;},
+    // Test arena: wipe the field, switch every nest off, and put one enemy beside the player.
+    combatFixture(kind='boss',x=player.x+200,y=player.y){world.enemies.length=0;world.summons.length=0;world.casts.length=0;world.castQueue.length=0;world.hazards.length=0;world.fields.length=0;for(const q of world.nests){q.on=false;q.done=true;}world.bossesDefeated=0;world.bossState.fill(0);return spawnEnemy(kind,x,y).id;},
     castQueueLength(){return world.castQueue.length;},unlockAll(){for(const k of UNLOCKABLE_KINDS)if(!world.unlocked.includes(k))world.unlocked.push(k);return world.unlocked.slice();},unlockState(){return {unlocked:world.unlocked.slice(),reward:world.reward&&{choices:world.reward.choices.slice()}};},castInProgress(){return world.casts.length;},effectsSnapshot(){return world.fields.map(f=>({kind:f.kind,ageMs:f.ageMs,lifeMs:f.lifeMs}));},
 
     moveTo(x,y){player.x=x;player.y=y;camera.x=x;camera.y=y;resetPresentation();capturePresentation();},
@@ -378,18 +392,50 @@
     modelReport(){return packed.report;},modelClasses(){return CNN_LABELS.slice();},sketchMetrics(){return {grammar:'gamekit-svg-vector-assets',boilMs:SKETCH.boilMs,loadedAssets:[...vectorAssets.keys()],dynamicStroke:'input-sampled geometry remains runtime data',alive:world.enemies.filter(e=>!e.dead).length,erasedFragments:world.particles.filter(p=>p.kind==='erasedStroke').length};},
     runState(){return {actor:structuredClone(player),regionKills:[...world.regionKills],cards:{...player.cards}};},
     cardFixture(id){return addCard(player,id);},
-    regionCombatFixture(region=0){const clearing=mapLayout.clearingsOf(region)[0],x=clearing.x-20,y=clearing.y;world.summons.length=0;world.casts.length=0;world.castQueue.length=0;world.commands.length=0;world.hazards.length=0;world.fields.length=0;world.enemies=world.enemies.filter(e=>!e.dead&&e.region===region);world.regionKills[region]=0;const kinds=['chaser','spitter','charger','spitter','chaser'];while(world.enemies.length<5){const i=world.enemies.length,e=spawnEnemy(kinds[i%kinds.length],x+i*14,y+(i%2)*12);e.region=region;}world.enemies.forEach((e,i)=>{e.x=x+i*14;e.y=y+(i%2)*12;e.hp=1;e.stunMs=15000;});player.x=x-140;player.y=y;player.moveX=player.moveY=0;player.nextCastAtMs=world.clockMs;camera.x=player.x;camera.y=player.y;dropDraw();resetPresentation();capturePresentation();},
-    bossState(){const b=activeBoss();return {defeated:world.bossesDefeated,sites:mapLayout.bossSites.map(q=>({...q})),profiles:BOSS_PROFILES.map(p=>({id:p.id,name:p.name,hp:p.hp,ruleText:p.ruleText(),best:p.bestKind(),factors:Object.fromEntries(SHAPE_KINDS.map(k=>[k,p.multiplier(k)]))})),active:b?{id:b.id,bossId:b.bossId,name:b.name,hp:b.hp,maxHp:b.maxHp,x:b.x,y:b.y}:null};},
-    setBossesDefeated(n){world.bossesDefeated=n;},
+    // Wake nest `index` with its members at 1 HP and stunned; the hero stands 140 units west of it.
+    // Wake the first wild nest of `zone` with at least three members: members at 1 HP and stunned, the hero 140 units from it on open ground.
+    nestFixture(zone=0){world.enemies.length=0;world.summons.length=0;world.casts.length=0;world.castQueue.length=0;world.hazards.length=0;world.fields.length=0;for(const q of world.nests){q.on=false;q.done=true;}world.commands.length=0;const index=mapLayout.nests.findIndex(n=>n.kind==='wild'&&n.zone===zone&&n.members.length>=3),n=mapLayout.nests[index],s=world.nests[index];s.done=false;s.on=true;spawnNestMembers(index);for(const e of world.enemies){e.hp=1;e.stunMs=15000;}let px=n.x-140,py=n.y;for(const [dx,dy] of [[-140,0],[140,0],[0,-140],[0,140],[-200,0],[200,0]])if(!touchesObstacle(n.x+dx,n.y+dy,20)){px=n.x+dx;py=n.y+dy;break;}player.x=px;player.y=py;player.moveX=player.moveY=0;player.nextCastAtMs=world.clockMs;camera.x=player.x;camera.y=player.y;dropDraw();resetPresentation();capturePresentation();return world.enemies.length;},
+    bossState(){const b=activeBoss();return {defeated:world.bossesDefeated,states:[...world.bossState],sealed:BOSS_PROFILES.map((_,i)=>bossSealed(i)),next:nextBossId(),sites:mapLayout.bossSites.map(q=>({...q})),profiles:BOSS_PROFILES.map(p=>({id:p.id,name:p.name,hp:p.hp,ruleText:p.ruleText(),best:p.bestKind(),factors:Object.fromEntries(SHAPE_KINDS.map(k=>[k,p.multiplier(k)]))})),active:b?{id:b.id,bossId:b.bossId,name:b.name,hp:b.hp,maxHp:b.maxHp,x:b.x,y:b.y}:null};},
+    setBossesDefeated(n){world.bossesDefeated=n;world.bossState=world.bossState.map((_,i)=>i<n?2:0);},
     // Put boss n next to the player (stunned so only the damage rules are under test) and return its enemy id.
-    spawnBoss(n){world.enemies.length=0;world.summons.length=0;world.casts.length=0;world.castQueue.length=0;world.hazards.length=0;world.fields.length=0;world.bossesDefeated=n;const e=spawnEnemy('boss',player.x+190,player.y,n);e.stunMs=1e9;e.hp=e.maxHp;return e.id;},
+    // Put boss n next to the player (stunned so only the damage rules are under test; earlier bosses count as fallen) and return its enemy id.
+    spawnBoss(n,sealed=false){world.enemies.length=0;world.summons.length=0;world.casts.length=0;world.castQueue.length=0;world.hazards.length=0;world.fields.length=0;for(const q of world.nests){q.on=false;q.done=true;}world.bossesDefeated=sealed?0:n;world.bossState=world.bossState.map((_,i)=>sealed?0:i<n?2:0);world.bossState[n]=1;const e=spawnEnemy('boss',player.x+190,player.y,n);e.stunMs=1e9;e.hp=e.maxHp;return e.id;},
     // One real damageEnemy call per source kind; returns the hit points removed.
     bossHit(id,kind,amount=100){const e=world.enemies.find(q=>q.id===id);const before=e.hp;damageEnemy(e,amount,e.x,e.y-18,'#be7757',kind);return before-e.hp;},
     bossHp(id){const e=world.enemies.find(q=>q.id===id);return e?{hp:e.hp,dead:e.dead}:null;},
     finishBoss(){const e=activeBoss();e.hp=1;damageEnemy(e,50,e.x,e.y,'#be7757',BOSS_PROFILES[e.bossId].bestKind());},
-    mapState(){const m=mapLayout;return {seed:m.seed,attempt:m.attempt,hash:m.hash(),worldSeed:world.mapSeed,boss:{...m.boss},route:m.routePoints.map(p=>({...p})),ponds:m.ponds.map(p=>({x:p.x,y:p.y,rx:p.rx,ry:p.ry})),ridges:m.ridges.map(p=>({x:p.x,y:p.y,r:p.r})),clearings:m.clearings.map(c=>({x:c.x,y:c.y,rx:c.rx,ry:c.ry,region:c.region})),landmarks:m.landmarks.map(l=>({...l})),spawns:m.spawns.map(q=>({...q})),counts:{props:m.props.length,solids:m.solids.length,decals:m.decals.length,obstacles:world.obstacles.length,trees:world.trees.length}};},
-    mapHashFor(seed){const t=performance.now(),l=generateMapLayout(seed);return {hash:l.hash(),attempt:l.attempt,ms:performance.now()-t};},
+    mapState(){const m=mapLayout;return {seed:m.seed,attempt:m.attempt,hash:m.hash(),worldSeed:world.mapSeed,size:m.size,spawn:{x:m.spawn.x,y:m.spawn.y},bossSites:m.bossSites.map(q=>({...q})),sites:m.sites.map(q=>({kind:q.kind,x:q.x,y:q.y,zone:q.zone})),nests:m.nests.map(n=>({kind:n.kind,x:n.x,y:n.y,zone:n.zone,members:n.members.slice(),hpScale:n.hpScale,leash:n.leash})),report:{...m.report},counts:{props:m.props.length,decals:m.decals.length,obstacles:world.obstacles.length,trees:world.trees.length,houses:world.houses.length}};},
+    mapHashFor(seed){const t=performance.now(),l=generateWorldMap(seed);return {hash:l.hash(),attempt:l.attempt,ms:performance.now()-t};},
     terrainBlocked(x,y,r){return touchesObstacle(x,y,r);},
+    nestStates(){return world.nests.map((q,i)=>({i,on:q.on,cd:q.cd,done:q.done,alive:world.enemies.filter(e=>e.nest===i&&!e.dead).length,kind:mapLayout.nests[i].kind,zone:mapLayout.nests[i].zone,x:mapLayout.nests[i].x,y:mapLayout.nests[i].y,members:mapLayout.nests[i].members.length}));},
+    spawnPoint(){return {x:mapLayout.spawn.x,y:mapLayout.spawn.y};},
+    // Waypoints (every 2nd cell) of a walkable route from the hero to (x,y) that keeps 18 units from obstacles; null when none exists.
+    pathTo(x,y){
+      const g=mapLayout.grid,cols=g.cols,start=g.cellOf(player.x,player.y),goal=g.cellOf(x,y),sk=g.index(start.i,start.j),gk=g.index(goal.i,goal.j);
+      const prev=new Int32Array(cols*g.rows).fill(-2);prev[sk]=-1;const queue=[sk];
+      for(let q=0;q<queue.length;q++){const k=queue[q];if(k===gk)break;const ci=k%cols,cj=Math.floor(k/cols);
+        for(let dj=-1;dj<=1;dj++)for(let di=-1;di<=1;di++){if(!di&&!dj)continue;const ni=ci+di,nj=cj+dj;if(!g.inside(ni,nj))continue;const nk=g.index(ni,nj);if(prev[nk]!==-2)continue;const c=g.center(ni,nj);if(touchesObstacle(c.x,c.y,18))continue;prev[nk]=k;queue.push(nk);}}
+      if(prev[gk]===-2)return null;const cells=[];for(let k=gk;k!==-1;k=prev[k])cells.push(k);cells.reverse();
+      return cells.filter((_,i)=>i%2===0||i===cells.length-1).map(k=>g.center(k%cols,Math.floor(k/cols)));
+    },
+    // A free standing point 60 units before a river/cliff cell in an axis direction, for walking-into-water tests.
+    edgeProbe(wall){
+      const g=mapLayout.grid,dirs=[['d',1,0],['a',-1,0],['s',0,1],['w',0,-1]];
+      for(let j=4;j<g.rows-4;j+=3)for(let i=4;i<g.cols-4;i+=3){const k=g.index(i,j);if(g.wall[k]!==wall||g.road[k])continue;
+        for(const [key,dx,dy] of dirs){const x=(i+.5)*g.cell-dx*60,y=(j+.5)*g.cell-dy*60;let free=true;for(let t=0;t<=24&&free;t+=6)if(touchesObstacle(x+dx*t,y+dy*t,16))free=false;
+          if(free&&!touchesObstacle(x,y,16)&&!touchesObstacle(x-dx*40,y-dy*40,16))return {x,y,key,dx,dy,wallX:(i+.5)*g.cell,wallY:(j+.5)*g.cell};}}
+      return null;
+    },
+    // Open ground for fixtures: the nearest point to the spawn with a free strip of 520 units to the east. fx/fy is a point on the far side of the map.
+    arena(){
+      if(!arenaCache||arenaCache.seed!==mapLayout.seed){
+        const sp=mapLayout.spawn;let found={x:sp.x,y:sp.y};
+        search:for(let ring=0;ring<=40;ring++){const R=ring*48;for(let a=0;a<(ring?16:1);a++){const t=a*Math.PI/8,x=Math.round(sp.x+Math.cos(t)*R),y=Math.round(sp.y+Math.sin(t)*R);let ok=true;for(let dx=-60;dx<=520&&ok;dx+=40)for(let dy=-130;dy<=130&&ok;dy+=65)if(touchesObstacle(x+dx,y+dy,28))ok=false;if(ok){found={x,y};break search;}}}
+        arenaCache={seed:mapLayout.seed,x:found.x,y:found.y,fx:clamp(CFG.world.width-found.x,150,CFG.world.width-150),fy:clamp(CFG.world.height-found.y,150,CFG.world.height-150)};
+      }
+      return {x:arenaCache.x,y:arenaCache.y,fx:arenaCache.fx,fy:arenaCache.fy};
+    },
+    tickNestsNow(dt=CFG.tickMs){tickNests(dt);},
     setInk(value){player.ink=clamp(value,0,player.maxInk);},
     snapshot(){return {slowRatio:world.slowRatio,hitstopMs:world.hitstopMs,tick:gameSession.tick,player:{x:player.x,y:player.y,hp:player.hp,ink:player.ink},mode:world.mode,kills:world.kills,bossesDefeated:world.bossesDefeated,activeBoss:activeBoss()?{id:activeBoss().bossId,name:activeBoss().name,hp:activeBoss().hp,maxHp:activeBoss().maxHp}:null,enemyCount:world.enemies.filter(e=>!e.dead).length,summonCount:world.summons.length,castCount:world.casts.length,castQueueCount:world.castQueue.length,roll:{charges:player.dash.charges,rechargeMs:player.dash.rechargeMs,activeMs:player.dash.leftMs},modal:ui.modal,worldWidth:CFG.world.width,worldHeight:CFG.world.height,drawPhase:drawInput.pointer!==null?'drawing':'idle',lastResult:world.lastResult,rendererState:renderer.state};}
   };

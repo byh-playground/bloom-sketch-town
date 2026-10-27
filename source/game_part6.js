@@ -30,7 +30,7 @@
   }
   const canonicalKeys=['nextId','seed','mapSeed','clockMs','kills','bossesDefeated',
     'hitstopMs','lastHitstopClockMs','hitFlashMs','slowRatio','screenTextMs','screenText',
-    'effectShakeMs','mode','deathMs','regionKills','unlocked','reward'];
+    'effectShakeMs','mode','deathMs','regionKills','bossState','nests','unlocked','reward'];
   const canonicalArrays=['enemies','summons','hazards','casts','pickups','fields','castQueue'];
   function encodeState(){
     const worldState={};for(const key of canonicalKeys)worldState[key]=world[key];
@@ -51,7 +51,9 @@
       // Recovery must preserve the released direction; missing/invalid aim is not an old-schema fallback.
       for(const name of ['casts','castQueue'])if(w[name].some(c=>!validShotPoint(c?.shot?.x,c?.shot?.y)||!validExpressionId(c?.shot?.face)))return false;
       if(w.summons.some(s=>!isSummonKind(s?.kind)||!Number.isSafeInteger(s.tier)||s.tier<1||s.tier>MERGE_TIER_MAX||!validExpressionId(s.face)||!Number.isFinite(s.x)||!Number.isFinite(s.y)||!Number.isFinite(s.hp)||s.hp<0||(s.owner!=='a'&&s.owner!=='b')))return false;
-      if(!Array.isArray(w.regionKills)||w.regionKills.length!==3||w.regionKills.some(n=>!Number.isSafeInteger(n)||n<0))return false;
+      if(!Array.isArray(w.regionKills)||w.regionKills.length!==WORLD_MAP.zoneCount||w.regionKills.some(n=>!Number.isSafeInteger(n)||n<0))return false;
+      if(!Array.isArray(w.bossState)||w.bossState.length!==BOSS_PROFILES.length||w.bossState.some(v=>v!==0&&v!==1&&v!==2))return false;
+      if(!Array.isArray(w.nests)||w.nests.length>200||w.nests.some(q=>typeof q?.on!=='boolean'||typeof q.done!=='boolean'||!Number.isFinite(q.cd)||q.cd<0||q.cd>WORLD_MAP.mobs.respawnMs))return false;
       for(const a of data.actors)if(!validCards(a.cards)||!Number.isFinite(a.ink)||a.ink<0||a.ink>derivedStats(a.cards).maxInk+1e-6||!Number.isFinite(a.inkDelayMs)||a.inkDelayMs<0||a.inkDelayMs>750||!a||!Number.isFinite(a.x)||!Number.isFinite(a.y)||!Number.isFinite(a.hp)||!a.dash||!Number.isFinite(a.dash.charges))return false;
       if(!Array.isArray(w.unlocked)||w.unlocked.some(k=>!['circle','triangle','square',...UNLOCKABLE_KINDS].includes(k)))return false;
       if(w.reward!==null&&!(Array.isArray(w.reward?.choices)&&w.reward.choices.length>=1&&w.reward.choices.length<=3&&w.reward.choices.every(k=>UNLOCKABLE_KINDS.includes(k))))return false;
