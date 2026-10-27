@@ -96,7 +96,7 @@
 
   const SUMMON_SPECS=Object.freeze({
     normal:   new MobileSpec({name:'낙서병',role:'근접',hp:40,r:13,ink:45,speed:120,strike:new MeleeStrike({damage:7,cooldownMs:650,range:14})}),
-    line:     new MobileSpec({name:'잉크 사수',role:'원거리',hp:32,r:12,ink:35,speed:105,strike:new RangedBolt({damage:6,cooldownMs:520,range:300})}),
+    line:     new MobileSpec({name:'잉크 선',role:'투사체',hp:32,r:12,ink:35,speed:105,strike:new RangedBolt({damage:6,cooldownMs:520,range:300})}),
     circle:   new TauntMobileSpec({name:'방패 구체',role:'방어',hp:130,r:17,ink:62,speed:90,strike:new MeleeStrike({damage:5,cooldownMs:800,range:14}),effects:[new SplashEffect(60,.5)]}),
     triangle: new MobileSpec({name:'창병',role:'근접',hp:62,r:14,ink:68,speed:135,strike:new MeleeStrike({damage:19,cooldownMs:720,range:16})}),
     square:   new TauntMobileSpec({name:'벽돌 골렘',role:'방어',hp:170,r:19,ink:78,speed:70,strike:new MeleeStrike({damage:11,cooldownMs:950,range:14}),effects:[new StunEffect(700)]}),

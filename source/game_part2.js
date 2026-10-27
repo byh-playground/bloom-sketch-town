@@ -234,7 +234,25 @@ if(e.hp<=0){e.dead=true;world.kills++;if(e.kind!=='boss')world.regionKills[e.reg
     world.casts.push({id:world.nextId++,owner:actorId(player),shot,ageMs:0,durationMs:duration,x:player.x,y:player.y,cost,paid:0});
     showResult(`${shot.name} 그리는 중 · ${summonSpecOf(shot.kind).role} · 체력 ${summonSpecOf(shot.kind).maxHp(shot.areaPower)}`,1450);sfx('draw');
   }
-  function submitSpell(shot){if(player.hp<=0||player.koMs>0||world.castQueue.filter(c=>c.owner===actorId(player)).length>=3)return false;world.castQueue.push({shot,owner:actorId(player),cost:spellInkCost(player,shot)});return true;}
+  // The line is the only projectile: no face, fired from the owner along the drawn direction, paid at once.
+  const LINE_BOLT=Object.freeze({speed:620,lifeMs:620,damage:15,pierce:2,radius:10,ink:22,cooldownMs:200});
+  function fireLine(shot){
+    if(world.clockMs<player.nextCastAtMs)return false;
+    const a=shot.shape[0],b=shot.shape[shot.shape.length-1];let dx=b.x-a.x,dy=b.y-a.y;const len=hypot(dx,dy);
+    if(len<1e-3){dx=player.faceX||1;dy=player.faceY||0;}else{dx/=len;dy/=len;}
+    if(!spendInk(player,Math.min(player.maxInk,+(LINE_BOLT.ink*player.inkCostRate).toFixed(3))))return false;
+    player.nextCastAtMs=world.clockMs+LINE_BOLT.cooldownMs;
+    world.fields.push({kind:'bolt',owner:actorId(player),x:player.x+dx*(player.r+6),y:player.y+dy*(player.r+6),dx,dy,r:LINE_BOLT.radius,ageMs:0,lifeMs:LINE_BOLT.lifeMs,color:shot.color,hits:[],pierceLeft:LINE_BOLT.pierce,damage:+(LINE_BOLT.damage*player.power).toFixed(2)});
+    sfx('draw');return true;
+  }
+  function tickBolts(dt){
+    for(const f of world.fields){if(f.kind!=='bolt'||f.pierceLeft<=0)continue;
+      const px=f.x,py=f.y,step=LINE_BOLT.speed*dt/1000;f.x+=f.dx*step;f.y+=f.dy*step;
+      for(const e of world.enemies){if(e.dead||f.hits.includes(e.id)||!segmentCircle(px,py,f.x,f.y,e.x,e.y,e.r+f.r))continue;
+        f.hits.push(e.id);withActor(actorOf(f.owner),()=>damageEnemy(e,f.damage,e.x,e.y-20,f.color,'line'));
+        if(--f.pierceLeft<=0){f.ageMs=f.lifeMs;break;}}}
+  }
+  function submitSpell(shot){if(shot.kind==='line')return player.hp>0&&!(player.koMs>0)&&fireLine(shot);if(player.hp<=0||player.koMs>0||world.castQueue.filter(c=>c.owner===actorId(player)).length>=3)return false;world.castQueue.push({shot,owner:actorId(player),cost:spellInkCost(player,shot)});return true;}
   function tickCasts(dt){
     for(let i=world.casts.length-1;i>=0;i--){const c=world.casts[i];const actor=actorOf(c.owner);c.x=actor.x;c.y=actor.y;
       const pay=Math.min(actor.ink,c.cost-c.paid,c.cost*dt/c.durationMs);
@@ -288,7 +306,7 @@ if(e.hp<=0){e.dead=true;world.kills++;if(e.kind!=='boss')world.regionKills[e.reg
     // Time dilation is local-only; online rollback must not depend on device pointer state.
     const hostileDt=!mp.connected&&drawInput.pointer!==null?dt*.25:dt;
     world.slowRatio=hostileDt/dt;
-    updateBossSummon();updateEnemies(hostileDt);tickCasts(dt);tickSummons(dt);separateUnits();tickHazards(hostileDt);tickEffects(dt);
+    updateBossSummon();updateEnemies(hostileDt);tickCasts(dt);tickBolts(dt);tickSummons(dt);separateUnits();tickHazards(hostileDt);tickEffects(dt);
     // Dead enemies have already delivered their XP, drops and ink fragments. Their records must NOT
     // survive forever in the canonical rollback history or AI scans. Stable IDs never get reused.
     for(let i=world.enemies.length-1;i>=0;i--)if(world.enemies[i].dead)world.enemies.splice(i,1);
