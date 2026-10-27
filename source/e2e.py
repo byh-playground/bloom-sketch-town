@@ -685,12 +685,12 @@ async def run_summons(browser, suite: E2E):
             # Every kind summons through the same command path as the net protocol.
             await page.evaluate("__sketchRpgDebug.combatFixture('chaser',3000,735);__sketchRpgDebug.moveTo(480,735);__sketchRpgDebug.setInk(100)")
             produced=[]
-            for kind in kinds:
+            for kind in [k for k in kinds if k!='line']:
                 await page.evaluate("k=>{const d=__sketchRpgDebug;d.setInk(100);d.castKind(k,0,120);}",kind)
                 await page.wait_for_function("k=>__sketchRpgDebug.summons().some(q=>q.kind===k)",arg=kind,timeout=4000)
                 produced.append(kind)
                 await page.evaluate("__sketchRpgDebug.combatFixture('chaser',3000,735)")
-            suite.check('all 11 shapes summon their creature',produced==kinds,produced)
+            suite.check('the 10 non-line shapes summon their creature (the line is a projectile)',produced==[k for k in kinds if k!='line'],produced)
             # Cap: an eleventh summon replaces the owner's oldest.
             await page.evaluate("__sketchRpgDebug.combatFixture('chaser',3000,735);__sketchRpgDebug.moveTo(480,735)")
             first_ids=[]
@@ -752,6 +752,17 @@ async def run_summons(browser, suite: E2E):
             await page.wait_for_function("__sketchRpgDebug.summons().some(q=>q.kind==='triangle')&&__sketchRpgDebug.runState().actor.ink<100",timeout=6000)
             ink=await page.evaluate("__sketchRpgDebug.runState().actor.ink")
             suite.check('one triangle spends 58-78 ink of 100: a second one is not affordable at once',15<ink<48,ink)
+            # The line is the only projectile: no face step, fired along the drawn direction, hurts what it crosses.
+            await page.evaluate("()=>{const d=__sketchRpgDebug;d.combatFixture('chaser',700,735);d.moveTo(480,735);d.setInk(100);d.setPlayerHp(120);}")
+            await page.wait_for_timeout(120)
+            hp0=await page.evaluate("__sketchRpgDebug.foePositions()[0].hp")
+            line_shot=await draw_circle(page,170,'line',at=[590,735])
+            await page.wait_for_timeout(700)
+            line_state=await page.evaluate("({d:__sketchRpgDebug.draftState(),foes:__sketchRpgDebug.foePositions(),ink:__sketchRpgDebug.runState().actor.ink,n:__sketchRpgDebug.summons().length})")
+            foe_hp=line_state['foes'][0]['hp'] if line_state['foes'] else 0
+            suite.check('a drawn line fires at once: no face draft, no summon, the foe in its path is hurt, ink is spent',
+                        line_shot is not None and line_shot['kind']=='line' and not line_state['d']['active'] and line_state['n']==0 and foe_hp<hp0 and line_state['ink']<100,
+                        {'shot':line_shot and line_shot['kind'],'hp0':hp0,'state':line_state})
             # Combat: a summon kills a nearby foe while the player stands still.
             await page.evaluate("()=>{const d=__sketchRpgDebug;d.combatFixture('chaser',700,735);d.moveTo(480,735);d.setInk(100);d.setPlayerHp(120);d.castKind('triangle',0,160);}")
             await page.wait_for_function("__sketchRpgDebug.foePositions().length===0",timeout=15000)

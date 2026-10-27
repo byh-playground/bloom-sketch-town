@@ -122,6 +122,7 @@
     gesture.lastCombatStroke=points.map(p=>({...p}));
     try{
       const shot=normalizeCommand({type:'cast',shot:{...makeShotData(points),x:at.x,y:at.y,face:'neutral'}}).shot,cost=spellInkCost(player,shot);
+      if(shot.kind==='line'){world.commands.push({type:'cast',shot});wakeInputPreview();$('lastSpell').textContent='선 · 투사체';return;}
       beginSummonDraft(shot,points,center);
     }catch(error){console.error(error);showResult('소환 분석 실패 · 다시 그려 보세요',950);}}
   function collectCombatDrawing(e){
