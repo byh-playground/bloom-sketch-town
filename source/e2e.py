@@ -698,6 +698,7 @@ async def run_summons(browser, suite: E2E):
             picked=offer['reward']['choices'][0]
             await page.locator(f'#rewardChoices button[data-kind="{picked}"]').click()
             await page.wait_for_function("__sketchRpgDebug.unlockState().reward===null",timeout=4000)
+            await page.wait_for_function("document.getElementById('rewardPanel').hidden",timeout=4000)
             after=await page.evaluate("__sketchRpgDebug.unlockState()")
             suite.check('a boss defeat offers three locked shapes; choosing one unlocks it for this run and hides the panel',
                         len(offer['reward']['choices'])==3 and all(k not in start['unlocked'] for k in offer['reward']['choices']) and picked in after['unlocked'] and len(after['unlocked'])==4 and await page.evaluate("document.getElementById('rewardPanel').hidden"),
@@ -945,7 +946,7 @@ async def run_ink_hud(browser,suite):
         try:
             await page.goto(url+'?seed=20261026')
             await page.wait_for_function('window.__sketchRpgDebug?.rendererStats().vertices>0')
-            await page.evaluate('__sketchRpgDebug.regionCombatFixture(0);__sketchRpgDebug.setInk(5)')
+            await page.evaluate('__sketchRpgDebug.regionCombatFixture(0);__sketchRpgDebug.invulnerable();__sketchRpgDebug.setInk(5)')
             await page.wait_for_timeout(150)
             bar=await page.locator('#inkBar').bounding_box()
             suite.check('390px ink bar is always visible and recovering below maximum',bar['height']>=5 and bar['x']>=0 and bar['x']+bar['width']<=390 and await page.locator('#inkMeter').get_attribute('data-state') in ('recovering','waiting'),{'bar':bar,'state':await page.locator('#inkMeter').get_attribute('data-state')})
@@ -963,6 +964,19 @@ async def run_ink_hud(browser,suite):
             await page.wait_for_function("__sketchRpgDebug.summons().length==1",timeout=8000)
             suite.check('the pending summon appears once ink has refilled',True)
             suite.check('ink HUD flow has no JavaScript error',not issues,issues)
+            # Run end: a solo defeat freezes the field and shows the result panel with a restart button; no village revive.
+            await page.evaluate("()=>{world.mode='playing';player.invulMs=0;player.hp=50;takeDamage(9999,null,null);}")
+            await page.wait_for_function("!document.getElementById('runEnd').hidden",timeout=4000)
+            over=await page.evaluate("({mode:world.mode,title:runEndTitle.textContent,stats:runEndStats.textContent,hp:player.hp})")
+            await page.wait_for_timeout(2500)
+            still=await page.evaluate("({mode:world.mode,hp:player.hp})")
+            suite.check('a solo defeat ends the run: result panel with boss/kill/unlock/time stats, mode stays over, no revive',
+                        over['mode']=='over' and '보스 0/5' in over['stats'] and '해금 도형 0개' in over['stats'] and still['mode']=='over' and still['hp']==0,{'over':over,'still':still})
+            await page.evaluate("()=>{world.mode='playing';player.hp=100;player.invulMs=0;const d=__sketchRpgDebug;d.spawnBoss(4);const e=world.enemies.find(x=>x.kind==='boss');damageEnemy(e,1e6,e.x,e.y,'#fff','shuriken');}")
+            await page.wait_for_function("world.mode==='clear'",timeout=4000)
+            await page.wait_for_function("runEndTitle.textContent.includes('되찾')",timeout=4000)
+            clear=await page.evaluate("({title:runEndTitle.textContent,stats:runEndStats.textContent,reward:world.reward})")
+            suite.check('defeating the fifth boss clears the run: victory title, 5/5, no reward pending',clear['title'].startswith('스케치 타운')and '보스 5/5' in clear['stats'] and clear['reward'] is None,clear)
         finally:
             await context.close()
 
@@ -984,7 +998,7 @@ async def run_run_state(browser, suite: E2E):
             await page.wait_for_function('window.__sketchRpgDebug?.rendererStats().vertices>0')
             reloaded=await page.evaluate('__sketchRpgDebug.runState()')
             suite.check('reload starts a new run without saved card ranks',reloaded['actor']['maxInk']==100 and all(v==0 for v in reloaded['cards'].values()),reloaded['cards'])
-            await page.evaluate('__sketchRpgDebug.regionCombatFixture(0)')
+            await page.evaluate('__sketchRpgDebug.regionCombatFixture(0);__sketchRpgDebug.invulnerable()')
             await page.wait_for_timeout(160)
             for _attempt in range(4):
                 # a lone summon can die before the fifth kill; recast like a player would
@@ -998,7 +1012,7 @@ async def run_run_state(browser, suite: E2E):
                     if _attempt==3:raise
             suite.check('real attack clears the forest region',True)
             await page.set_viewport_size({'width':390,'height':844})
-            await page.evaluate('__sketchRpgDebug.regionCombatFixture(1);__sketchRpgDebug.setInk(100)')
+            await page.evaluate('__sketchRpgDebug.regionCombatFixture(1);__sketchRpgDebug.invulnerable();__sketchRpgDebug.setInk(100)')
             await page.wait_for_function("(()=>{const d=__sketchRpgDebug,f=d.foePositions()[0];if(!f)return false;const c=d.screenAt(f.x,f.y);return c.x>40&&c.x<350&&c.y>120&&c.y<740})()",timeout=30000)
             pre=await page.evaluate("(()=>{const d=__sketchRpgDebug,f=d.foePositions()[0],c=d.screenAt(f.x,f.y);const e=document.elementFromPoint(c.x,c.y);return JSON.stringify({c,w:innerWidth,el:e&&(e.id||e.className),ink:d.snapshot().ink,sc:d.snapshot().summonCount,draft:d.draftState()})})()")
             region_shot=await draw_circle(page,140)
@@ -1141,7 +1155,7 @@ async def run_real_p2p(browser, suite: E2E):
                 boundary=min(s['confirmedTick'] for s in states)
                 hashes=await asyncio.gather(*(p.evaluate("t=>window.__sketchRpgDebug.stateHash(t)",boundary) for p in (host,guest)))
                 suite.check("late duplicated RTC input reconciles to equal confirmed hash",hashes[0] is not None and hashes[0]==hashes[1],{'tick':boundary,'hashes':hashes,'rollbacks':[s['stats'].get('rollbacks',0) for s in states]})
-                suite.check("both peers use pinned protocol 3 bundle",all(s['gamekitSHA']=='418e17c455db56d6ed073d82d115191d9dd8bf04' and s['namespace']=='sketch-town-coop-0.21.0' and s['simulationVersion'].startswith('sketch-town-0.21.0-') and s['inputScheduling']=='network' and s['inputHz']==60 for s in states))
+                suite.check("both peers use pinned protocol 3 bundle",all(s['gamekitSHA']=='418e17c455db56d6ed073d82d115191d9dd8bf04' and s['namespace']=='sketch-town-coop-0.22.0' and s['simulationVersion'].startswith('sketch-town-0.22.0-') and s['inputScheduling']=='network' and s['inputHz']==60 for s in states))
                 for sender,actor in ((host,'a'),(guest,'b')):
                     for page in (host,guest):
                         await page.evaluate("""actor => {

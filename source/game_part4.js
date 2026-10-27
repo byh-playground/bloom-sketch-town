@@ -106,6 +106,17 @@
     const text=plan?`선택 ${n} → ${summonSpecOf(plan.kind).name}${plan.type==='tier'?` ${plan.tier}단계`:''} · ★ 그리면 합체`:n<2?'선택 1 · 소환수를 더 눌러 보세요':`선택 ${n} · 합체할 수 없는 조합`;
     if($('selectText').textContent!==text)$('selectText').textContent=text;
   }
+  // Run end panel: shown when the run is over (defeat) or cleared; a new run is a fresh page load (state is per run).
+  let runEndSig='';
+  function updateRunEndPanel(){
+    const over=world.mode==='over'||world.mode==='clear',sig=over?world.mode:'';if(sig===runEndSig)return;runEndSig=sig;
+    $('runEnd').hidden=!over;if(!over)return;
+    const total=Math.floor(world.clockMs/1000),time=`${Math.floor(total/60)}분 ${String(total%60).padStart(2,'0')}초`;
+    $('runEndTitle').textContent=world.mode==='clear'?'스케치 타운을 되찾았다!':'먹물이 번졌다…';
+    $('runEndStats').textContent=`보스 ${world.bossesDefeated}/${BOSS_PROFILES.length} · 처치 ${world.kills} · 해금 도형 ${world.unlocked.length-3}개 · ${time}`;
+    $('runRestart').focus({preventScroll:true});
+  }
+  $('runRestart').addEventListener('click',()=>location.reload());
   // Boss reward panel: rendered from canonical world.reward; choosing queues the same command path as every other input.
   let rewardSig='';
   function updateRewardPanel(){
@@ -247,7 +258,7 @@
   function renderDrawPad(){
     if(drawInput.pointer!==null&&!drawingAllowed())dropDraw();
     if(drawInput.pointer!==null)updateDrawingAim();
-    tickSummonDraft();updateLiveFace();updateLiveBody();updateRewardPanel();updateSelectionChip();
+    tickSummonDraft();updateLiveFace();updateLiveBody();updateRewardPanel();updateRunEndPanel();updateSelectionChip();
     const points=drawInput.pointer!==null?drawInput.points:drawInput.previewUntilMs>performance.now()?drawInput.finished:null;
     drawCtx.setTransform(drawDpr,0,0,drawDpr,0,0);drawCtx.clearRect(0,0,vw,vh);
     drawCtx.save();drawCtx.lineCap='round';drawCtx.lineJoin='round';paintSummonDraft();paintLiveGhost();

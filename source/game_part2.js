@@ -111,7 +111,7 @@
     if(!Number.isFinite(length)||length<.00001||!Number.isFinite(distance)||distance<12||distance>maxDistance+.01)return false;
     return withActor(actor,()=>beginRoll(actor.x+dx/length*distance,actor.y+dy/length*distance));
   }
-  function takeDamage(amount,fromX,fromY){if(player.invulMs>0||world.mode!=='playing')return false;player.hp=Math.max(0,player.hp-Math.round(amount));player.invulMs=520;player.hits++;world.effectShakeMs=180;floating(player.x,player.y-32,`-${Math.round(amount)}`,'#bb604f');burst(player.x,player.y,'#d07962',10,83);sfx('hit');if(fromX!=null){const d=hypot(player.x-fromX,player.y-fromY)||1;moveCollider(player,(player.x-fromX)/d*17,(player.y-fromY)/d*17,player.r);}if(player.hp<=0){if(!resimulatingGame&&player===(mp.role==='join'?guestPlayer:hostPlayer))dropDraw();if(mp.shared){player.koMs=1150;announce('동료의 잉크가 번졌다 · 잠시 뒤 부활!',1100);}else{world.mode='down';world.deathMs=1150;announce('먹물이 번졌다… 마을로 돌아갑니다',1100);}}return true;}
+  function takeDamage(amount,fromX,fromY){if(player.invulMs>0||world.mode!=='playing')return false;player.hp=Math.max(0,player.hp-Math.round(amount));player.invulMs=520;player.hits++;world.effectShakeMs=180;floating(player.x,player.y-32,`-${Math.round(amount)}`,'#bb604f');burst(player.x,player.y,'#d07962',10,83);sfx('hit');if(fromX!=null){const d=hypot(player.x-fromX,player.y-fromY)||1;moveCollider(player,(player.x-fromX)/d*17,(player.y-fromY)/d*17,player.r);}if(player.hp<=0){if(!resimulatingGame&&player===(mp.role==='join'?guestPlayer:hostPlayer))dropDraw();if(mp.shared){player.koMs=1150;announce('동료의 잉크가 번졌다 · 잠시 뒤 부활!',1100);}else{world.mode='over';world.deathMs=0;announce('먹물이 번졌다… 이번 판은 여기까지',2400);}}return true;}
   function reviveActor(actor){withActor(actor,()=>{player.x=actor===guestPlayer?536:480;player.y=actor===guestPlayer?756:735;player.hp=Math.ceil(player.maxHp*.75);player.invulMs=1600;player.koMs=0;player.dash.leftMs=0;player.dash.charges=CFG.player.roll.capacity;player.dash.rechargeMs=0;player.nextCastAtMs=0;});}
   function revive(){world.summons.length=0;player.x=480;player.y=735;player.hp=Math.ceil(player.maxHp*.75);player.invulMs=1600;player.dash.leftMs=0;player.dash.charges=CFG.player.roll.capacity;player.dash.rechargeMs=0;player.nextCastAtMs=0;world.hazards.length=0;world.casts.length=0;world.castQueue.length=0;world.rollMarks.length=0;world.mode='playing';}
   function nearestEnemy(range=900,x=player.x,y=player.y,excludeId=null){
@@ -176,7 +176,7 @@
     // Radial scratch and high-contrast paper sparks at the real contact point.
     world.fields.push({kind:'impact',x:e.x,y:e.y-3,r:e.kind==='boss'?59:33,ageMs:0,lifeMs:260,color});
     burst(e.x,e.y,color,e.kind==='boss'?11:7,99);
-if(e.hp<=0){e.dead=true;world.kills++;if(e.kind!=='boss')world.regionKills[e.region]++;burst(e.x,e.y,e.color,9,100);tearEnemyInk(e);sfx('kill');if(e.kind!=='boss'){world.pickups.push({x:e.x,y:e.y,r:8,lifeMs:24000,kind:'ink',amount:1+Math.floor(rand()*3)});}else{world.bossesDefeated++;offerUnlockReward();announce(world.bossesDefeated>=BOSS_PROFILES.length?`${e.name} 격파 · 스케치 타운을 되찾았다!`:`${e.name} 격파 · ${world.bossesDefeated}/${BOSS_PROFILES.length}`,3500);world.pickups.push({x:e.x,y:e.y,r:15,lifeMs:30000,kind:'ink',amount:24});}}
+if(e.hp<=0){e.dead=true;world.kills++;if(e.kind!=='boss')world.regionKills[e.region]++;burst(e.x,e.y,e.color,9,100);tearEnemyInk(e);sfx('kill');if(e.kind!=='boss'){world.pickups.push({x:e.x,y:e.y,r:8,lifeMs:24000,kind:'ink',amount:1+Math.floor(rand()*3)});}else{world.bossesDefeated++;offerUnlockReward();if(world.bossesDefeated>=BOSS_PROFILES.length){world.reward=null;world.mode='clear';}announce(world.bossesDefeated>=BOSS_PROFILES.length?`${e.name} 격파 · 스케치 타운을 되찾았다!`:`${e.name} 격파 · ${world.bossesDefeated}/${BOSS_PROFILES.length}`,3500);world.pickups.push({x:e.x,y:e.y,r:15,lifeMs:30000,kind:'ink',amount:24});}}
     else sfx('hit');return d;}
 
   function enemyProjectile(x,y,tx,ty,kind='ink',speed=260,damage=9){const dx=tx-x,dy=ty-y,m=hypot(dx,dy)||1;world.hazards.push({x,y,prevX:x,prevY:y,vx:dx/m*speed,vy:dy/m*speed,r:kind==='orb'?11:7,kind,color:kind==='orb'?'#9d729c':'#9f8fb1',damage,ageMs:0,lifeMs:2100});}
@@ -316,6 +316,8 @@ if(e.hp<=0){e.dead=true;world.kills++;if(e.kind!=='boss')world.regionKills[e.reg
     // Hitstop pauses authoritative combat for a brief, explicit millisecond duration.
     if(world.hitstopMs>0){world.hitstopMs=Math.max(0,world.hitstopMs-dt);return;}
     if(world.mode==='down'){world.deathMs-=dt;if(world.deathMs<=0)revive();tickEffects(dt);return;}
+    // A finished run (defeat or clear) freezes the battlefield; only the result panel remains (new run = new page load).
+    if(world.mode==='over'||world.mode==='clear'){tickEffects(dt);return;}
     withActor(hostPlayer,()=>updatePlayer(dt));
     if(mp.shared)withActor(guestPlayer,()=>updatePlayer(dt));
     // Time dilation is local-only; online rollback must not depend on device pointer state.
