@@ -200,3 +200,7 @@ The branch authors static character and environment resources in `source/assets/
 ### 0.18.2 — SVG 선 둥근 마감 분할 2
 
 - 컴파일러(체크섬 고정)가 `SVGLoader.pointsToStroke`에 고정값 12로 넘기던 선 호 분할 수(Stroke arc divisions)를 `scripts/compile-vector-assets.mjs`에서 2로 덮어씁니다(고정 소스는 수정하지 않음). `curveSegments` 4와 함께 17개 SVG 정점 합계 7,782 → 3,589(−54%), 시작 화면 렌더 정점 52,365 → 23,499(−55%, 소프트웨어 GL 컨테이너 측정, 실기기 FPS는 미측정). 장면 모양은 같은 화면에서 눈으로 비교했고 차이를 찾지 못했습니다.
+
+### 0.18.3 — 소환수 그리기 경량화
+
+- 소환수 몸 정점을 모양마다 한 번 16점 이하로 줄여 캐시하고, 닫힌 몸은 겹치는 가로줄 대신 무게중심 삼각형 부채로 채웁니다. 윤곽선·표정의 흰 테두리 선을 뺐습니다. 소환수 4마리 + 적 장면에서 프레임당 그리기 프리미티브 호출이 약 390 → 155(−60%)입니다(소프트웨어 GL 컨테이너 측정, 실기기 FPS는 미측정).
