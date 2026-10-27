@@ -103,10 +103,10 @@
   // The summon IS the player's drawing: the body is the stroke as drawn (only scaled to the collider), and the face
   // is an animated preset chosen by the expression the player drew. Body and face move together.
   const INK='#3a4a50',INK_EDGE='#fff5dc';
-  function inkLine(ax,ay,bx,by,w=2.2){P.line(ax,ay,bx,by,w+1.6,INK_EDGE,.65);P.line(ax,ay,bx,by,w,INK,.95);}
+  function inkLine(ax,ay,bx,by,w=2.2){P.line(ax,ay,bx,by,w+1,INK,.95);}
   function inkPath(points,w=2.2){for(let i=1;i<points.length;i++)inkLine(points[i-1][0],points[i-1][1],points[i][0],points[i][1],w);}
   function inkArc(cx,cy,rx,ry,a0,a1,w=2.2,n=9){const pts=[];for(let i=0;i<=n;i++){const a=a0+(a1-a0)*i/n;pts.push([cx+Math.cos(a)*rx,cy+Math.sin(a)*ry]);}inkPath(pts,w);}
-  function inkDot(x,y,r){P.dot(x,y,r+1.1,INK_EDGE,.7);P.dot(x,y,r,INK,.97);}
+  function inkDot(x,y,r){P.dot(x,y,r+.6,INK,.97);}
   // Body motion per expression: [hop Hz, hop px, sway rad, squash, tremble px]
   const BODY_MOTION={neutral:[1.4,1.2,.02,.03,0],joy:[3.1,5,.05,.09,0],anger:[2.2,1,.0,.04,1.1],sleepy:[.45,1.6,.07,.02,0],surprise:[1.6,3,.03,.06,0],sad:[.8,.8,.03,.02,0]};
   function summonPose(v,spec,t){
@@ -119,21 +119,28 @@
     return {ox,oy,sx,sy,rot};
   }
   // Fill the inside of a closed drawing with horizontal ink lines (open strokes such as a line or lightning stay unfilled).
-  function fillClosedShape(points,x,y,rot,sx,sy,scale,color,alpha){
-    if(points.length<4)return;
-    let extent=0;for(const p of points)extent=Math.max(extent,Math.abs(p.x),Math.abs(p.y));
-    if(hypot(points[0].x-points.at(-1).x,points[0].y-points.at(-1).y)>extent*.45)return;
-    const cs=Math.cos(rot),sn=Math.sin(rot),poly=points.map(p=>{const px=p.x*scale*sx,py=p.y*scale*sy;return [x+px*cs-py*sn,y+px*sn+py*cs];});
-    let minY=Infinity,maxY=-Infinity;for(const q of poly){minY=Math.min(minY,q[1]);maxY=Math.max(maxY,q[1]);}
-    const step=2.4;
-    for(let yy=minY+step/2;yy<maxY;yy+=step){
-      const xs=[];for(let i=0;i<poly.length;i++){const a=poly[i],b=poly[(i+1)%poly.length];if((a[1]<=yy)!==(b[1]<=yy))xs.push(a[0]+(yy-a[1])/(b[1]-a[1])*(b[0]-a[0]));}
-      xs.sort((m,n)=>m-n);for(let k=0;k+1<xs.length;k+=2)P.line(xs[k],yy,xs[k+1],yy,step+.4,color,alpha);
-    }
+  // Body geometry is derived once per drawn shape (cached by the shape array): the stroke is thinned to at most 16 points and a
+  // closed outline is filled with a centroid fan. Per frame the summon then costs one quad per segment and one triangle per
+  // fan wedge, with no overlapping alpha quads.
+  const bodyMeshes=new WeakMap();
+  function bodyMesh(shape){
+    let mesh=bodyMeshes.get(shape);if(mesh)return mesh;
+    const keep=Math.max(1,Math.ceil(shape.length/16)),pts=shape.filter((_,i)=>i%keep===0||i===shape.length-1);
+    let extent=0;for(const p of pts)extent=Math.max(extent,Math.abs(p.x),Math.abs(p.y));
+    const first=pts[0],last=pts.at(-1),closed=pts.length>=4&&hypot(first.x-last.x,first.y-last.y)<=extent*.45;
+    let cx=0,cy=0;if(closed){for(const p of pts){cx+=p.x;cy+=p.y;}cx/=pts.length;cy/=pts.length;}
+    mesh={pts,closed,cx,cy};bodyMeshes.set(shape,mesh);return mesh;
   }
-  function drawStrokeSquashed(points,x,y,rot,sx,sy,scale,color,alpha,width){
-    const cs=Math.cos(rot),sn=Math.sin(rot),map=p=>{const px=p.x*scale*sx,py=p.y*scale*sy;return [x+px*cs-py*sn,y+px*sn+py*cs];};
-    for(let i=1;i<points.length;i++){const a=map(points[i-1]),b=map(points[i]);P.line(a[0],a[1],b[0],b[1],width+1.6,'#fff5dc',alpha*.7);P.line(a[0],a[1],b[0],b[1],width,color,alpha);}
+  function fillClosedShape(mesh,x,y,rot,sx,sy,scale,color,alpha){
+    if(!mesh.closed)return;
+    const cs=Math.cos(rot),sn=Math.sin(rot),map=p=>{const px=p.x*scale*sx,py=p.y*scale*sy;return {x:x+px*cs-py*sn,y:y+px*sn+py*cs};},c=map({x:mesh.cx,y:mesh.cy}),pts=mesh.pts;
+    let prev=map(pts[0]);
+    for(let i=1;i<=pts.length;i++){const cur=map(pts[i%pts.length]);P.tri(c,prev,cur,color,alpha);prev=cur;}
+  }
+  function drawStrokeSquashed(mesh,x,y,rot,sx,sy,scale,color,alpha,width){
+    const cs=Math.cos(rot),sn=Math.sin(rot),pts=mesh.pts,map=p=>{const px=p.x*scale*sx,py=p.y*scale*sy;return [x+px*cs-py*sn,y+px*sn+py*cs];};
+    let a=map(pts[0]);for(let i=1;i<pts.length;i++){const b=map(pts[i]);P.line(a[0],a[1],b[0],b[1],width,color,alpha);a=b;}
+    if(mesh.closed){const b=map(pts[0]);P.line(a[0],a[1],b[0],b[1],width,color,alpha);}
   }
   function drawFace(id,cx,cy,u,t,look,seed){
     const blinkT=(t+seed*.37)%3.4,blink=blinkT<.12,L=-1,R=1;
@@ -178,15 +185,15 @@
     if(!visible(v.x,v.y,120))return;
     // Drawn larger than the collider so the body and its face stay readable; collision and targeting use v.r.
     const spec=summonSpecOf(v.kind),t=paintClockMs/1000,pose=summonPose(v,spec,t),x=v.x+pose.ox,y=v.y+pose.oy,vr=v.r*1.35;
-    let extent=1;for(const p of v.shape)extent=Math.max(extent,Math.abs(p.x),Math.abs(p.y));
+    const mesh=bodyMesh(v.shape);let extent=1;for(const p of mesh.pts)extent=Math.max(extent,Math.abs(p.x),Math.abs(p.y));
     const scale=vr*1.15/extent;
     if(spec.anchored)P.ring(v.x,v.y,spec.strike.range,v.color,.10+.05*Math.sin(paintClockMs*.004),1.4,40);
     P.oval(v.x,v.y+vr*.8,vr*.95,vr*.26,'#74726b',.16);
     const rot=spec.anchored?paintClockMs*.0006:pose.rot;
-    fillClosedShape(v.shape,x,y,rot,pose.sx,pose.sy,scale,v.color,.22);
-    drawStrokeSquashed(v.shape,x,y,rot,pose.sx,pose.sy,scale,v.color,.97,spec.taunt?5:3);
+    fillClosedShape(mesh,x,y,rot,pose.sx,pose.sy,scale,v.color,.22);
+    drawStrokeSquashed(mesh,x,y,rot,pose.sx,pose.sy,scale,v.color,.97,spec.taunt?5:3);
     drawFace(v.face,x,y+vr*.04*pose.sy,vr*.62*Math.min(pose.sx,pose.sy+.05),t,v.faceX,v.id);
-    if(v.hitMs>0){const f=clamp(v.hitMs/SKETCH.hitFlashMs,0,1);drawStrokeSquashed(v.shape,x,y,rot,pose.sx*1.06,pose.sy*1.06,scale,'#fff8d9',f*.9,5);}
+    if(v.hitMs>0){const f=clamp(v.hitMs/SKETCH.hitFlashMs,0,1);drawStrokeSquashed(mesh,x,y,rot,pose.sx*1.06,pose.sy*1.06,scale,'#fff8d9',f*.9,5);}
     if(v.hp<v.maxHp){const pct=clamp(v.hp/v.maxHp,0,1),bar=Math.max(26,vr*2);P.box(v.x,v.y-vr-14,bar,5,'#605660',.65);if(pct>0)P.box(v.x-bar*(1-pct)/2,v.y-vr-14,bar*pct,4,'#6f9a85');}
   }
   function drawHazard(h){if(!visible(h.x,h.y,90))return;
