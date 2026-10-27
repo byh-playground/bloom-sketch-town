@@ -33,6 +33,14 @@ async function loadOriginalScript(path) {
     document.body.append(script);
   });
 }
+// Startup progress: the loading overlay (#boot) is driven by this file's SOURCES list; boot steps before it count as 0..STEP_BEFORE_SOURCES.
+const BOOT_LABEL = Object.freeze({ 'source/game_part2.js': '맵 만드는 중…' });
+const nextPaint = () => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+function bootProgress(done, total, label) {
+  const fill = document.getElementById('bootFill'), text = document.getElementById('bootText');
+  if (fill) fill.style.width = Math.round(done / total * 100) + '%';
+  if (text && label) text.textContent = label;
+}
 async function boot() {
   const [rendering, vectorAssets, simloop, interpolation] = await Promise.all([
     import('./gamekit/0.15.1/rendering.js'),
@@ -71,10 +79,20 @@ async function boot() {
   );
   document.getElementById('sketchCNN').textContent = cnn;
   document.getElementById('glyphReferences').textContent = glyphs;
-  for (const path of SOURCES) await loadOriginalScript(path);
+  const total = SOURCES.length + 1;
+  bootProgress(1, total, '게임 불러오는 중…');
+  for (let i = 0; i < SOURCES.length; i++) {
+    const path = SOURCES[i];
+    if (BOOT_LABEL[path]) { bootProgress(i + 1, total, BOOT_LABEL[path]); await nextPaint(); }
+    await loadOriginalScript(path);
+    bootProgress(i + 2, total);
+  }
+  await nextPaint();
+  document.getElementById('boot')?.classList.add('done');
 }
 boot().catch(error => {
   console.error(error);
+  document.getElementById('boot')?.classList.add('done');
   const output = document.getElementById('error');
   if (output) {
     output.style.display = 'block';
