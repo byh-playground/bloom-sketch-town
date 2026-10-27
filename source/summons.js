@@ -120,6 +120,25 @@
     altar:     new AnchoredSpec({name:'성좌 제단',role:'고정·범위·회복',hp:200,r:22,ink:0,strike:new AreaPulse({damage:18,cooldownMs:700,range:230}),effects:[new StunEffect(350),new HealOwnerEffect(2)]})
   });
   const FUSION_COLORS=Object.freeze({steam:'#8fb8c9',storm:'#7a86c9',fortress:'#8a8f93',bladestorm:'#c9a85a',altar:'#c98fb8'});
+  // Each fusion has its own drawn body (a closed outline of at most 16 points, in the same units as a drawn shape), so a fused
+  // creature never looks like one of its materials.
+  const FUSION_SHAPES=(()=>{
+    const P=(x,y)=>({x:+x.toFixed(1),y:+y.toFixed(1)}),polar=(r,a)=>P(r*Math.cos(a),r*Math.sin(a));
+    // Cloud top: three puffs (left, middle, right), each a circular arc; y grows downward on screen.
+    const arc=(cx,cy,r,a0,a1,n)=>Array.from({length:n},(_,i)=>{const a=(a0+(a1-a0)*i/(n-1))*Math.PI/180;return P(cx+r*Math.cos(a),cy-r*Math.sin(a));});
+    const cloudTop=[...arc(-20,2,15,205,60,4),...arc(0,-8,19,145,35,4),...arc(20,2,15,120,-25,4)];
+    // steam: a puffy cloud with a round belly
+    const steam=[...cloudTop,P(24,18),P(0,24),P(-24,18)];
+    // storm: the same cloud with a lightning bolt hanging from its underside
+    const storm=[...cloudTop,P(30,10),P(14,10),P(22,36),P(-4,14)];
+    // fortress: a wall with four battlements
+    const fortress=[P(-34,34),P(-34,-30),P(-20,-30),P(-20,-18),P(-8,-18),P(-8,-30),P(8,-30),P(8,-18),P(20,-18),P(20,-30),P(34,-30),P(34,34),P(-34,34)];
+    // bladestorm: six swept blades turning around a small core
+    const bladestorm=Array.from({length:12},(_,i)=>{const k=Math.floor(i/2);return i%2===0?polar(42,k*Math.PI/3+.4):polar(15,k*Math.PI/3+Math.PI/6-.35);});
+    // altar: an eight-pointed constellation star
+    const altar=Array.from({length:16},(_,i)=>polar(i%2===0?42:23,-Math.PI/2+i*Math.PI/8));
+    return Object.freeze({steam,storm,fortress,bladestorm,altar});
+  })();
   const FUSION_RECIPES=Object.freeze({'flame+water':'steam','lightning+water':'storm','circle+square':'fortress','shuriken+triangle':'bladestorm','star+starcircle':'altar'});
   const recipeKey=(a,b)=>[a,b].sort().join('+');
   function summonSpecOf(kind){return SUMMON_SPECS[kind]||FUSION_SPECS[kind]||SUMMON_SPECS.normal;}
@@ -145,7 +164,7 @@
     const main=units.reduce((a,b)=>summonSpecOf(b.kind).ink>summonSpecOf(a.kind).ink?b:a);
     const point=summonSpawnPoint(actor,{x:avg(u=>u.x),y:avg(u=>u.y)},r);
     for(const u of units){world.summons.splice(world.summons.indexOf(u),1);burst(u.x,u.y,u.color,6,50);}
-    const s={id:world.nextId++,owner,kind:plan.kind,face:main.face,name:spec.name,color:plan.type==='fusion'?FUSION_COLORS[plan.kind]:main.color,shape:main.shape,x:point.x,y:point.y,r,
+    const s={id:world.nextId++,owner,kind:plan.kind,face:main.face,name:spec.name,color:plan.type==='fusion'?FUSION_COLORS[plan.kind]:main.color,shape:plan.type==='fusion'?FUSION_SHAPES[plan.kind].map(p=>({...p})):main.shape,x:point.x,y:point.y,r,
       hp:maxHp,maxHp,power,tier:plan.tier,cdMs:400,ageMs:0,hitMs:0,faceX:1,targetId:0};
     world.summons.push(s);
     world.fields.push({kind:'ring',x:s.x,y:s.y,r:70,ageMs:0,lifeMs:520,color:s.color});
