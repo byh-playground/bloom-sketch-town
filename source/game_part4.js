@@ -80,6 +80,15 @@
     Object.assign(summonDraft,{active:false,shot:null,body:null,center:null,strokes:[],live:null,liveSig:''});showFaceStep(false);
     if(was&&message){showResult(message,1600);$('strokeStatus').textContent='원하는 자리에 한 획 · 그 자리에 소환';}
   }
+  // Boss reward panel: rendered from canonical world.reward; choosing queues the same command path as every other input.
+  let rewardSig='';
+  function updateRewardPanel(){
+    const sig=world.reward?world.reward.choices.join(','):'';if(sig===rewardSig)return;rewardSig=sig;
+    const panel=$('rewardPanel'),box=$('rewardChoices');box.innerHTML='';panel.hidden=!sig;if(!sig)return;
+    for(const kind of world.reward.choices){const spec=summonSpecOf(kind),b=document.createElement('button');b.type='button';b.dataset.kind=kind;
+      b.innerHTML=`${shapeSvg(kind)}<b>${spec.name}</b><small>${spec.role}</small>`;
+      b.addEventListener('click',()=>{world.commands.push({type:'unlock',kind});wakeInputPreview();});box.appendChild(b);}
+  }
   function beginSummonDraft(shot,bodyPoints,center){
     Object.assign(summonDraft,{active:true,shot,body:bodyPoints.map(p=>({...p})),center:{...center},strokes:[],lastActivityMs:performance.now()});
     showFaceStep(true);
@@ -210,7 +219,7 @@
   function renderDrawPad(){
     if(drawInput.pointer!==null&&!drawingAllowed())dropDraw();
     if(drawInput.pointer!==null)updateDrawingAim();
-    tickSummonDraft();updateLiveFace();updateLiveBody();
+    tickSummonDraft();updateLiveFace();updateLiveBody();updateRewardPanel();
     const points=drawInput.pointer!==null?drawInput.points:drawInput.previewUntilMs>performance.now()?drawInput.finished:null;
     drawCtx.setTransform(drawDpr,0,0,drawDpr,0,0);drawCtx.clearRect(0,0,vw,vh);
     drawCtx.save();drawCtx.lineCap='round';drawCtx.lineJoin='round';paintSummonDraft();paintLiveGhost();

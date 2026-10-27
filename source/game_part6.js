@@ -30,7 +30,7 @@
   }
   const canonicalKeys=['nextId','seed','mapSeed','clockMs','kills','bossesDefeated',
     'hitstopMs','lastHitstopClockMs','hitFlashMs','slowRatio','screenTextMs','screenText',
-    'effectShakeMs','mode','deathMs','regionKills'];
+    'effectShakeMs','mode','deathMs','regionKills','unlocked','reward'];
   const canonicalArrays=['enemies','summons','hazards','casts','pickups','fields','castQueue'];
   function encodeState(){
     const worldState={};for(const key of canonicalKeys)worldState[key]=world[key];
@@ -53,6 +53,8 @@
       if(w.summons.some(s=>!SUMMON_SPECS[s?.kind]||!validExpressionId(s.face)||!Number.isFinite(s.x)||!Number.isFinite(s.y)||!Number.isFinite(s.hp)||s.hp<0||(s.owner!=='a'&&s.owner!=='b')))return false;
       if(!Array.isArray(w.regionKills)||w.regionKills.length!==3||w.regionKills.some(n=>!Number.isSafeInteger(n)||n<0))return false;
       for(const a of data.actors)if(!validCards(a.cards)||!Number.isFinite(a.ink)||a.ink<0||a.ink>derivedStats(a.cards).maxInk+1e-6||!Number.isFinite(a.inkDelayMs)||a.inkDelayMs<0||a.inkDelayMs>750||!a||!Number.isFinite(a.x)||!Number.isFinite(a.y)||!Number.isFinite(a.hp)||!a.dash||!Number.isFinite(a.dash.charges))return false;
+      if(!Array.isArray(w.unlocked)||w.unlocked.some(k=>!['circle','triangle','square',...UNLOCKABLE_KINDS].includes(k)))return false;
+      if(w.reward!==null&&!(Array.isArray(w.reward?.choices)&&w.reward.choices.length>=1&&w.reward.choices.length<=3&&w.reward.choices.every(k=>UNLOCKABLE_KINDS.includes(k))))return false;
       if(typeof data.shared!=='boolean')return false;
       return true;
     }catch{return false;}
@@ -82,6 +84,7 @@
         geo:{length:+s.geo.length.toFixed(3)},
         shape:s.shape.filter((_,i)=>i%Math.max(1,Math.ceil(s.shape.length/28))===0).slice(0,28).map(p=>({x:+p.x.toFixed(2),y:+p.y.toFixed(2)}))}};
     }
+    if(cmd.type==='unlock'&&UNLOCKABLE_KINDS.includes(cmd.kind))return {type:'unlock',kind:cmd.kind};
     if(cmd.type==='rollVector'){
       const {dx,dy,distance}=cmd,magnitude=hypot(dx,dy);
       if(!Number.isFinite(magnitude)||magnitude<.00001||!Number.isFinite(distance))return null;
@@ -98,6 +101,8 @@
       const {dx,dy,distance}=command,len=hypot(dx,dy);
       if(!Number.isFinite(len)||len<.96||len>1.04||!Number.isFinite(distance)||distance<1||distance>rollMaxDistance()+.01)return;
       executeRollVector(actor,dx,dy,distance);
+    }else if(command?.type==='unlock'){
+      if(UNLOCKABLE_KINDS.includes(command.kind))applyUnlock(command.kind);
     }else if(command?.type==='cast'){
       const shot=command.shot;
       if(!shot||!validShotPoint(shot.x,shot.y)||!validExpressionId(shot.face)||typeof shot.color!=='string'||!/^#[0-9a-fA-F]{6}$/.test(shot.color)||!['normal',...glyphKinds].includes(shot.kind)||!Number.isFinite(shot.baseDamage)||shot.baseDamage<0||shot.baseDamage>250||!Number.isFinite(shot.areaPower)||shot.areaPower<0||shot.areaPower>1.6||!Number.isFinite(shot.geo?.length)||shot.geo.length<0||shot.geo.length>3500||!Array.isArray(shot.shape)||shot.shape.length<2||shot.shape.length>28||shot.shape.some(p=>!Number.isFinite(p?.x)||!Number.isFinite(p?.y)||Math.abs(p.x)>150||Math.abs(p.y)>150))return;

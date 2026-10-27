@@ -353,7 +353,7 @@
     advanceSession(){const result=gameSession.advance(SOLO_INPUT);if(result.status==='advanced')capturePresentation();return result;},pauseRendering(){pauseGameLoops();},resumeRendering(){resumeGameLoops();},pausePainting(){stopPainting();},resumePainting(){startPainting();},renderFrame(){loop.render();},selectGlyph(kind){selectGlyph(kind);},
     renderNow(){renderInterpolated();},
     combatFixture(kind='boss',x=680,y=730){world.enemies.length=0;world.bossesDefeated=0;world.summons.length=0;world.casts.length=0;world.castQueue.length=0;world.hazards.length=0;world.fields.length=0;return spawnEnemy(kind,x,y).id;},
-    castQueueLength(){return world.castQueue.length;},castInProgress(){return world.casts.length;},effectsSnapshot(){return world.fields.map(f=>({kind:f.kind,ageMs:f.ageMs,lifeMs:f.lifeMs}));},
+    castQueueLength(){return world.castQueue.length;},unlockAll(){for(const k of UNLOCKABLE_KINDS)if(!world.unlocked.includes(k))world.unlocked.push(k);return world.unlocked.slice();},unlockState(){return {unlocked:world.unlocked.slice(),reward:world.reward&&{choices:world.reward.choices.slice()}};},castInProgress(){return world.casts.length;},effectsSnapshot(){return world.fields.map(f=>({kind:f.kind,ageMs:f.ageMs,lifeMs:f.lifeMs}));},
 
     moveTo(x,y){player.x=x;player.y=y;camera.x=x;camera.y=y;resetPresentation();capturePresentation();},
     spawnEnemy(kind,x,y){return spawnEnemy(kind,x,y).id;},

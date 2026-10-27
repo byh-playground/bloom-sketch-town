@@ -10,7 +10,7 @@
   function actorOf(id){return id==='b'?guestPlayer:hostPlayer;}
   function withActor(actor,fn){const before=player;player=actor;try{return fn();}finally{player=before;}}
   const camera={x:0,y:0,zoom:1};
-  const world={regionKills:[0,0,0],obstacles:[],grid:new Map(),decals:[],trees:[],houses:[],enemies:[],summons:[],hazards:[],casts:[],particles:[],floaters:[],pickups:[],fields:[],commands:[],castQueue:[],rollMarks:[],rollTarget:null,nextId:1,seed:0x31415,clockMs:0,kills:0,bossesDefeated:0,hitstopMs:0,lastHitstopClockMs:-1000,hitFlashMs:0,slowRatio:1,screenTextMs:0,screenText:'',effectShakeMs:0,mode:'playing',deathMs:0,lastResult:null};
+  const world={regionKills:[0,0,0],obstacles:[],grid:new Map(),decals:[],trees:[],houses:[],enemies:[],summons:[],hazards:[],casts:[],particles:[],floaters:[],pickups:[],fields:[],commands:[],castQueue:[],unlocked:['circle','triangle','square'],reward:null,rollMarks:[],rollTarget:null,nextId:1,seed:0x31415,clockMs:0,kills:0,bossesDefeated:0,hitstopMs:0,lastHitstopClockMs:-1000,hitFlashMs:0,slowRatio:1,screenTextMs:0,screenText:'',effectShakeMs:0,mode:'playing',deathMs:0,lastResult:null};
   const audioRecipes={
     draw:{category:'sfx',layers:[{kind:'tone',type:'sine',hz:610,end:910,ms:90,gain:.3}]},
     throw:{category:'sfx',layers:[{kind:'tone',type:'triangle',hz:410,end:950,ms:128,gain:.42},{kind:'noise',hz:2100,ms:65,gain:.17}]},
@@ -176,7 +176,7 @@
     // Radial scratch and high-contrast paper sparks at the real contact point.
     world.fields.push({kind:'impact',x:e.x,y:e.y-3,r:e.kind==='boss'?59:33,ageMs:0,lifeMs:260,color});
     burst(e.x,e.y,color,e.kind==='boss'?11:7,99);
-if(e.hp<=0){e.dead=true;world.kills++;if(e.kind!=='boss')world.regionKills[e.region]++;burst(e.x,e.y,e.color,9,100);tearEnemyInk(e);sfx('kill');if(e.kind!=='boss'){world.pickups.push({x:e.x,y:e.y,r:8,lifeMs:24000,kind:'ink',amount:1+Math.floor(rand()*3)});}else{world.bossesDefeated++;announce(world.bossesDefeated>=BOSS_PROFILES.length?`${e.name} 격파 · 스케치 타운을 되찾았다!`:`${e.name} 격파 · ${world.bossesDefeated}/${BOSS_PROFILES.length}`,3500);world.pickups.push({x:e.x,y:e.y,r:15,lifeMs:30000,kind:'ink',amount:24});}}
+if(e.hp<=0){e.dead=true;world.kills++;if(e.kind!=='boss')world.regionKills[e.region]++;burst(e.x,e.y,e.color,9,100);tearEnemyInk(e);sfx('kill');if(e.kind!=='boss'){world.pickups.push({x:e.x,y:e.y,r:8,lifeMs:24000,kind:'ink',amount:1+Math.floor(rand()*3)});}else{world.bossesDefeated++;offerUnlockReward();announce(world.bossesDefeated>=BOSS_PROFILES.length?`${e.name} 격파 · 스케치 타운을 되찾았다!`:`${e.name} 격파 · ${world.bossesDefeated}/${BOSS_PROFILES.length}`,3500);world.pickups.push({x:e.x,y:e.y,r:15,lifeMs:30000,kind:'ink',amount:24});}}
     else sfx('hit');return d;}
 
   function enemyProjectile(x,y,tx,ty,kind='ink',speed=260,damage=9){const dx=tx-x,dy=ty-y,m=hypot(dx,dy)||1;world.hazards.push({x,y,prevX:x,prevY:y,vx:dx/m*speed,vy:dy/m*speed,r:kind==='orb'?11:7,kind,color:kind==='orb'?'#9d729c':'#9f8fb1',damage,ageMs:0,lifeMs:2100});}
@@ -234,6 +234,21 @@ if(e.hp<=0){e.dead=true;world.kills++;if(e.kind!=='boss')world.regionKills[e.reg
     world.casts.push({id:world.nextId++,owner:actorId(player),shot,ageMs:0,durationMs:duration,x:player.x,y:player.y,cost,paid:0});
     showResult(`${shot.name} 그리는 중 · ${summonSpecOf(shot.kind).role} · 체력 ${summonSpecOf(shot.kind).maxHp(shot.areaPower)}`,1450);sfx('draw');
   }
+  // Unlocks are run state: the line projectile and the plain scribble are always available; the three start shapes are
+  // open from the beginning; every boss defeat offers a choice among the shapes still locked (per run, shared by both players).
+  const UNLOCKABLE_KINDS=Object.freeze(['flame','water','lightning','star','shuriken','starcircle']);
+  const isKindOpen=kind=>kind==='line'||kind==='normal'||world.unlocked.includes(kind);
+  function offerUnlockReward(){
+    const locked=UNLOCKABLE_KINDS.filter(k=>!world.unlocked.includes(k));
+    if(!locked.length){world.reward=null;return;}
+    const pool=locked.slice(),choices=[];
+    while(choices.length<3&&pool.length)choices.push(pool.splice(Math.floor(rand()*pool.length),1)[0]);
+    world.reward={choices};
+  }
+  function applyUnlock(kind){
+    if(!world.reward||!world.reward.choices.includes(kind)||world.unlocked.includes(kind))return false;
+    world.unlocked.push(kind);world.reward=null;announce(`${summonSpecOf(kind).name} 해금`,2600);sfx('draw');return true;
+  }
   // The line is the only projectile: no face, fired from the owner along the drawn direction, paid at once.
   const LINE_BOLT=Object.freeze({speed:620,lifeMs:620,damage:15,pierce:2,radius:10,ink:22,cooldownMs:200});
   function fireLine(shot){
@@ -252,7 +267,7 @@ if(e.hp<=0){e.dead=true;world.kills++;if(e.kind!=='boss')world.regionKills[e.reg
         f.hits.push(e.id);withActor(actorOf(f.owner),()=>damageEnemy(e,f.damage,e.x,e.y-20,f.color,'line'));
         if(--f.pierceLeft<=0){f.ageMs=f.lifeMs;break;}}}
   }
-  function submitSpell(shot){if(shot.kind==='line')return player.hp>0&&!(player.koMs>0)&&fireLine(shot);if(player.hp<=0||player.koMs>0||world.castQueue.filter(c=>c.owner===actorId(player)).length>=3)return false;world.castQueue.push({shot,owner:actorId(player),cost:spellInkCost(player,shot)});return true;}
+  function submitSpell(shot){if(!isKindOpen(shot.kind))shot={...shot,kind:'normal',name:summonSpecOf('normal').name,color:art.normal};if(shot.kind==='line')return player.hp>0&&!(player.koMs>0)&&fireLine(shot);if(player.hp<=0||player.koMs>0||world.castQueue.filter(c=>c.owner===actorId(player)).length>=3)return false;world.castQueue.push({shot,owner:actorId(player),cost:spellInkCost(player,shot)});return true;}
   function tickCasts(dt){
     for(let i=world.casts.length-1;i>=0;i--){const c=world.casts[i];const actor=actorOf(c.owner);c.x=actor.x;c.y=actor.y;
       const pay=Math.min(actor.ink,c.cost-c.paid,c.cost*dt/c.durationMs);
