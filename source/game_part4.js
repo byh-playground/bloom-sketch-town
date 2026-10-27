@@ -1,6 +1,6 @@
   // Device collection: BLOOM GameKit createDOMInput + ActionState, one writer for commands.
   const ui={modal:null,returnFocus:null};
-  const drawInput={pointer:null,points:[],length:0,finished:null,previewUntilMs:0,aim:0,center:null,origin:null};
+  const drawInput={pointer:null,points:[],length:0,finished:null,previewUntilMs:0,aim:0,reach:SUMMON_MIN_REACH,center:null,origin:null};
   const sampleFromPointer=o=>({x:clamp(o.x,0,vw),y:clamp(o.y,0,vh)});
   function appendDrawPoint(p){const prev=drawInput.points.at(-1);if(prev){const d=hypot(p.x-prev.x,p.y-prev.y);if(d<1.25)return;drawInput.length+=d;}if(drawInput.points.length<1200)drawInput.points.push(p);}
   function setSlowUi(on){on=on&&!mp.connected;$('slowFx').classList.toggle('visible',on);$('slowIndicator').classList.toggle('visible',on);}
@@ -15,20 +15,23 @@
     const center={x:(minX+maxX)/2,y:(minY+maxY)/2},dx=center.x-origin.x,dy=center.y-origin.y;
     if(hypot(dx,dy)>=24)drawInput.aim=Math.atan2(dy,dx);
     drawInput.center=center;drawInput.origin=origin;
+    // Where the summon appears: the drawing's center, measured from the player in world units.
+    const unit={x:0,y:0};renderer.worldToScreenInto(actor.x+100,actor.y,unit);
+    drawInput.reach=clamp(hypot(dx,dy)/Math.max(.01,(unit.x-origin.x)/100),SUMMON_MIN_REACH,SUMMON_MAX_REACH);
   }
-  function dropDraw(){drawInput.pointer=null;drawInput.points.length=0;drawInput.length=0;drawInput.finished=null;drawInput.previewUntilMs=0;drawInput.center=null;drawInput.origin=null;gesture.drawId=null;setSlowUi(false);$('strokeStatus').textContent='전장에 한 획 · 놓는 순간 방향 확정';}
+  function dropDraw(){drawInput.pointer=null;drawInput.points.length=0;drawInput.length=0;drawInput.finished=null;drawInput.previewUntilMs=0;drawInput.center=null;drawInput.origin=null;gesture.drawId=null;setSlowUi(false);$('strokeStatus').textContent='원하는 자리에 한 획 · 그 자리에 소환';}
   function finishDraw(){
     if(!drawingAllowed()){dropDraw();return;}
-    updateDrawingAim();const points=drawInput.points.slice(),length=drawInput.length,aim=drawInput.aim;dropDraw();focusGameplay();
+    updateDrawingAim();const points=drawInput.points.slice(),length=drawInput.length,aim=drawInput.aim,reach=drawInput.reach;dropDraw();focusGameplay();
     if(points.length<3||length<16){showResult('조금 더 길게 한 획을 그려 주세요',1100);return;}
     gesture.lastCombatStroke=points.map(p=>({...p}));drawInput.finished=points;drawInput.previewUntilMs=performance.now()+220;
-    try{const shot=normalizeCommand({type:'cast',shot:{...makeShotData(points),aim}}).shot;world.commands.push({type:'cast',shot});wakeInputPreview();$('lastSpell').textContent=`${shot.name} · 피해 ${Math.round(shot.baseDamage*player.power)}`;$('strokeStatus').textContent='방향 확정 · 마법 준비 중';
-      if(shot.kind==='normal')showResult('일반 낙서 · 그린 방향으로 발사',950);
-    }catch(error){console.error(error);showResult('마법 분석 실패 · 다시 그려 보세요',950);}}
+    try{const shot=normalizeCommand({type:'cast',shot:{...makeShotData(points),aim,reach}}).shot;world.commands.push({type:'cast',shot});wakeInputPreview();$('lastSpell').textContent=`${shot.name} · 공격 ${Math.round(shot.baseDamage*player.power)}`;$('strokeStatus').textContent='소환 준비 중';
+      if(shot.kind==='normal')showResult('도형이 아닌 낙서 · 낙서병 소환',950);
+    }catch(error){console.error(error);showResult('소환 분석 실패 · 다시 그려 보세요',950);}}
   function collectCombatDrawing(e){
     if(e.type==='down'&&drawInput.pointer===null&&drawingAllowed()){
       focusGameplay();dropDraw();drawInput.pointer=e.pointerId;gesture.drawId=e.pointerId;gesture.startMs=world.clockMs;
-      const actor=displayedDrawingActor();drawInput.aim=Math.atan2(actor.faceY,actor.faceX);setSlowUi(true);appendDrawPoint(sampleFromPointer(e));updateDrawingAim();$('strokeStatus').textContent='이동으로 조준 · 놓으면 발사';
+      const actor=displayedDrawingActor();drawInput.aim=Math.atan2(actor.faceY,actor.faceX);setSlowUi(true);appendDrawPoint(sampleFromPointer(e));updateDrawingAim();$('strokeStatus').textContent='놓은 자리에 소환';
     }else if(drawInput.pointer===e.pointerId){
       if(!drawingAllowed()||e.type==='cancel'){dropDraw();return;}
       if(e.type==='move'||e.type==='up'){appendDrawPoint(sampleFromPointer(e));updateDrawingAim();if(e.type==='up')finishDraw();}

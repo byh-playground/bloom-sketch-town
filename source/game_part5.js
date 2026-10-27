@@ -71,22 +71,19 @@
   class HeroView extends SceneView {static renderSchema={actorId:R.STEP,hp:R.STEP,maxHp:R.STEP,invulMs:R.COUNTDOWN_MS,faceX:R.STEP,faceY:R.STEP,moveX:R.STEP,moveY:R.STEP,
     'dash.leftMs':R.COUNTDOWN_MS,'dash.elapsedMs':R.LINEAR,'dash.durationMs':R.STEP,'dash.dirX':R.STEP,'dash.dirY':R.STEP,'dash.charges':R.STEP};}
   class EnemyView extends SceneView {static renderSchema={hp:R.STEP,maxHp:R.STEP,stunMs:R.COUNTDOWN_MS,chargeMs:R.COUNTDOWN_MS,chargeDX:R.STEP,chargeDY:R.STEP,hitMs:R.COUNTDOWN_MS,windupMs:R.COUNTDOWN_MS,attackType:R.STEP};}
-  class ProjectileView extends SceneView {
-    static renderSchema={angle:R.ANGLE,shape:R.STEP,bouncesLeft:R.STEP};
-    static renderPath={x:'x',y:'y',durationMs:CFG.tickMs*12,maxPoints:64};
-  }
+  class SummonView extends SceneView {static renderSchema={hp:R.STEP,maxHp:R.STEP,hitMs:R.COUNTDOWN_MS,faceX:R.STEP,shape:R.STEP,targetId:R.STEP};}
   class HazardView extends SceneView {static renderSchema={vx:R.STEP,vy:R.STEP};}
   class CastView extends SceneView {static renderSchema={durationMs:R.STEP,owner:R.STEP,shot:R.STEP};}
   class FieldView extends SceneView {static renderSchema={ex:R.STEP,ey:R.STEP};}
   class ParticleView extends SceneView {static renderSchema={angle:R.ANGLE,initialMs:R.STEP,segment:R.STEP};}
   class FloaterView extends SceneView {static renderSchema={text:R.STEP};}
   class RollView extends SceneView {static renderSchema={maxLifeMs:R.STEP,dirX:R.STEP,dirY:R.STEP};}
-  const sceneTypes={hero:HeroView,enemy:EnemyView,shot:ProjectileView,hazard:HazardView,cast:CastView,field:FieldView,particle:ParticleView,floater:FloaterView,rollMark:RollView,rollTarget:RollView,pickup:SceneView};
+  const sceneTypes={hero:HeroView,enemy:EnemyView,summon:SummonView,hazard:HazardView,cast:CastView,field:FieldView,particle:ParticleView,floater:FloaterView,rollMark:RollView,rollTarget:RollView,pickup:SceneView};
   mp.interpolation=new PresentationRuntime({stepMs:CFG.tickMs,delayMs:CFG.tickMs*2,snapDistance:180});
   let poseReady=false,capturedAtMs=0,paintFrameNow=0,presentationActive=false,paintFrame=null,localPaintFrame=null;
   let nextPaintAt=0,presentationSnapshots=0,lastAcceptedRevision=-1;
-  const renderViewCache=new WeakMap(),unidentifiedIds=new WeakMap(),pathViews=new Map();
-  const sceneViews={hero:[],enemy:[],shot:[],hazard:[],cast:[],pickup:[],field:[],particle:[],floater:[],rollMark:[],rollTarget:[]};
+  const renderViewCache=new WeakMap(),unidentifiedIds=new WeakMap();
+  const sceneViews={hero:[],enemy:[],summon:[],hazard:[],cast:[],pickup:[],field:[],particle:[],floater:[],rollMark:[],rollTarget:[]};
   let nextPresentationId=0;
   const lastPositionCapture=new Map();
   function presentationId(object,kind){
@@ -100,7 +97,7 @@
     visit(hostPlayer,'hero');
     if(mp.shared)visit(guestPlayer,'hero');
     for(const object of world.enemies)if(!object.dead)visit(object,'enemy');
-    for(const object of world.projectiles)visit(object,'shot');
+    for(const object of world.summons)visit(object,'summon');
     for(const object of world.hazards)visit(object,'hazard');
     for(const object of world.casts)visit(object,'cast');
     for(const object of world.pickups)visit(object,'pickup');
@@ -185,7 +182,7 @@
       const id=presentationId(object,kind),source={...object,renderKind:kind};
       if(kind==='hero')source.actorId=object===hostPlayer?'a':'b';
       const entity={id,generation:object._poseGeneration??0,source,type:sceneTypes[kind]};
-      if(!reset&&!previous.has(id)&&(kind==='shot'||kind==='hazard')&&Number.isFinite(object.prevX)&&Number.isFinite(object.prevY)){
+      if(!reset&&!previous.has(id)&&kind==='hazard'&&Number.isFinite(object.prevX)&&Number.isFinite(object.prevY)){
         entity.initialSource={...source,x:object.prevX,y:object.prevY,ageMs:Math.max(0,(object.ageMs||0)-CFG.tickMs)};
         entity.initialTimeMs=(gameSession.tick-1)*CFG.tickMs;
       }
@@ -212,7 +209,6 @@
     localPaintFrame=mp.connected&&mp.localPresentation?mp.localPresentation.frame(now):null;
     paintClockMs=paintFrame.timeMs;
     for(const views of Object.values(sceneViews))views.length=0;
-    const pathsSeen=new Set();
     paintFrame.forEach((model,id,generation)=>{
       let view=model;
       if(view.renderKind==='hero'){
@@ -225,13 +221,8 @@
         }else view.castPreviewMs=0;
         renderViewCache.set(object,view);
       }
-      if(view.renderKind==='shot'){
-        let points=pathViews.get(id);if(!points){points=[];pathViews.set(id,points);}pathsSeen.add(id);
-        paintFrame.pathInto(id,generation,points);
-      }
       sceneViews[view.renderKind].push(view);
     });
-    for(const id of pathViews.keys())if(!pathsSeen.has(id))pathViews.delete(id);
     try{const view=sceneViews.hero.find(v=>v.actorId===(mp.role==='join'?'b':'a'));
       if(view)withActor(view,()=>renderWorld());
     }finally{presentationActive=false;}
@@ -338,19 +329,22 @@
     analyze(raw){const s=makeShotData(raw);return {name:s.name,kind:s.kind,area:s.areaPx2,damage:s.baseDamage,cnn:s.cnn.prob,reference:s.reference};},
     sample:samplePoints,
     drawingState(){return {pointer:drawInput.pointer,points:drawInput.points.map(p=>({...p})),aim:drawInput.aim,center:drawInput.center,origin:drawInput.origin};},
-    shotDetails(){return world.projectiles.map(p=>({id:p.id,x:p.x,y:p.y,vx:p.vx,vy:p.vy,angle:p.angle,shape:p.shape,state:p.state,r:p.r}));},
+    summons(){return world.summons.map(q=>({id:q.id,owner:q.owner,kind:q.kind,name:q.name,x:q.x,y:q.y,r:q.r,hp:q.hp,maxHp:q.maxHp,power:q.power,targetId:q.targetId,shape:q.shape}));},
+    summonSpecs(){return Object.fromEntries(Object.entries(SUMMON_SPECS).map(([k,q])=>[k,{name:q.name,role:q.role,anchored:q.anchored,taunt:q.taunt,hp:q.hp,ink:q.ink,damage:q.strike.damage,cooldownMs:q.strike.cooldownMs,range:q.strike.range}]));},
+    summonLimit(){return SUMMON_LIMIT;},
     queuedShots(){return [...world.commands.filter(c=>c.type==='cast'),...world.castQueue,...world.casts].map(c=>c.shot);},
-    cast(type,aim=0){const shot={...makeShotData(samplePoints(type)),aim};world.commands.push({type:'cast',shot});},
-    castStroke(raw,aim=0){const shot={...makeShotData(raw),aim};world.commands.push({type:'cast',shot});return {kind:shot.kind,baseDamage:shot.baseDamage};},
-    spellSpec(raw){const shot=makeShotData(raw);return {kind:shot.kind,castMs:castDurationMs(shot),recoveryMs:spellRecoveryMs(shot),areaPower:shot.areaPower,baseDamage:shot.baseDamage};},
-    presentedProjectiles(){return sceneViews.shot.map(p=>({id:p.id,x:p.x,y:p.y,head:{...pathViews.get('shot-'+p.id)?.at(-1)},path:pathViews.get('shot-'+p.id)?.map(point=>({...point}))}));},
+    cast(type,aim=0,reach=120){const shot={...makeShotData(samplePoints(type)),aim,reach};world.commands.push({type:'cast',shot});},
+    // Command for an exact summon kind (the stroke itself is only a reference outline).
+    castKind(kind,aim=0,reach=120,areaPower=.5){const base=makeShotData(samplePoints(kind==='normal'?'line':kind)),spec=summonSpecOf(kind),shot={...base,kind,name:spec.name,color:art[kind]||art.normal,aim,reach,areaPower,baseDamage:spec.damage(areaPower)};world.commands.push({type:'cast',shot});return shot.kind;},
+    castStroke(raw,aim=0,reach=120){const shot={...makeShotData(raw),aim,reach};world.commands.push({type:'cast',shot});return {kind:shot.kind,baseDamage:shot.baseDamage};},
+    spellSpec(raw){const shot=makeShotData(raw);return {kind:shot.kind,castMs:castDurationMs(shot),recoveryMs:spellRecoveryMs(),areaPower:shot.areaPower,baseDamage:shot.baseDamage};},
+    presentedSummons(){return sceneViews.summon.map(q=>({id:q.id,x:q.x,y:q.y,kind:q.kind,hp:q.hp}));},
     renderedActors(){return [hostPlayer,guestPlayer].map(actor=>{const view=renderViewCache.get(actor);return {id:view?.actorId,x:view?.x,y:view?.y,castActive:!!view&&((view.castPreviewMs||0)>0||sceneViews.cast.some(c=>c.owner===view.actorId)),currentClip:view?.currentClip??null,currentExpression:view?.currentExpression??null,nextCastAtMs:actor.nextCastAtMs,screenX:view?(view.x-camera.x)*camera.zoom:null};});},
     previewInfo(){const now=performance.now(),model=mp.localPresentation&&mp.localPoseSource?mp.localPresentation.modelFor(mp.localPoseSource,now):null;return {enabled:!!mp.inputPreview,ready:mp.inputPreview?.ready??false,pending:mp.inputPreview?.pendingCount??0,metrics:mp.inputPreview?.metrics||null,x:model?.x??null,y:model?.y??null,castMs:model?.castMs??null,actorX:player.x,actorY:player.y,revision:mp.poseRevision};},
     movementState(){return {x:player.moveX,y:player.moveY,speed:CFG.player.walkSpeed};},rollState(){return {...player.dash};},slowState(){return {ratio:world.slowRatio,drawing:drawInput.pointer!==null,hitstopMs:world.hitstopMs};},
     advanceSession(){const result=gameSession.advance(SOLO_INPUT);if(result.status==='advanced')capturePresentation();return result;},pauseRendering(){pauseGameLoops();},resumeRendering(){resumeGameLoops();},pausePainting(){stopPainting();},resumePainting(){startPainting();},renderFrame(){loop.render();},selectGlyph(kind){selectGlyph(kind);},
     renderNow(){renderInterpolated();},
-    combatFixture(kind='boss',x=680,y=730){world.enemies.length=0;world.bossesDefeated=0;world.projectiles.length=0;world.casts.length=0;world.castQueue.length=0;world.hazards.length=0;world.fields.length=0;return spawnEnemy(kind,x,y).id;},
-    ricochetState(){return world.projectiles.map(p=>({id:p.id,kind:p.kind,bouncesLeft:p.bouncesLeft,bouncesTotal:p.bouncesTotal,bounceCount:p.bounceCount,state:p.state,ageMs:p.ageMs,x:p.x,y:p.y}));},
+    combatFixture(kind='boss',x=680,y=730){world.enemies.length=0;world.bossesDefeated=0;world.summons.length=0;world.casts.length=0;world.castQueue.length=0;world.hazards.length=0;world.fields.length=0;return spawnEnemy(kind,x,y).id;},
     castQueueLength(){return world.castQueue.length;},effectsSnapshot(){return world.fields.map(f=>({kind:f.kind,ageMs:f.ageMs,lifeMs:f.lifeMs}));},
 
     moveTo(x,y){player.x=x;player.y=y;camera.x=x;camera.y=y;resetPresentation();capturePresentation();},
@@ -371,11 +365,11 @@
     modelReport(){return packed.report;},modelClasses(){return CNN_LABELS.slice();},sketchMetrics(){return {grammar:'gamekit-svg-vector-assets',boilMs:SKETCH.boilMs,loadedAssets:[...vectorAssets.keys()],dynamicStroke:'input-sampled geometry remains runtime data',alive:world.enemies.filter(e=>!e.dead).length,erasedFragments:world.particles.filter(p=>p.kind==='erasedStroke').length};},
     runState(){return {actor:structuredClone(player),regionKills:[...world.regionKills],cards:{...player.cards}};},
     cardFixture(id){return addCard(player,id);},
-    regionCombatFixture(region=0){const clearing=mapLayout.clearingsOf(region)[0],x=clearing.x-20,y=clearing.y;world.projectiles.length=0;world.casts.length=0;world.castQueue.length=0;world.commands.length=0;world.hazards.length=0;world.fields.length=0;world.enemies=world.enemies.filter(e=>!e.dead&&e.region===region);world.regionKills[region]=0;const kinds=['chaser','spitter','charger','spitter','chaser'];while(world.enemies.length<5){const i=world.enemies.length,e=spawnEnemy(kinds[i%kinds.length],x+i*14,y+(i%2)*12);e.region=region;}world.enemies.forEach((e,i)=>{e.x=x+i*14;e.y=y+(i%2)*12;e.hp=1;e.stunMs=15000;});player.x=x-140;player.y=y;player.moveX=player.moveY=0;player.nextCastAtMs=world.clockMs;camera.x=player.x;camera.y=player.y;dropDraw();resetPresentation();capturePresentation();},
+    regionCombatFixture(region=0){const clearing=mapLayout.clearingsOf(region)[0],x=clearing.x-20,y=clearing.y;world.summons.length=0;world.casts.length=0;world.castQueue.length=0;world.commands.length=0;world.hazards.length=0;world.fields.length=0;world.enemies=world.enemies.filter(e=>!e.dead&&e.region===region);world.regionKills[region]=0;const kinds=['chaser','spitter','charger','spitter','chaser'];while(world.enemies.length<5){const i=world.enemies.length,e=spawnEnemy(kinds[i%kinds.length],x+i*14,y+(i%2)*12);e.region=region;}world.enemies.forEach((e,i)=>{e.x=x+i*14;e.y=y+(i%2)*12;e.hp=1;e.stunMs=15000;});player.x=x-140;player.y=y;player.moveX=player.moveY=0;player.nextCastAtMs=world.clockMs;camera.x=player.x;camera.y=player.y;dropDraw();resetPresentation();capturePresentation();},
     bossState(){const b=activeBoss();return {defeated:world.bossesDefeated,sites:mapLayout.bossSites.map(q=>({...q})),profiles:BOSS_PROFILES.map(p=>({id:p.id,name:p.name,hp:p.hp,ruleText:p.ruleText(),best:p.bestKind(),factors:Object.fromEntries(SHAPE_KINDS.map(k=>[k,p.multiplier(k)]))})),active:b?{id:b.id,bossId:b.bossId,name:b.name,hp:b.hp,maxHp:b.maxHp,x:b.x,y:b.y}:null};},
     setBossesDefeated(n){world.bossesDefeated=n;},
     // Put boss n next to the player (stunned so only the damage rules are under test) and return its enemy id.
-    spawnBoss(n){world.enemies.length=0;world.projectiles.length=0;world.casts.length=0;world.castQueue.length=0;world.hazards.length=0;world.fields.length=0;world.bossesDefeated=n;const e=spawnEnemy('boss',player.x+190,player.y,n);e.stunMs=1e9;e.hp=e.maxHp;return e.id;},
+    spawnBoss(n){world.enemies.length=0;world.summons.length=0;world.casts.length=0;world.castQueue.length=0;world.hazards.length=0;world.fields.length=0;world.bossesDefeated=n;const e=spawnEnemy('boss',player.x+190,player.y,n);e.stunMs=1e9;e.hp=e.maxHp;return e.id;},
     // One real damageEnemy call per source kind; returns the hit points removed.
     bossHit(id,kind,amount=100){const e=world.enemies.find(q=>q.id===id);const before=e.hp;damageEnemy(e,amount,e.x,e.y-18,'#be7757',kind);return before-e.hp;},
     bossHp(id){const e=world.enemies.find(q=>q.id===id);return e?{hp:e.hp,dead:e.dead}:null;},
@@ -384,5 +378,5 @@
     mapHashFor(seed){const t=performance.now(),l=generateMapLayout(seed);return {hash:l.hash(),attempt:l.attempt,ms:performance.now()-t};},
     terrainBlocked(x,y,r){return touchesObstacle(x,y,r);},
     setInk(value){player.ink=clamp(value,0,player.maxInk);},
-    snapshot(){return {slowRatio:world.slowRatio,hitstopMs:world.hitstopMs,tick:gameSession.tick,player:{x:player.x,y:player.y,hp:player.hp,ink:player.ink},mode:world.mode,kills:world.kills,bossesDefeated:world.bossesDefeated,activeBoss:activeBoss()?{id:activeBoss().bossId,name:activeBoss().name,hp:activeBoss().hp,maxHp:activeBoss().maxHp}:null,enemyCount:world.enemies.filter(e=>!e.dead).length,projectileCount:world.projectiles.length,castCount:world.casts.length,castQueueCount:world.castQueue.length,roll:{charges:player.dash.charges,rechargeMs:player.dash.rechargeMs,activeMs:player.dash.leftMs},modal:ui.modal,worldWidth:CFG.world.width,worldHeight:CFG.world.height,drawPhase:drawInput.pointer!==null?'drawing':'idle',lastResult:world.lastResult,rendererState:renderer.state};}
+    snapshot(){return {slowRatio:world.slowRatio,hitstopMs:world.hitstopMs,tick:gameSession.tick,player:{x:player.x,y:player.y,hp:player.hp,ink:player.ink},mode:world.mode,kills:world.kills,bossesDefeated:world.bossesDefeated,activeBoss:activeBoss()?{id:activeBoss().bossId,name:activeBoss().name,hp:activeBoss().hp,maxHp:activeBoss().maxHp}:null,enemyCount:world.enemies.filter(e=>!e.dead).length,summonCount:world.summons.length,castCount:world.casts.length,castQueueCount:world.castQueue.length,roll:{charges:player.dash.charges,rechargeMs:player.dash.rechargeMs,activeMs:player.dash.leftMs},modal:ui.modal,worldWidth:CFG.world.width,worldHeight:CFG.world.height,drawPhase:drawInput.pointer!==null?'drawing':'idle',lastResult:world.lastResult,rendererState:renderer.state};}
   };

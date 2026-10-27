@@ -12,8 +12,8 @@ const SHOWCASE = installShowcase({
     "atMs": 0,
     "action": "chapter",
     "index": 0,
-    "title": "그리는 한 획이 마법이 됩니다",
-    "caption": "전장에서 직접 선과 도형을 그려 마법을 발사합니다."
+    "title": "그리는 한 획이 소환수가 됩니다",
+    "caption": "전장에서 직접 선과 도형을 그려 소환수를 불러냅니다."
   },
   {
     "atMs": 1600,
