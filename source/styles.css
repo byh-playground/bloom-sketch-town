@@ -78,6 +78,10 @@
 .reward-choices button:hover,.reward-choices button:focus-visible{border-color:#3a4a50;background:#e8f1ec}
 .reward-choices svg{width:56px;height:46px}
 .reward-choices b{font-size:12px}.reward-choices small{font-size:10px;opacity:.75}
+/* Merge selection chip: always above the thumb zone, never over the drawing field center. */
+.select-chip{position:absolute;left:50%;bottom:max(96px,env(safe-area-inset-bottom) + 96px);transform:translateX(-50%);z-index:4;max-width:calc(100vw - 24px);display:flex;align-items:center;gap:8px;padding:6px 8px 6px 12px;background:#fffaf0f2;border:2px solid #e0a64a;border-radius:999px;font-size:12px;color:#3a4a50;box-shadow:0 3px 0 #3a4a5026}
+.select-chip[hidden]{display:none}
+.select-chip button{min-width:28px;min-height:28px;border:1px solid #b7aa91;border-radius:50%;background:#fff;color:#3a4a50;font:inherit;cursor:pointer}
 /* HUD v2: compact top card, one menu button, no bottom guide panel (drawing needs the whole field). Later rules win over the older breakpoints above. */
 .logo,.brand,.ink-estimate,#inkRecovery,.draw-status,.action-hint{display:none!important}
 .hud-top{align-items:flex-start}

@@ -783,6 +783,69 @@ async def run_summons(browser, suite: E2E):
             suite.check('a drawn line fires at once: no face draft, no summon, the foe in its path is hurt, ink is spent',
                         line_shot is not None and line_shot['kind']=='line' and not line_state['d']['active'] and line_state['n']==0 and foe_hp<hp0 and line_state['ink']<100,
                         {'shot':line_shot and line_shot['kind'],'hp0':hp0,'state':line_state})
+            # Merging: tier-up (3 of a kind), fusion by recipe (5 pairs), full ink required and spent, other pairs refused, tap-select + star gesture.
+            await page.evaluate("__sketchRpgDebug.unlockAll()")
+            async def fresh():
+                await page.evaluate("()=>{const d=__sketchRpgDebug;d.combatFixture('chaser',3000,735);d.moveTo(480,735);d.setInk(100);}")
+            async def make(kind,reach,angle=0):
+                count=len(await page.evaluate("__sketchRpgDebug.mergeUnits()"))
+                await page.evaluate("([k,r,a])=>{const d=__sketchRpgDebug;d.setInk(100);d.castKind(k,a,r);}",[kind,reach,angle])
+                await page.wait_for_function("n=>__sketchRpgDebug.mergeUnits().length>n",arg=count,timeout=6000)
+                return (await page.evaluate("__sketchRpgDebug.mergeUnits()"))[-1]
+            await fresh()
+            trio=[await make('circle',110,a) for a in (0,2,4)]
+            before=await page.evaluate("__sketchRpgDebug.mergeUnits()")
+            await page.evaluate("__sketchRpgDebug.setInk(100)")
+            await page.evaluate("ids=>__sketchRpgDebug.mergeCommand(ids)",[u['id'] for u in trio])
+            await page.wait_for_function("__sketchRpgDebug.mergeUnits().length===1",timeout=4000)
+            after=await page.evaluate("({u:__sketchRpgDebug.mergeUnits()[0],ink:__sketchRpgDebug.runState().actor.ink})")
+            avg_hp=sum(u['maxHp'] for u in before)/3
+            suite.check('three circles at the same tier merge into one tier-2 circle at full hp, x1.8 stats, bigger body, all ink spent',
+                        after['u']['kind']=='circle' and after['u']['tier']==2 and abs(after['u']['maxHp']-round(avg_hp*1.8))<=1 and after['u']['hp']==after['u']['maxHp'] and after['u']['r']>before[0]['r'] and after['ink']<60,
+                        {'before':before,'after':after})
+            await fresh()
+            pair=[await make('water',110,0),await make('flame',110,3)]
+            await page.evaluate("__sketchRpgDebug.setInk(50)")
+            await page.evaluate("ids=>__sketchRpgDebug.mergeCommand(ids)",[u['id'] for u in pair])
+            await page.wait_for_timeout(500)
+            held=await page.evaluate("__sketchRpgDebug.mergeUnits().map(u=>u.kind)")
+            suite.check('merging needs a full ink bar: with half ink nothing merges',sorted(held)==['flame','water'],held)
+            await page.evaluate("__sketchRpgDebug.setInk(100)")
+            await page.evaluate("ids=>__sketchRpgDebug.mergeCommand(ids)",[u['id'] for u in pair])
+            await page.wait_for_function("__sketchRpgDebug.mergeUnits().length===1",timeout=4000)
+            steam=await page.evaluate("__sketchRpgDebug.mergeUnits()[0]")
+            suite.check('water + flame fuse into a steam spirit whose hp is the sum of both, at full hp',steam['kind']=='steam' and steam['tier']==1 and steam['maxHp']==sum(u['maxHp'] for u in pair) and steam['hp']==steam['maxHp'],{'steam':steam,'pair':pair})
+            recipes=await page.evaluate("__sketchRpgDebug.recipes()")
+            suite.check('exactly five recipes exist',recipes=={'flame+water':'steam','lightning+water':'storm','circle+square':'fortress','shuriken+triangle':'bladestorm','star+starcircle':'altar'},recipes)
+            for a,b in [('lightning','water'),('circle','square'),('shuriken','triangle'),('star','starcircle')]:
+                await fresh()
+                units=[await make(a,110,0),await make(b,110,3)]
+                await page.evaluate("__sketchRpgDebug.setInk(100)")
+                await page.evaluate("ids=>__sketchRpgDebug.mergeCommand(ids)",[u['id'] for u in units])
+                await page.wait_for_function("__sketchRpgDebug.mergeUnits().length===1",timeout=4000)
+                fused=(await page.evaluate("__sketchRpgDebug.mergeUnits()"))[0]['kind']
+                suite.check(f'{a} + {b} fuse into {recipes[a+"+"+b if a<b else b+"+"+a]}',fused==recipes[a+'+'+b if a<b else b+'+'+a],fused)
+            await fresh()
+            odd=[await make('circle',110,0),await make('triangle',110,3)]
+            await page.evaluate("__sketchRpgDebug.setInk(100)")
+            await page.evaluate("ids=>__sketchRpgDebug.mergeCommand(ids)",[u['id'] for u in odd])
+            await page.wait_for_timeout(500)
+            kept=await page.evaluate("__sketchRpgDebug.mergeUnits().map(u=>u.kind).sort()")
+            suite.check('a pair without a recipe cannot merge',kept==['circle','triangle'],kept)
+            # Tap two summons to select them, then draw a star: the same merge through the real input path.
+            await fresh()
+            duo=[await make('circle',120,0),await make('square',120,3)]
+            await page.evaluate("__sketchRpgDebug.setInk(100)")
+            for u in duo:
+                spot=await page.evaluate("([x,y])=>__sketchRpgDebug.screenAt(x,y)",[u['x'],u['y']])
+                await page.mouse.click(spot['x'],spot['y'])
+            await page.wait_for_function("document.getElementById('selectText').textContent.includes('성벽 거인')",timeout=3000)
+            picked=await page.evaluate("__sketchRpgDebug.selectedUnits()")
+            chip_text=await page.locator('#selectText').inner_text()
+            suite.check('tapping two summons selects them and the chip names the result',sorted(picked)==sorted(u['id'] for u in duo) and '성벽 거인' in chip_text,{'picked':picked,'chip':chip_text})
+            await draw_circle(page,150,'star',at=[480,560],tries=1)
+            await page.wait_for_function("__sketchRpgDebug.mergeUnits().length===1&&__sketchRpgDebug.mergeUnits()[0].kind==='fortress'",timeout=5000)
+            suite.check('drawing a star while two are selected merges them (no star turret is summoned) and clears the selection',(await page.evaluate("__sketchRpgDebug.selectedUnits()"))==[] and await page.locator('#selectChip').is_hidden())
             # Combat: a summon kills a nearby foe while the player stands still.
             await page.evaluate("()=>{const d=__sketchRpgDebug;d.combatFixture('chaser',700,735);d.moveTo(480,735);d.setInk(100);d.setPlayerHp(120);d.castKind('triangle',0,160);}")
             await page.wait_for_function("__sketchRpgDebug.foePositions().length===0",timeout=15000)
@@ -1078,7 +1141,7 @@ async def run_real_p2p(browser, suite: E2E):
                 boundary=min(s['confirmedTick'] for s in states)
                 hashes=await asyncio.gather(*(p.evaluate("t=>window.__sketchRpgDebug.stateHash(t)",boundary) for p in (host,guest)))
                 suite.check("late duplicated RTC input reconciles to equal confirmed hash",hashes[0] is not None and hashes[0]==hashes[1],{'tick':boundary,'hashes':hashes,'rollbacks':[s['stats'].get('rollbacks',0) for s in states]})
-                suite.check("both peers use pinned protocol 3 bundle",all(s['gamekitSHA']=='418e17c455db56d6ed073d82d115191d9dd8bf04' and s['namespace']=='sketch-town-coop-0.20.0' and s['simulationVersion'].startswith('sketch-town-0.20.0-') and s['inputScheduling']=='network' and s['inputHz']==60 for s in states))
+                suite.check("both peers use pinned protocol 3 bundle",all(s['gamekitSHA']=='418e17c455db56d6ed073d82d115191d9dd8bf04' and s['namespace']=='sketch-town-coop-0.21.0' and s['simulationVersion'].startswith('sketch-town-0.21.0-') and s['inputScheduling']=='network' and s['inputHz']==60 for s in states))
                 for sender,actor in ((host,'a'),(guest,'b')):
                     for page in (host,guest):
                         await page.evaluate("""actor => {

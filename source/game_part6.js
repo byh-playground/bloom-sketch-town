@@ -50,7 +50,7 @@
       for(const name of canonicalArrays)if(!Array.isArray(w[name])||w[name].length>({enemies:75,summons:20,hazards:150,casts:8,pickups:120,fields:350,castQueue:8}[name]))return false;
       // Recovery must preserve the released direction; missing/invalid aim is not an old-schema fallback.
       for(const name of ['casts','castQueue'])if(w[name].some(c=>!validShotPoint(c?.shot?.x,c?.shot?.y)||!validExpressionId(c?.shot?.face)))return false;
-      if(w.summons.some(s=>!SUMMON_SPECS[s?.kind]||!validExpressionId(s.face)||!Number.isFinite(s.x)||!Number.isFinite(s.y)||!Number.isFinite(s.hp)||s.hp<0||(s.owner!=='a'&&s.owner!=='b')))return false;
+      if(w.summons.some(s=>!isSummonKind(s?.kind)||!Number.isSafeInteger(s.tier)||s.tier<1||s.tier>MERGE_TIER_MAX||!validExpressionId(s.face)||!Number.isFinite(s.x)||!Number.isFinite(s.y)||!Number.isFinite(s.hp)||s.hp<0||(s.owner!=='a'&&s.owner!=='b')))return false;
       if(!Array.isArray(w.regionKills)||w.regionKills.length!==3||w.regionKills.some(n=>!Number.isSafeInteger(n)||n<0))return false;
       for(const a of data.actors)if(!validCards(a.cards)||!Number.isFinite(a.ink)||a.ink<0||a.ink>derivedStats(a.cards).maxInk+1e-6||!Number.isFinite(a.inkDelayMs)||a.inkDelayMs<0||a.inkDelayMs>750||!a||!Number.isFinite(a.x)||!Number.isFinite(a.y)||!Number.isFinite(a.hp)||!a.dash||!Number.isFinite(a.dash.charges))return false;
       if(!Array.isArray(w.unlocked)||w.unlocked.some(k=>!['circle','triangle','square',...UNLOCKABLE_KINDS].includes(k)))return false;
@@ -85,6 +85,7 @@
         shape:s.shape.filter((_,i)=>i%Math.max(1,Math.ceil(s.shape.length/28))===0).slice(0,28).map(p=>({x:+p.x.toFixed(2),y:+p.y.toFixed(2)}))}};
     }
     if(cmd.type==='unlock'&&UNLOCKABLE_KINDS.includes(cmd.kind))return {type:'unlock',kind:cmd.kind};
+    if(cmd.type==='merge'&&Array.isArray(cmd.ids)&&cmd.ids.length>=2&&cmd.ids.length<=3&&cmd.ids.every(Number.isSafeInteger))return {type:'merge',ids:cmd.ids.slice()};
     if(cmd.type==='rollVector'){
       const {dx,dy,distance}=cmd,magnitude=hypot(dx,dy);
       if(!Number.isFinite(magnitude)||magnitude<.00001||!Number.isFinite(distance))return null;
@@ -101,6 +102,8 @@
       const {dx,dy,distance}=command,len=hypot(dx,dy);
       if(!Number.isFinite(len)||len<.96||len>1.04||!Number.isFinite(distance)||distance<1||distance>rollMaxDistance()+.01)return;
       executeRollVector(actor,dx,dy,distance);
+    }else if(command?.type==='merge'){
+      if(Array.isArray(command.ids)&&command.ids.length>=2&&command.ids.length<=3&&command.ids.every(Number.isSafeInteger))withActor(actor,()=>mergeSummons(actor,command.ids));
     }else if(command?.type==='unlock'){
       if(UNLOCKABLE_KINDS.includes(command.kind))applyUnlock(command.kind);
     }else if(command?.type==='cast'){

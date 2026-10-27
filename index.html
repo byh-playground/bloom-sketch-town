@@ -38,6 +38,7 @@ if (new URLSearchParams(location.search).get('showcaseDemo') === '1') {
  <div class="bossbar" id="bossBar"><b id="bossName">보스</b><small id="bossRule"></small><div class="bar"><div class="fill" id="bossFill"></div></div></div>
  <div class="screen-message" id="screenMessage"></div>
  <div class="reward-panel" id="rewardPanel" role="group" aria-label="보스 보상: 소환 도형 해금" hidden><strong>보스 보상 · 도형 해금</strong><div class="reward-choices" id="rewardChoices"></div></div>
+ <div class="select-chip" id="selectChip" role="status" hidden><span id="selectText"></span><button id="selectClear" type="button" aria-label="선택 해제">✕</button></div>
  <div class="face-bar" id="faceBar" role="group" aria-label="표정 그리기" hidden><div class="face-actions"><button id="faceDone" class="face-primary" type="button">✓ 소환</button><button id="faceCancel" type="button">취소</button></div></div>
  <div class="draw-status"><div class="draw-title"><strong id="drawMode">한 획 소환</strong><span id="drawTip">원을 따라 그려봐</span></div><div class="draw-info"><span id="strokeStatus">전장에 한 획 · 놓는 순간 방향 확정</span><b id="lastSpell">선: 빠른 연사 · 문양: 연쇄 반사</b></div></div>
  <div class="move-controls" aria-label="이동과 회피"><div id="moveStick" role="group" aria-label="이동 스틱"><span id="moveKnob"></span></div></div>

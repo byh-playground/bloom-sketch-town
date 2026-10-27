@@ -80,6 +80,32 @@
     Object.assign(summonDraft,{active:false,shot:null,body:null,center:null,strokes:[],live:null,liveSig:''});showFaceStep(false);
     if(was&&message){showResult(message,1600);$('strokeStatus').textContent='원하는 자리에 한 획 · 그 자리에 소환';}
   }
+  // Merge selection: a tap on one of your summons toggles it; a recognized star while two or three are selected merges them.
+  // Selection is presentation state only; the sim receives a 'merge' command with the ids.
+  const selectedUnits=new Set();
+  function ownSummons(){const id=actorId(player);return world.summons.filter(s=>s.owner===id&&s.hp>0);}
+  function pruneSelection(){const alive=new Set(ownSummons().map(s=>s.id));for(const id of selectedUnits)if(!alive.has(id))selectedUnits.delete(id);}
+  function toggleUnitAt(at){
+    let best=null,bestD=Infinity;
+    for(const s of ownSummons()){const d=hypot(s.x-at.x,s.y-at.y);if(d<=s.r*1.35+18&&d<bestD){best=s;bestD=d;}}
+    if(!best)return false;
+    if(selectedUnits.has(best.id))selectedUnits.delete(best.id);
+    else if(selectedUnits.size>=3)showResult('합체 재료는 최대 3마리예요',1300);
+    else selectedUnits.add(best.id);
+    return true;
+  }
+  $('selectClear').addEventListener('click',()=>selectedUnits.clear());
+  function requestMerge(){
+    pruneSelection();
+    if(selectedUnits.size<2){showResult('합체할 소환수를 2~3마리 눌러 고르세요',1400);return;}
+    world.commands.push({type:'merge',ids:[...selectedUnits]});wakeInputPreview();
+  }
+  function updateSelectionChip(){
+    pruneSelection();const chip=$('selectChip'),n=selectedUnits.size;chip.hidden=n===0;if(!n)return;
+    const units=[...selectedUnits].map(summonById).filter(Boolean),plan=units.length>=2?planMerge(units):null;
+    const text=plan?`선택 ${n} → ${summonSpecOf(plan.kind).name}${plan.type==='tier'?` ${plan.tier}단계`:''} · ★ 그리면 합체`:n<2?'선택 1 · 소환수를 더 눌러 보세요':`선택 ${n} · 합체할 수 없는 조합`;
+    if($('selectText').textContent!==text)$('selectText').textContent=text;
+  }
   // Boss reward panel: rendered from canonical world.reward; choosing queues the same command path as every other input.
   let rewardSig='';
   function updateRewardPanel(){
@@ -127,10 +153,12 @@
     if(!drawingAllowed()){dropDraw();cancelSummonDraft();return;}
     updateDrawingAim();const points=drawInput.points.slice(),length=drawInput.length,at={x:drawInput.world.x,y:drawInput.world.y},center=drawInput.center;dropDraw();focusGameplay();
     if(summonDraft.active){addFaceStroke(points);return;}
+    if(length<16){if(toggleUnitAt(at))return;}
     if(points.length<3||length<16){showResult('조금 더 길게 한 획을 그려 주세요',1100);return;}
     gesture.lastCombatStroke=points.map(p=>({...p}));
     try{
       const shot=normalizeCommand({type:'cast',shot:{...makeShotData(points),x:at.x,y:at.y,face:'neutral'}}).shot,cost=spellInkCost(player,shot);
+      if(shot.kind==='star'&&selectedUnits.size>=2){requestMerge();return;}
       if(shot.kind==='line'){world.commands.push({type:'cast',shot});wakeInputPreview();$('lastSpell').textContent='선 · 투사체';return;}
       beginSummonDraft(shot,points,center);
     }catch(error){console.error(error);showResult('소환 분석 실패 · 다시 그려 보세요',950);}}
@@ -219,7 +247,7 @@
   function renderDrawPad(){
     if(drawInput.pointer!==null&&!drawingAllowed())dropDraw();
     if(drawInput.pointer!==null)updateDrawingAim();
-    tickSummonDraft();updateLiveFace();updateLiveBody();updateRewardPanel();
+    tickSummonDraft();updateLiveFace();updateLiveBody();updateRewardPanel();updateSelectionChip();
     const points=drawInput.pointer!==null?drawInput.points:drawInput.previewUntilMs>performance.now()?drawInput.finished:null;
     drawCtx.setTransform(drawDpr,0,0,drawDpr,0,0);drawCtx.clearRect(0,0,vw,vh);
     drawCtx.save();drawCtx.lineCap='round';drawCtx.lineJoin='round';paintSummonDraft();paintLiveGhost();

@@ -194,6 +194,8 @@
     drawStrokeSquashed(mesh,x,y,rot,pose.sx,pose.sy,scale,v.color,.97,spec.taunt?5:3);
     drawFace(v.face,x,y+vr*.04*pose.sy,vr*.62*Math.min(pose.sx,pose.sy+.05),t,v.faceX,v.id);
     if(v.hitMs>0){const f=clamp(v.hitMs/SKETCH.hitFlashMs,0,1);drawStrokeSquashed(mesh,x,y,rot,pose.sx*1.06,pose.sy*1.06,scale,'#fff8d9',f*.9,5);}
+    if(selectedUnits.has(v.id)){P.ring(v.x,v.y,vr*1.3+Math.sin(paintClockMs*.008)*2,'#e0a64a',.95,3,30);}
+    if((v.tier||1)>1)for(let k=0;k<v.tier;k++)P.dot(v.x+(k-(v.tier-1)/2)*8,v.y+vr+10,3.2,'#e0a64a',.95);
     if(v.hp<v.maxHp){const pct=clamp(v.hp/v.maxHp,0,1),bar=Math.max(26,vr*2);P.box(v.x,v.y-vr-14,bar,5,'#605660',.65);if(pct>0)P.box(v.x-bar*(1-pct)/2,v.y-vr-14,bar*pct,4,'#6f9a85');}
   }
   function drawHazard(h){if(!visible(h.x,h.y,90))return;
