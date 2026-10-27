@@ -273,3 +273,4 @@ The branch authors static character and environment resources in `source/assets/
 - 맵 프리뷰(몹 둥지 포함): [바로 보기](https://htmlpreview.github.io/?https://github.com/byh-playground/bloom-sketch-town/blob/main/docs/world-map-preview.html)
 - 시드 100개 검사(Node): 실패 0, 재시도 6, 평균 206ms, 보스 간 최소 거리 952px, 같은 시드 두 번 결과 동일.
 - 미확인: 실기기 FPS(샌드박스 소프트웨어 GL 4FPS), 공개 P2P(`--live-p2p`), 15분 진행 시간·밸런스 수치, 중심 구역 야생 둥지 0개인 시드 존재. `--flow all`의 데스크톱·모바일 구간과 "release freezes the drawing-center map position" 검사는 변경 전부터 실패.
+- 로딩 표시: 첫 화면에 `#boot` 로딩 막(진행 막대)을 두고, `bootstrap.js`의 `SOURCES` 적재 진행률로 채웁니다. 맵 생성(`game_part2.js`) 직전에 "맵 만드는 중…"을 먼저 그린 뒤 적재하며, 마지막 스크립트 적재 후 막이 사라집니다.

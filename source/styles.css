@@ -107,3 +107,5 @@
 .mini-map{top:62px;right:max(8px,env(safe-area-inset-right))}
 .roll-hud{width:auto;padding:5px 7px;gap:4px}
 @media(pointer:coarse),(max-width:900px){.roll-hud b,.roll-hud small{display:none}.roll-hud{bottom:max(150px,env(safe-area-inset-bottom) + 150px);left:max(14px,env(safe-area-inset-left))}}
+
+#boot{position:absolute;inset:0;z-index:20;display:grid;place-items:center;background:var(--paper)}#boot.done{display:none}.boot-card{display:grid;justify-items:center;gap:10px;font-size:13px;color:#546269}.boot-card b{font-size:20px;color:var(--ink)}.boot-logo{font-size:34px}.boot-bar{width:min(240px,60vw);height:8px;border-radius:5px;background:#e4dac6;overflow:hidden}.boot-bar i{display:block;height:100%;width:0;background:#edb96d;transition:width .15s}
