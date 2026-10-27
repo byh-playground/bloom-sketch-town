@@ -574,6 +574,22 @@ async def run_map(browser, suite: E2E):
             suite.check('different seeds give different layouts',(await page.evaluate(f'__sketchRpgDebug.mapHashFor({seed+1})'))['hash']!=a['hash'])
             suite.check('help screen shows the run seed',await page.evaluate("document.getElementById('mapSeed').textContent")==str(seed))
             suite.check('every prop is drawn and every solid prop is an obstacle',a['counts']['trees']==a['counts']['props'] and 0<a['counts']['obstacles']<=a['counts']['props'],a['counts'])
+            # Collision matches what is drawn: every obstacle blocks all the way round (also across 160-unit grid seams),
+            # nothing invisible blocks near the camp, and the houses block as walls and roofs, not as one big square.
+            col=await page.evaluate("""()=>{const d=__sketchRpgDebug,R=16,list=d.obstacleList(),sp=d.mapState().spawn;
+              const inside=(o,x,y,m)=>o.hw!==undefined?Math.abs(x-o.x)<=o.hw+m&&Math.abs(y-o.y)<=o.hh+m:Math.hypot(x-o.x,y-o.y)<=o.r+m;
+              let seamMiss=0,seamTested=0,invisible=0,sampled=0;const bad=[];
+              for(const o of list){const n=16;for(let k=0;k<n;k++){const a=k*Math.PI*2/n;let x,y;
+                if(o.hw!==undefined){x=o.x+Math.cos(a)*(o.hw+R-2);y=o.y+Math.sin(a)*(o.hh+R-2);}else{x=o.x+Math.cos(a)*(o.r+R-1);y=o.y+Math.sin(a)*(o.r+R-1);}
+                seamTested++;if(!d.terrainBlocked(x,y,R)){seamMiss++;if(bad.length<5)bad.push([o.kind,o.x,o.y,x,y]);}}}
+              for(let x=sp.x-500;x<=sp.x+500;x+=8)for(let y=sp.y-500;y<=sp.y+500;y+=8){sampled++;
+                if(d.terrainBlocked(x,y,1)&&!d.terrainOnlyBlocked(x,y,1)&&!list.some(o=>inside(o,x,y,1.5))){invisible++;if(bad.length<8)bad.push(['invisible',x,y]);}}
+              const houses=d.houseList(),under=houses.filter(h=>d.terrainOnlyBlocked(h.x,h.y-h.h*.3,6)).length;
+              const walls=houses.filter(h=>d.terrainBlocked(h.x,h.y-h.h*.3,6)).length;
+              return {seamTested,seamMiss,invisible,sampled,houses:houses.length,under,walls,bad};}""")
+            suite.check('every obstacle blocks on every side, including across grid-cell seams',col['seamTested']>200 and col['seamMiss']==0,col)
+            suite.check('near the camp, nothing blocks unless a drawn trunk, rock, crystal, house box, river, cliff or sea does',col['sampled']>10000 and col['invisible']==0,col)
+            suite.check('each camp house stands on open ground and its walls block',col['houses']>=3 and col['under']==0 and col['walls']==col['houses'],col)
             zones=[q['zone'] for q in a['bossSites']]
             kinds=[q['kind'] for q in a['sites']]
             suite.check('five boss sites, one per zone from the coast (0) to the exact centre (4)',zones==[0,1,2,3,4] and a['bossSites'][4]['x']==a['size']//2 and a['bossSites'][4]['y']==a['size']//2 and all(q['radius']==150 for q in a['bossSites']),a['bossSites'])
@@ -1146,7 +1162,7 @@ async def run_real_p2p(browser, suite: E2E):
                 boundary=min(s['confirmedTick'] for s in states)
                 hashes=await asyncio.gather(*(p.evaluate("t=>window.__sketchRpgDebug.stateHash(t)",boundary) for p in (host,guest)))
                 suite.check("late duplicated RTC input reconciles to equal confirmed hash",hashes[0] is not None and hashes[0]==hashes[1],{'tick':boundary,'hashes':hashes,'rollbacks':[s['stats'].get('rollbacks',0) for s in states]})
-                suite.check("both peers use pinned protocol 3 bundle",all(s['gamekitSHA']=='418e17c455db56d6ed073d82d115191d9dd8bf04' and s['namespace']=='sketch-town-coop-0.25.0' and s['simulationVersion'].startswith('sketch-town-0.25.0-') and s['inputScheduling']=='network' and s['inputHz']==60 for s in states))
+                suite.check("both peers use pinned protocol 3 bundle",all(s['gamekitSHA']=='418e17c455db56d6ed073d82d115191d9dd8bf04' and s['namespace']=='sketch-town-coop-0.26.0' and s['simulationVersion'].startswith('sketch-town-0.26.0-') and s['inputScheduling']=='network' and s['inputHz']==60 for s in states))
                 for sender,actor in ((host,'a'),(guest,'b')):
                     for page in (host,guest):
                         await page.evaluate("""actor => {

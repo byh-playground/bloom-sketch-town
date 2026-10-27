@@ -1,15 +1,37 @@
   // World population and drawing for the run's WorldMapLayout (see world-map.js).
   // Nothing in this file decides where terrain is: coast, rivers, cliffs, roads, props, sites and mob nests all come from mapLayout.
   let mapLayout=null;
-  // The starting camp: three houses inland of the spawn (towards the map centre), drawn only where there is land.
+  // The starting camp: three houses inland of the spawn (towards the map centre), placed only where their whole drawing stands on dry, wall-free ground.
+  // `along`/`side` are offsets in the spawn-to-centre frame; a house that does not fit there is tried at the nearby offsets in CAMP_SHIFTS.
   const CAMP_HOUSES=Object.freeze([{along:230,side:-170,w:173,h:127,type:'house'},{along:300,side:150,w:167,h:119,type:'library'},{along:120,side:240,w:162,h:112,type:'shop'}]);
+  const CAMP_SHIFTS=Object.freeze([[0,0],[40,0],[-40,0],[0,40],[0,-40],[80,0],[-80,0],[0,80],[0,-80],[60,60],[-60,60],[60,-60],[-60,-60]]);
+  // What a house drawing blocks, as boxes in its SVG units (172 wide, origin (90,105) at the house position): the wall, then the roof in two steps
+  // that stay inside the triangle, so nobody is stopped by empty sky beside the roof.
+  const HOUSE_BOXES=Object.freeze([[20,89,160,160],[30,66,150,89],[56,34,124,66]]);
+  function houseBoxes(h){
+    const sx=h.w/172,sy=h.h/135;
+    return HOUSE_BOXES.map(([x0,y0,x1,y1])=>({x:h.x+((x0+x1)/2-90)*sx,y:h.y+((y0+y1)/2-105)*sy,hw:(x1-x0)/2*sx,hh:(y1-y0)/2*sy,kind:'house'}));
+  }
+  // True when a box overlaps sea, a river or cliff cell, or a solid obstacle already placed.
+  function boxBlocked(b){
+    for(let y=b.y-b.hh;y<=b.y+b.hh+11;y+=12)for(let x=b.x-b.hw;x<=b.x+b.hw+11;x+=12)if(mapLayout.terrainBlocks(Math.min(x,b.x+b.hw),Math.min(y,b.y+b.hh),0))return true;
+    return world.obstacles.some(o=>o.hw===undefined?circleHitsBox(o,b):Math.abs(o.x-b.x)<o.hw+b.hw&&Math.abs(o.y-b.y)<o.hh+b.hh);
+  }
+  function circleHitsBox(c,b){const dx=Math.max(Math.abs(c.x-b.x)-b.hw,0),dy=Math.max(Math.abs(c.y-b.y)-b.hh,0);return dx*dx+dy*dy<c.r*c.r;}
+  function placeHouse(sp,ux,uy,h){
+    for(const [da,ds] of CAMP_SHIFTS){
+      const along=h.along+da,side=h.side+ds,x=Math.round(sp.x+ux*along-uy*side),y=Math.round(sp.y+uy*along+ux*side),placed={x,y,w:h.w,h:h.h,type:h.type},boxes=houseBoxes(placed);
+      if(boxes.some(boxBlocked))continue;
+      world.houses.push(placed);for(const b of boxes)addObstacle(b);return;
+    }
+  }
   function applyMapLayout(mapSeed){
     mapLayout=generateWorldMap(mapSeed);
     world.mapSeed=mapSeed;
     world.obstacles.length=0;world.grid.clear();world.houses.length=0;world.trees.length=0;world.decals.length=0;
     const sp=mapLayout.spawn,half=mapLayout.size/2,dx=half-sp.x,dy=half-sp.y,len=Math.sqrt(dx*dx+dy*dy)||1,ux=dx/len,uy=dy/len;
-    for(const h of CAMP_HOUSES){const x=Math.round(sp.x+ux*h.along-uy*h.side),y=Math.round(sp.y+uy*h.along+ux*h.side);if(!mapLayout.terrainBlocks(x,y,h.w*.5))world.houses.push({x,y,w:h.w,h:h.h,type:h.type});}
-    for(const p of mapLayout.props){world.trees.push({x:p.x,y:p.y,r:p.r,kind:p.kind,variant:p.variant,solid:p.solid});if(p.solid)addObstacle({x:p.x,y:p.y,r:p.r*WORLD_MAP.solidScale,kind:p.kind});}
+    for(const p of mapLayout.props){world.trees.push({x:p.x,y:p.y,r:p.r,kind:p.kind,variant:p.variant,solid:p.solid});if(p.solid)addObstacle({...solidFoot(p),kind:p.kind});}
+    for(const h of CAMP_HOUSES)placeHouse(sp,ux,uy,h);
     for(const d of mapLayout.decals)world.decals.push({...d});
     $('mapSeed').textContent=String(mapSeed);
   }

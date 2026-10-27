@@ -28,9 +28,23 @@
 
   const rand=()=>{world.seed=(Math.imul(world.seed,1664525)+1013904223)>>>0;return world.seed/4294967296;};
   const cellSize=160,gridKey=(x,y)=>`${Math.floor(x/cellSize)},${Math.floor(y/cellSize)}`;
-  function addObstacle(o){world.obstacles.push(o);for(let gx=Math.floor((o.x-o.r)/cellSize);gx<=Math.floor((o.x+o.r)/cellSize);gx++)for(let gy=Math.floor((o.y-o.r)/cellSize);gy<=Math.floor((o.y+o.r)/cellSize);gy++){const key=`${gx},${gy}`;if(!world.grid.has(key))world.grid.set(key,[]);world.grid.get(key).push(o);}}
+  // Obstacles are circles {x,y,r} or axis-aligned boxes {x,y,hw,hh}; both are filed under every grid cell they cover.
+  const obstacleReach=o=>o.hw===undefined?[o.r,o.r]:[o.hw,o.hh];
+  function addObstacle(o){world.obstacles.push(o);const [rx,ry]=obstacleReach(o);for(let gx=Math.floor((o.x-rx)/cellSize);gx<=Math.floor((o.x+rx)/cellSize);gx++)for(let gy=Math.floor((o.y-ry)/cellSize);gy<=Math.floor((o.y+ry)/cellSize);gy++){const key=`${gx},${gy}`;if(!world.grid.has(key))world.grid.set(key,[]);world.grid.get(key).push(o);}}
   function circleBounds(x,y,r){return x>=r&&y>=r&&x<=CFG.world.width-r&&y<=CFG.world.height-r;}
-  function touchesObstacle(x,y,r){if(!circleBounds(x,y,r)||mapLayout.terrainBlocks(x,y,r))return true;const list=world.grid.get(gridKey(x,y))||[];for(const o of list){if(hypot(o.x-x,o.y-y)<o.r+r)return true;}return false;}
+  function circleHitsObstacle(o,x,y,r){
+    if(o.hw===undefined){const dx=o.x-x,dy=o.y-y,rr=o.r+r;return dx*dx+dy*dy<rr*rr;}
+    const dx=Math.max(Math.abs(x-o.x)-o.hw,0),dy=Math.max(Math.abs(y-o.y)-o.hh,0);return dx*dx+dy*dy<r*r;
+  }
+  // The query circle reaches into every grid cell its own bounds cover, so an obstacle filed next door is still found.
+  function touchesObstacle(x,y,r){
+    if(!circleBounds(x,y,r)||mapLayout.terrainBlocks(x,y,r))return true;
+    for(let gx=Math.floor((x-r)/cellSize);gx<=Math.floor((x+r)/cellSize);gx++)for(let gy=Math.floor((y-r)/cellSize);gy<=Math.floor((y+r)/cellSize);gy++){
+      const list=world.grid.get(`${gx},${gy}`);if(!list)continue;
+      for(const o of list)if(circleHitsObstacle(o,x,y,r))return true;
+    }
+    return false;
+  }
   function moveCollider(e,dx,dy,r){if(!touchesObstacle(e.x+dx,e.y,r))e.x+=dx;if(!touchesObstacle(e.x,e.y+dy,r))e.y+=dy;}
   function createWorld(mapSeed){
     applyMapLayout(mapSeed);
