@@ -18,23 +18,27 @@
   function dropDraw(){drawInput.pointer=null;drawInput.points.length=0;drawInput.length=0;drawInput.finished=null;drawInput.previewUntilMs=0;drawInput.center=null;gesture.drawId=null;setSlowUi(false);$('strokeStatus').textContent='원하는 자리에 한 획 · 그 자리에 소환';}
   // One-step summon: the drawn outline alone summons. The two temperament sliders (#traitDock) stay on screen; the
   // steps they show are attached to every body drawn afterwards, and the summon's face is generated from them.
-  const traitSteps={...NEUTRAL_STEPS};
+  let selectedTemper=DEFAULT_TEMPER;
   let lastShot=null; // the last shot a finished stroke queued (read by the debug hooks)
   // Live "afterimage" recognition: while a body is being drawn, the best-matching reference is shown as a faint ghost
   // laid over the drawing (body classifier ~7 ms on the CPU of an unoptimized container, so it is throttled).
   const LIVE_BODY_MS=160;
   const liveBody={sig:'',ms:0,result:null};
   function buildTraitDock(){
-    const rows=$('traitSliders');
-    for(const axis of TRAIT_AXES){
-      const row=document.createElement('label');row.className='trait-row';row.dataset.axis=axis.id;
-      row.innerHTML=`<span class="trait-low">${axis.lowLabel}</span><input type="range" min="${-TRAIT_STEP_MAX}" max="${TRAIT_STEP_MAX}" step="1" value="0" aria-label="${axis.name}: ${axis.lowLabel}에서 ${axis.highLabel}"><span class="trait-high">${axis.highLabel}</span>`;
-      row.querySelector('input').addEventListener('input',e=>{traitSteps[axis.id]=+e.target.value;paintTraitDock();});
-      rows.appendChild(row);
+    const list=$('traitChoices');
+    for(const p of PERSONALITIES){
+      const b=document.createElement('button');b.type='button';b.className='trait-choice';b.dataset.temper=String(p.id);
+      b.setAttribute('role','radio');b.title=p.temperament.summary();
+      b.innerHTML=`${traitFaceSvg(p.look)}<b>${p.name}</b>`;
+      b.addEventListener('click',()=>{selectedTemper=p.id;paintTraitDock();});
+      list.appendChild(b);
     }
     paintTraitDock();
   }
-  function paintTraitDock(){$('traitFace').innerHTML=traitFaceSvg(traitSteps);$('traitSummary').textContent=temperamentOf(traitSteps).summary();}
+  function paintTraitDock(){
+    for(const b of $('traitChoices').children){const on=+b.dataset.temper===selectedTemper;b.classList.toggle('on',on);b.setAttribute('aria-checked',String(on));}
+    $('traitSummary').textContent=`${PERSONALITIES[selectedTemper].name} · ${PERSONALITIES[selectedTemper].temperament.summary()}`;
+  }
   buildTraitDock();
   function updateLiveBody(){
     if(drawInput.pointer===null){liveBody.result=null;liveBody.sig='';return;}
@@ -130,7 +134,7 @@
     if(points.length<3||length<16){showResult('조금 더 길게 한 획을 그려 주세요',1100);return;}
     gesture.lastCombatStroke=points.map(p=>({...p}));
     try{
-      const shot=normalizeCommand({type:'cast',shot:{...makeShotData(points),x:at.x,y:at.y,...traitSteps}}).shot,cost=spellInkCost(player,shot);
+      const shot=normalizeCommand({type:'cast',shot:{...makeShotData(points),x:at.x,y:at.y,temper:selectedTemper}}).shot,cost=spellInkCost(player,shot);
       if(shot.kind==='star'&&selectedUnits.size>=2){requestMerge();return;}
       if(shot.kind==='line'){lastShot=structuredClone(shot);world.commands.push({type:'cast',shot});wakeInputPreview();$('lastSpell').textContent='선 · 투사체';return;}
       summonBody(shot);

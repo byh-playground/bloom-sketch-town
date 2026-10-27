@@ -196,11 +196,9 @@ async def _draw_circle_once(page, size, kind, at):
     return await page.evaluate("window.lastGestureShot")
 
 
-async def set_traits(page, bold=0, quick=0):
-    """Move the two real temperament sliders (range inputs) the way a player would; returns the dock state."""
-    sliders = page.locator('#traitSliders input')
-    await sliders.nth(0).fill(str(bold))
-    await sliders.nth(1).fill(str(quick))
+async def pick_personality(page, temper):
+    """Click the real personality button in the selector dock; returns the dock state."""
+    await page.locator(f'#traitChoices .trait-choice[data-temper="{temper}"]').click()
     return await page.evaluate("__sketchRpgDebug.traitState()")
 
 
@@ -783,17 +781,17 @@ async def run_summons(browser, suite: E2E):
             suite.check('an anchored turret keeps its place while a mobile summon is pushed off it',abs(star1['x']-star0['x'])<.5 and abs(star1['y']-star0['y'])<.5 and dist>=24,{'moved':[star1['x']-star0['x'],star1['y']-star0['y']],'dist':dist})
             # Placement follows where the stroke is drawn (real mouse events).
             await page.evaluate("__sketchRpgDebug.combatFixture('chaser',__A.fx,__A.fy);__sketchRpgDebug.moveTo(__A.x,__A.y);__sketchRpgDebug.setInk(100)")
-            # One step: the outline alone summons and spends ink; the slider steps set before it are attached and show as the face.
-            dock=await set_traits(page,-2,1)
+            # One step: the outline alone summons and spends ink; the personality picked before it is attached and shows as the face.
+            dock=await pick_personality(page,4)
             ink0=await page.evaluate("__sketchRpgDebug.runState().actor.ink")
             max_id=await page.evaluate("Math.max(0,...__sketchRpgDebug.summons().map(q=>q.id))")
             shot=await draw_circle(page,120,'circle',at=[A['x']+150,A['y']])
             await page.wait_for_function("m=>__sketchRpgDebug.summons().some(q=>q.id>m&&q.kind==='circle')",arg=max_id,timeout=6000)
             placed=await page.evaluate("__sketchRpgDebug.summons().filter(q=>q.kind==='circle').at(-1)")
             ink1=await page.evaluate("__sketchRpgDebug.runState().actor.ink")
-            suite.check('the sliders show their steps and a face preview before drawing',dock['dockVisible'] and dock['steps']=={'bold':-2,'quick':1} and dock['sliders']==[-2,1] and dock['faceMarks']>=4 and dock['summary'].startswith('이점'),dock)
-            suite.check('a body stroke alone summons at once, spends ink, and carries the slider steps',shot is not None and shot['kind']=='circle' and placed['bold']==-2 and placed['quick']==1 and ink1<ink0-10 and abs(placed['x']-(A['x']+150))<45,{'shot':shot and shot['kind'],'steps':[placed['bold'],placed['quick']],'at':[placed['x'],placed['y']],'ink':[ink0,ink1]})
-            await set_traits(page,0,0)
+            suite.check('five personality buttons show with one selected and a face preview',dock['dockVisible'] and len(dock['choices'])==5 and [c['temper'] for c in dock['choices'] if c['on']]==[4] and dock['faceMarks']>=4 and dock['summary'].startswith('명랑'),dock)
+            suite.check('a body stroke alone summons at once, spends ink, and carries the picked personality',shot is not None and shot['kind']=='circle' and placed['temper']==4 and ink1<ink0-10 and abs(placed['x']-(A['x']+150))<45,{'shot':shot and shot['kind'],'temper':placed['temper'],'at':[placed['x'],placed['y']],'ink':[ink0,ink1]})
+            await pick_personality(page,0)
             # No direction or distance limit: a body drawn 450 units away (beyond the old 320 reach) appears exactly there.
             await page.evaluate("__sketchRpgDebug.moveTo(__A.x,__A.y);__sketchRpgDebug.setInk(100)")
             max_id=await page.evaluate("Math.max(0,...__sketchRpgDebug.summons().map(q=>q.id))")
@@ -892,35 +890,33 @@ async def run_summons(browser, suite: E2E):
             await page.wait_for_function("__sketchRpgDebug.summons().find(q=>q.kind==='circle')?.hp<__sketchRpgDebug.summons().find(q=>q.kind==='circle')?.maxHp",timeout=12000)
             php=await page.evaluate("__sketchRpgDebug.snapshot().player.hp")
             suite.check('an enemy near a summon hurts the summon, not the player 240 px away',php==120,php)
-            # Temperament sliders: neutral has no traits; every other setting gains in one stat and pays in another.
-            table=await page.evaluate("""()=>{const d=__sketchRpgDebug,rows=[];for(let b=-3;b<=3;b++)for(let q=-3;q<=3;q++){const m=d.temperamentFor(b,q),v=Object.values(m);rows.push({b,q,up:v.some(x=>x>1),down:v.some(x=>x<1),flat:v.every(x=>x===1)});}return rows;}""")
-            neutral=[r for r in table if r['b']==0 and r['q']==0][0]
-            rest=[r for r in table if not(r['b']==0 and r['q']==0)]
-            suite.check('neutral steps have no traits; every other slider setting has both an advantage and a disadvantage',neutral['flat'] and all(r['up'] and r['down'] for r in rest) and len(table)==49,[r for r in rest if not(r['up'] and r['down'])][:4])
-            # Real sliders and real body strokes: the face steps reach the summon.
+            # Personalities: five, each with both an advantage and a disadvantage.
+            table=await page.evaluate("__sketchRpgDebug.personalities()")
+            suite.check('five personalities, every one has both an advantage and a disadvantage',len(table)==5 and [p['id'] for p in table]==[0,1,2,3,4] and all(any(v>1 for v in p['multipliers'].values()) and any(v<1 for v in p['multipliers'].values()) for p in table),table)
+            # Real buttons and real body strokes: the personality reaches the summon.
             seen={}
-            for steps in [(3,0),(-3,2),(0,-3),(0,3)]:
+            for temper in [1,2,3]:
                 await page.evaluate("()=>{const d=__sketchRpgDebug;d.combatFixture('chaser',__A.fx,__A.fy);d.moveTo(__A.x,__A.y);d.setInk(100);}")
-                await set_traits(page,*steps)
+                await pick_personality(page,temper)
                 max_id=await page.evaluate("Math.max(0,...__sketchRpgDebug.summons().map(q=>q.id))")
                 await draw_circle(page,120,'triangle',at=[A['x']+110,A['y']])
                 await page.wait_for_function("m=>__sketchRpgDebug.summons().some(q=>q.id>m)",arg=max_id,timeout=6000)
-                seen[steps]=await page.evaluate("m=>{const q=__sketchRpgDebug.summons().filter(q=>q.id>m).at(-1);return [q.bold,q.quick];}",max_id)
-            suite.check('real slider positions and real body strokes give summons with those steps',all(list(k)==v for k,v in seen.items()),{str(k):v for k,v in seen.items()})
-            await set_traits(page,0,0)
+                seen[temper]=await page.evaluate("m=>__sketchRpgDebug.summons().filter(q=>q.id>m).at(-1).temper",max_id)
+            suite.check('real personality buttons and real body strokes give summons with that personality',all(k==v for k,v in seen.items()),seen)
+            await pick_personality(page,0)
             # Temperament numbers reach the summon.
-            by_steps={}
-            for name,steps in {'neutral':(0,0),'bold':(3,0),'drowsy':(0,-3),'quick':(0,3)}.items():
+            by_temper={}
+            for temper in range(5):
                 await page.evaluate("()=>{const d=__sketchRpgDebug;d.combatFixture('chaser',__A.fx,__A.fy);d.moveTo(__A.x,__A.y);d.setInk(100);}")
-                await page.evaluate("s=>__sketchRpgDebug.castKind('triangle',0,120,.5,s[0],s[1])",list(steps))
+                await page.evaluate("t=>__sketchRpgDebug.castKind('triangle',0,120,.5,t)",temper)
                 await page.wait_for_function("__sketchRpgDebug.summons().length>0",timeout=4000)
-                by_steps[name]=await page.evaluate("(({maxHp,power})=>({maxHp,power}))(__sketchRpgDebug.summons()[0])")
-            base=by_steps['neutral']
-            suite.check('temperament multiplies hp and attack power',abs(by_steps['bold']['power']/base['power']-1.3)<.02 and abs(by_steps['bold']['maxHp']/base['maxHp']-.79)<.03 and abs(by_steps['drowsy']['maxHp']/base['maxHp']-1.15)<.03 and abs(by_steps['quick']['maxHp']/base['maxHp']-.85)<.03,by_steps)
-            # A step outside -3..3 in a checkpoint is refused.
-            refused=await page.evaluate("""()=>{const d=__sketchRpgDebug,s=JSON.parse(new TextDecoder().decode(d.canonicalSnapshot()));s.world.summons[0].bold=9;
+                by_temper[temper]=await page.evaluate("(({maxHp,power})=>({maxHp,power}))(__sketchRpgDebug.summons()[0])")
+            hp0=by_temper[0]['maxHp']/.8;pw0=by_temper[0]['power']/1.3
+            suite.check('personality multiplies hp and attack power',abs(by_temper[1]['maxHp']/hp0-1.3)<.03 and abs(by_temper[1]['power']/pw0-.8)<.02 and abs(by_temper[2]['maxHp']/hp0-1.4)<.03 and abs(by_temper[3]['maxHp']/hp0-.75)<.03 and abs(by_temper[4]['power']/pw0-.85)<.02,by_temper)
+            # A personality outside 0..4 in a checkpoint is refused.
+            refused=await page.evaluate("""()=>{const d=__sketchRpgDebug,s=JSON.parse(new TextDecoder().decode(d.canonicalSnapshot()));s.world.summons[0].temper=9;
               try{d.canonicalRestore(new TextEncoder().encode(JSON.stringify(s)));return false;}catch(e){return true;}}""")
-            suite.check('a checkpoint with an out-of-range temperament step is rejected',refused)
+            suite.check('a checkpoint with an unknown personality is rejected',refused)
             # Anchored summon never walks.
             await page.evaluate("()=>{const d=__sketchRpgDebug;d.combatFixture('chaser',__A.fx,__A.fy);d.moveTo(__A.x,__A.y);d.setInk(100);d.castKind('star',0,100);}")
             await page.wait_for_function("__sketchRpgDebug.summons().some(q=>q.kind==='star')",timeout=4000)
@@ -1010,7 +1006,7 @@ async def run_run_state(browser, suite: E2E):
             await page.set_viewport_size({'width':390,'height':844})
             members2=await page.evaluate('__sketchRpgDebug.nestFixture(1);__sketchRpgDebug.invulnerable();__sketchRpgDebug.setInk(100);__sketchRpgDebug.foePositions().length')
             await page.wait_for_function("(()=>{const d=__sketchRpgDebug,f=d.foePositions()[0];if(!f)return false;const c=d.screenAt(f.x,f.y);return c.x>40&&c.x<350&&c.y>120&&c.y<740})()",timeout=30000)
-            pre=await page.evaluate("(()=>{const d=__sketchRpgDebug,f=d.foePositions()[0],c=d.screenAt(f.x,f.y);const e=document.elementFromPoint(c.x,c.y);return JSON.stringify({c,w:innerWidth,el:e&&(e.id||e.className),ink:d.snapshot().ink,sc:d.snapshot().summonCount,steps:d.traitState().steps})})()")
+            pre=await page.evaluate("(()=>{const d=__sketchRpgDebug,f=d.foePositions()[0],c=d.screenAt(f.x,f.y);const e=document.elementFromPoint(c.x,c.y);return JSON.stringify({c,w:innerWidth,el:e&&(e.id||e.className),ink:d.snapshot().ink,sc:d.snapshot().summonCount,temper:d.traitState().temper})})()")
             region_shot=await draw_circle(page,140)
             suite.check('resized nest fixture queues the actual circle stroke',region_shot is not None and region_shot['kind']=='circle',region_shot or pre+await page.evaluate("JSON.stringify({d:__sketchRpgDebug.traitState(),chip:document.getElementById('resultChip').innerText,s:__sketchRpgDebug.snapshot().modal})"))
             if region_shot is None:return
@@ -1150,7 +1146,7 @@ async def run_real_p2p(browser, suite: E2E):
                 boundary=min(s['confirmedTick'] for s in states)
                 hashes=await asyncio.gather(*(p.evaluate("t=>window.__sketchRpgDebug.stateHash(t)",boundary) for p in (host,guest)))
                 suite.check("late duplicated RTC input reconciles to equal confirmed hash",hashes[0] is not None and hashes[0]==hashes[1],{'tick':boundary,'hashes':hashes,'rollbacks':[s['stats'].get('rollbacks',0) for s in states]})
-                suite.check("both peers use pinned protocol 3 bundle",all(s['gamekitSHA']=='418e17c455db56d6ed073d82d115191d9dd8bf04' and s['namespace']=='sketch-town-coop-0.24.0' and s['simulationVersion'].startswith('sketch-town-0.24.0-') and s['inputScheduling']=='network' and s['inputHz']==60 for s in states))
+                suite.check("both peers use pinned protocol 3 bundle",all(s['gamekitSHA']=='418e17c455db56d6ed073d82d115191d9dd8bf04' and s['namespace']=='sketch-town-coop-0.25.0' and s['simulationVersion'].startswith('sketch-town-0.25.0-') and s['inputScheduling']=='network' and s['inputHz']==60 for s in states))
                 for sender,actor in ((host,'a'),(guest,'b')):
                     for page in (host,guest):
                         await page.evaluate("""actor => {
