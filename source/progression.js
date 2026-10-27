@@ -17,7 +17,7 @@
   function derivedStats(cards){return {maxInk:100+15*cards.inkMax,inkRegen:8+cards.inkRegen,inkCostRate:1-.05*cards.inkDiscount,maxHp:CFG.player.hp+12*cards.hp,power:1+.06*cards.attack};}
   function applyCards(a){Object.assign(a,derivedStats(a.cards));a.hp=Math.min(a.hp,a.maxHp);a.ink=Math.min(a.ink,a.maxInk);}
   function addCard(a,id){const spec=CARD_DEFS.find(s=>s.id===id);if(!spec||a.cards[id]>=spec.max)return false;a.cards[id]++;applyCards(a);return true;}
-  function spellInkCost(a,shot){return +( (shot.kind==='normal'||shot.kind==='line'?4:12+8*clamp(shot.areaPower,0,1))*a.inkCostRate).toFixed(3);}
+  function spellInkCost(a,shot){return +(summonSpecOf(shot.kind).inkCost(shot.areaPower)*a.inkCostRate).toFixed(3);}
   function inkWait(a,cost){return Math.max(0,a.inkDelayMs)/1000+Math.max(0,cost-a.ink)/a.inkRegen;}
   function spendInk(a,cost){if(a.ink+1e-6<cost){if(a===player)showResult(`잉크 ${cost.toFixed(1)} 필요 · 현재 ${a.ink.toFixed(1)} · 약 ${inkWait(a,cost).toFixed(1)}초 회복 대기`,2200);return false;}a.ink=Math.max(0,a.ink-cost);a.inkDelayMs=750;return true;}
   function recoverInk(a,dt){const delayed=Math.min(dt,a.inkDelayMs);a.inkDelayMs=Math.max(0,a.inkDelayMs-dt);a.ink=Math.min(a.maxInk,a.ink+a.inkRegen*(dt-delayed)/1000);}

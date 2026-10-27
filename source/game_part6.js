@@ -31,10 +31,10 @@
   const canonicalKeys=['nextId','seed','mapSeed','clockMs','kills','bossesDefeated',
     'hitstopMs','lastHitstopClockMs','hitFlashMs','slowRatio','screenTextMs','screenText',
     'effectShakeMs','mode','deathMs','regionKills'];
-  const canonicalArrays=['enemies','projectiles','hazards','casts','pickups','fields','castQueue'];
+  const canonicalArrays=['enemies','summons','hazards','casts','pickups','fields','castQueue'];
   function encodeState(){
     const worldState={};for(const key of canonicalKeys)worldState[key]=world[key];
-    for(const name of canonicalArrays){worldState[name]=name==='projectiles'?world.projectiles.map(p=>({...p,hitAt:[...p.hitAt]})):world[name];}
+    for(const name of canonicalArrays)worldState[name]=world[name];
     const state={version:CFG.version,world:worldState,actors:[hostPlayer,guestPlayer].map(a=>({...a,dash:{...a.dash}})),
       // Only participant presence, not browser/connection state, influences game physics.
       shared:mp.shared};
@@ -47,9 +47,10 @@
       if(!Number.isSafeInteger(w.bossesDefeated)||w.bossesDefeated<0||w.bossesDefeated>BOSS_PROFILES.length)return false;
       if(!Number.isSafeInteger(w.mapSeed)||w.mapSeed<0||w.mapSeed>0xFFFFFFFF)return false;
       if(!Number.isSafeInteger(w.nextId)||w.nextId<1||!Number.isSafeInteger(w.seed)||w.seed<0||!Number.isFinite(w.clockMs)||w.clockMs<0)return false;
-      for(const name of canonicalArrays)if(!Array.isArray(w[name])||w[name].length>({enemies:75,projectiles:65,hazards:150,casts:8,pickups:120,fields:350,castQueue:8}[name]))return false;
+      for(const name of canonicalArrays)if(!Array.isArray(w[name])||w[name].length>({enemies:75,summons:8,hazards:150,casts:8,pickups:120,fields:350,castQueue:8}[name]))return false;
       // Recovery must preserve the released direction; missing/invalid aim is not an old-schema fallback.
-      for(const name of ['casts','castQueue'])if(w[name].some(c=>!validShotAim(c?.shot?.aim)))return false;
+      for(const name of ['casts','castQueue'])if(w[name].some(c=>!validShotAim(c?.shot?.aim)||!validShotReach(c?.shot?.reach)))return false;
+      if(w.summons.some(s=>!SUMMON_SPECS[s?.kind]||!Number.isFinite(s.x)||!Number.isFinite(s.y)||!Number.isFinite(s.hp)||s.hp<0||(s.owner!=='a'&&s.owner!=='b')))return false;
       if(!Array.isArray(w.regionKills)||w.regionKills.length!==3||w.regionKills.some(n=>!Number.isSafeInteger(n)||n<0))return false;
       for(const a of data.actors)if(!validCards(a.cards)||!Number.isFinite(a.ink)||a.ink<0||a.ink>derivedStats(a.cards).maxInk+1e-6||!Number.isFinite(a.inkDelayMs)||a.inkDelayMs<0||a.inkDelayMs>750||!a||!Number.isFinite(a.x)||!Number.isFinite(a.y)||!Number.isFinite(a.hp)||!a.dash||!Number.isFinite(a.dash.charges))return false;
       if(typeof data.shared!=='boolean')return false;
@@ -62,9 +63,7 @@
     for(const key of canonicalKeys)world[key]=data.world[key];
     // Terrain is not in the checkpoint; it is re-derived from the shared seed, and only when the seed changed.
     if(mapLayout.seed!==world.mapSeed)applyMapLayout(world.mapSeed);
-    for(const name of canonicalArrays)world[name]=name==='projectiles'
-      ?data.world[name].map(p=>({...p,hitAt:new Map(p.hitAt)}))
-      :data.world[name];
+    for(const name of canonicalArrays)world[name]=data.world[name];
     for(const [i,source] of data.actors.entries()){
       const target=i===0?hostPlayer:guestPlayer;Object.assign(target,source);target.dash={...source.dash};
     }
@@ -74,12 +73,13 @@
     mp.poseReset=true;
   }
   function validShotAim(aim){return Number.isFinite(aim)&&aim>=-Math.PI&&aim<=Math.PI;}
+  function validShotReach(reach){return Number.isFinite(reach)&&reach>=0&&reach<=SUMMON_MAX_REACH+.01;}
   function normalizeCommand(cmd){
     if(cmd.type==='cast'&&Array.isArray(cmd.shot?.shape)&&cmd.shot.shape.length){
       const s=cmd.shot;
       if(!validShotAim(s.aim))return null;
       // Preserve the released radians exactly, rather than re-aiming or quantizing at submission/replay.
-      return {type:'cast',shot:{kind:s.kind,name:s.name,color:s.color,aim:s.aim,baseDamage:+s.baseDamage.toFixed(3),
+      return {type:'cast',shot:{kind:s.kind,name:s.name,color:s.color,aim:s.aim,reach:+clamp(s.reach,SUMMON_MIN_REACH,SUMMON_MAX_REACH).toFixed(1),baseDamage:+s.baseDamage.toFixed(3),
         areaPower:+s.areaPower.toFixed(5),impact:+s.impact.toFixed(5),pen:+s.pen.toFixed(5),
         geo:{length:+s.geo.length.toFixed(3)},
         shape:s.shape.filter((_,i)=>i%Math.max(1,Math.ceil(s.shape.length/28))===0).slice(0,28).map(p=>({x:+p.x.toFixed(2),y:+p.y.toFixed(2)}))}};
@@ -102,7 +102,7 @@
       executeRollVector(actor,dx,dy,distance);
     }else if(command?.type==='cast'){
       const shot=command.shot;
-      if(!shot||!validShotAim(shot.aim)||!['normal',...glyphKinds].includes(shot.kind)||!Number.isFinite(shot.baseDamage)||shot.baseDamage<0||shot.baseDamage>250||!Number.isFinite(shot.areaPower)||shot.areaPower<0||shot.areaPower>1.6||!Number.isFinite(shot.geo?.length)||shot.geo.length<0||shot.geo.length>3500||!Array.isArray(shot.shape)||shot.shape.length<2||shot.shape.length>28||shot.shape.some(p=>!Number.isFinite(p?.x)||!Number.isFinite(p?.y)||Math.abs(p.x)>150||Math.abs(p.y)>150))return;
+      if(!shot||!validShotAim(shot.aim)||!validShotReach(shot.reach)||typeof shot.color!=='string'||!/^#[0-9a-fA-F]{6}$/.test(shot.color)||!['normal',...glyphKinds].includes(shot.kind)||!Number.isFinite(shot.baseDamage)||shot.baseDamage<0||shot.baseDamage>250||!Number.isFinite(shot.areaPower)||shot.areaPower<0||shot.areaPower>1.6||!Number.isFinite(shot.geo?.length)||shot.geo.length<0||shot.geo.length>3500||!Array.isArray(shot.shape)||shot.shape.length<2||shot.shape.length>28||shot.shape.some(p=>!Number.isFinite(p?.x)||!Number.isFinite(p?.y)||Math.abs(p.x)>150||Math.abs(p.y)>150))return;
       withActor(actor,()=>submitSpell(shot));
     }
   }

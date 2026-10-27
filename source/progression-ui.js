@@ -7,6 +7,6 @@
     $('inkText').textContent=`${Math.floor(player.ink)} / ${player.maxInk}`;$('inkFill').style.width=fill+'%';$('inkReservation').style.left=Math.max(0,fill-pending)+'%';$('inkReservation').style.width=pending+'%';
     $('inkBar').setAttribute('aria-valuenow',String(Math.floor(player.ink)));$('inkBar').setAttribute('aria-valuemax',String(player.maxInk));$('inkMeter').dataset.state=shortage?'shortage':player.inkDelayMs>0?'waiting':player.ink<player.maxInk?'recovering':'ready';
     $('inkRecovery').textContent=shortage?`부족 · 약 ${inkWait(player,cost).toFixed(1)}초`:player.inkDelayMs>0?`${(player.inkDelayMs/1000).toFixed(1)}초 뒤 회복`:player.ink<player.maxInk?`초당 +${player.inkRegen} 회복`:'가득 참';
-    $('inkEstimate').textContent=cost?`예상 소모 ${cost.toFixed(1)}${shortage?` · ${cost.toFixed(1)} 필요`:''}`:`공격에 사용 · 회복 ${player.inkRegen}/초`;
-    $('drawMode').textContent='한 획 마법';
+    $('inkEstimate').textContent=cost?`예상 소모 ${cost.toFixed(1)}${shortage?` · ${cost.toFixed(1)} 필요`:''}`:`소환에 사용 · 회복 ${player.inkRegen}/초`;
+    $('drawMode').textContent='한 획 소환';
   }

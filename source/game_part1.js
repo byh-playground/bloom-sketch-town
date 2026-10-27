@@ -1,14 +1,14 @@
   const $=id=>document.getElementById(id);
   const clamp=(v,a,b)=>Math.min(b,Math.max(a,v)),mix=(a,b,t)=>a+(b-a)*t,hypot=Math.hypot;
   const art={normal:'#293846',line:'#344e58',circle:'#799c91',triangle:'#d08c63',square:'#8f8b80',flame:'#ce704e',water:'#519cbd',lightning:'#558fbc',star:'#d8a34a',shuriken:'#9887b0',starcircle:'#cd995c'};
-  const CFG=Object.freeze({version:'0.17.0',baseHz:60,renderHz:60,inputHz:60,tickMs:1000/30,maxCatchup:8,world:{width:4400,height:1460},player:{hp:120,radius:16,walkSpeed:140,roll:{capacity:2,rechargeMs:650,rangeDiameters:3,durationMinMs:110,durationMaxMs:270,travelSpeed:765,projectileInvulMs:145}},castLimit:4,maxParticles:360});
+  const CFG=Object.freeze({version:'0.18.0',baseHz:60,renderHz:60,inputHz:60,tickMs:1000/30,maxCatchup:8,world:{width:4400,height:1460},player:{hp:120,radius:16,walkSpeed:140,roll:{capacity:2,rechargeMs:650,rangeDiameters:3,durationMinMs:110,durationMaxMs:270,travelSpeed:765,projectileInvulMs:145}},castLimit:4,maxParticles:360});
   $('gameVersion').textContent=`v${CFG.version} · RPG`;
   const DRAWING_STATS=Object.freeze({width:280,height:150,penWidth:3.8,recognitionSize:150});
   const field=$('field'),renderer=new Renderer2D(field,{batchVertices:32768}),draw=$('draw'),drawCtx=draw.getContext('2d'),trainingPad=$('trainingPad'),trainingCtx=trainingPad.getContext('2d');
   const mini=$('map'),miniCtx=mini.getContext('2d');
   let vw=innerWidth,vh=innerHeight,dpr=1,drawDpr=1,trainingDpr=1,tw=330,th=200;
   const shapeNames={line:'선',circle:'원',triangle:'삼각형',square:'사각형',flame:'불꽃',water:'물방울',lightning:'번개',star:'별',shuriken:'표창',starcircle:'별 마법진'};
-  const shapeDesc={line:'빠른 기본 공격',circle:'충격·넉백',triangle:'강한 관통',square:'경직·제어',flame:'나루토풍 화상 문양',water:'젖음·감속',lightning:'젖은 적 추가 연쇄',star:'별빛 폭발',shuriken:'오목 사각 표창 · 회전 다단히트',starcircle:'원+별 광역 마법진'};
+  const shapeDesc=Object.fromEntries(Object.entries(SUMMON_SPECS).map(([kind,spec])=>[kind,`${spec.name} 소환 · ${spec.role}`]));
 
   function resample(raw,step=3.3){if(raw.length<2)return raw.slice();
     // Adaptive arc-length spacing keeps even long scribbles complete instead of cropping at 256 points.
@@ -246,15 +246,14 @@
     const kind=matching?topClass:(topClass==='line'?'line':'normal');
     const approval={selected,topClass,accepted:matching,similarity:ref[topClass]||0,
       threshold:effectiveReferenceThreshold(topClass,selected),assisted:selected===topClass};
-    const special=kind!=='normal'&&kind!=='line';
-    const baseDamage=special?Math.round(14+25*Math.sqrt(clamp(geo.areaPower,0,1))*({triangle:1.25,square:.97,flame:1,water:.83,lightning:.95,star:1.06,shuriken:.75,starcircle:1.18}[kind]||1)):Math.round(6+5*clamp(geo.areaPower,0,1));
+    const spec=summonSpecOf(kind),baseDamage=spec.damage(geo.areaPower);
     const midX=(geo.box.minX+geo.box.maxX)/2,midY=(geo.box.minY+geo.box.maxY)/2;
     const size=clamp(23+19*Math.sqrt(geo.areaPower),23,55),factor=size/Math.max(1,geo.width,geo.height);
     const shape=geo.points.map(p=>({x:(p.x-midX)*factor,y:(p.y-midY)*factor}));
     const topRefKind=Object.entries(ref).sort((a,b)=>b[1]-a[1])[0][0];
     const color=art[kind]||art.normal;
-    return {geo,cnn:result,kind,name:kind==='normal'?'낙서 탄환':`${shapeNames[kind]} 마법`,color,shape,pen:geo.pointiness,impact:geo.impact,mass:geo.mass,
-      areaPx2:geo.area,areaPower:geo.areaPower,baseDamage,element:special?1:0,
+    return {geo,cnn:result,kind,name:spec.name,color,shape,pen:geo.pointiness,impact:geo.impact,mass:geo.mass,
+      areaPx2:geo.area,areaPower:geo.areaPower,baseDamage,element:0,
       reference:{scores:ref,topRefKind,approval,selected,topClass},refSimilarity:approval.similarity};
   }
 

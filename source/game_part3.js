@@ -100,28 +100,20 @@
     drawStroke(c.shot.shape,c.x,c.y-42,angle,1.35,c.shot.color,.95,2.6,p);
     const pts=c.shot.shape,n=pts.length-1; if(n>0){const fi=Math.min(n,Math.floor(n*p)),head=pts[fi];P.dot(c.x+head.x*1.35,c.y-42+head.y*1.35,4.8,'#fff1a1',.77);P.dot(c.x+head.x*1.35,c.y-42+head.y*1.35,2.6,c.shot.color,.95);}
   }
-  function drawProjectile(p){
-    const trail=pathViews.get('shot-'+p.id)??[];
-    if(!visible(p.x,p.y,80))return;
-    for(let i=0;i<trail.length-1;i++){
-      const a=trail[i],b=trail[i+1];
-      P.line(a.x,a.y,b.x,b.y,(i+1)/trail.length*3.0,p.color,.09+(i/trail.length)*.34);
-    }
-    P.oval(p.x,p.y+5,p.r*.86,4.1,'#8f978f',.17);
-    if(p.kind!=='normal'&&p.kind!=='line'){
-      const wobble=paintClockMs*.009+p.id,pulse=1+.08*Math.sin(wobble);
-      P.ring(p.x,p.y,(p.r+8)*pulse,p.color,.22,1.45,12);
-      for(let k=0;k<3;k++){const a=wobble*.67+k*Math.PI*2/3;
-        P.line(p.x+Math.cos(a)*p.r*.83,p.y+Math.sin(a)*p.r*.83,p.x+Math.cos(a+.19)*(p.r+7),p.y+Math.sin(a+.19)*(p.r+7),1.6,p.color,.55);}
-      const remaining=p.bouncesLeft,mark=Math.min(6,remaining);for(let k=0;k<mark;k++){
-        const a=-Math.PI*.70+k*.30;P.dot(p.x+Math.cos(a)*(p.r+13),p.y+Math.sin(a)*(p.r+13),1.5,p.color,.88);
-      }
-    }
-    // Shape coordinates, glow, trail and collider share p.x/p.y. Spin belongs to the drawing's age,
-    // not its travel heading: orbit turns used to add abrupt/reversing rotation to the same image.
-    const rotation=p.kind==='normal'||p.kind==='line'?p.angle:p.ageMs*.0018;
-    P.dot(p.x,p.y,p.r*.66,p.color,.13);drawStroke(p.shape,p.x,p.y,rotation,1.25,p.color,.97,3.0,1);
-    P.dot(p.x,p.y,3.2,'#fff8d0',.83);
+  // The summon IS the player's drawing: its stroke is the body, scaled to the creature's collider.
+  function drawSummon(v){
+    if(!visible(v.x,v.y,120))return;
+    const spec=summonSpecOf(v.kind),bob=spec.anchored?0:Math.sin(paintClockMs*.006+v.id)*2,x=v.x,y=v.y+bob;
+    let extent=1;for(const p of v.shape)extent=Math.max(extent,Math.abs(p.x),Math.abs(p.y));
+    const scale=v.r*1.15/extent;
+    if(spec.anchored)P.ring(v.x,v.y,spec.strike.range,v.color,.10+.05*Math.sin(paintClockMs*.004),1.4,40);
+    P.oval(v.x,v.y+v.r*.8,v.r*.95,v.r*.26,'#74726b',.16);
+    P.dot(x,y,v.r*.95,v.color,.20);
+    P.ring(x,y,v.r+(spec.taunt?4:2),v.color,spec.taunt?.75:.45,spec.taunt?3:1.6,24);
+    drawStroke(v.shape,x,y,spec.anchored?paintClockMs*.0006:0,scale,v.color,.97,3.0,1);
+    P.dot(x+v.faceX*v.r*.35,y-v.r*.2,2.2,'#fff8d0',.9);
+    if(v.hitMs>0){const f=clamp(v.hitMs/SKETCH.hitFlashMs,0,1);P.ring(x,y,v.r+6,'#fff8d9',f*.9,2.4,18);}
+    if(v.hp<v.maxHp){const pct=clamp(v.hp/v.maxHp,0,1),bar=Math.max(26,v.r*2);P.box(x,y-v.r-14,bar,5,'#605660',.65);if(pct>0)P.box(x-bar*(1-pct)/2,y-v.r-14,bar*pct,4,'#6f9a85');}
   }
   function drawHazard(h){if(!visible(h.x,h.y,90))return;
     const phase=Math.floor(paintClockMs/SKETCH.boilMs),r=h.r;
@@ -221,12 +213,12 @@
     for(const h of world.houses)if(visible(h.x,h.y,160))enqueueWorldDraw('house',h,h.y+45);
     for(const t of world.trees)if(visible(t.x,t.y,100))enqueueWorldDraw('tree',t,t.y+t.r*.5);
     for(const view of sceneViews.enemy){if(view&&visible(view.x,view.y,120))enqueueWorldDraw('enemy',view,view.y+view.r*.5);}
+    for(const view of sceneViews.summon){if(view&&visible(view.x,view.y,120))enqueueWorldDraw('summon',view,view.y+view.r*.5);}
     for(const view of sceneViews.hero){if(view)enqueueWorldDraw('hero',view,view.y+view.r*.5);}worldDraw.sort((a,b)=>a.y-b.y);
-    for(const item of worldDraw){if(item.type==='house')drawHouse(item.ref);else if(item.type==='tree')drawTree(item.ref);else if(item.type==='enemy')enemyBody(item.ref);else withActor(item.ref,()=>playerBody());}
+    for(const item of worldDraw){if(item.type==='house')drawHouse(item.ref);else if(item.type==='tree')drawTree(item.ref);else if(item.type==='enemy')enemyBody(item.ref);else if(item.type==='summon')drawSummon(item.ref);else withActor(item.ref,()=>playerBody());}
     for(const view of sceneViews.field)drawField(view);
     for(const view of sceneViews.cast)drawCast(view);
     for(const view of sceneViews.pickup)drawPickup(view);
-    for(const view of sceneViews.shot)drawProjectile(view);
     for(const view of sceneViews.hazard)drawHazard(view);
     for(const view of sceneViews.particle)drawParticle(view);
     if(mp.shared){const view=sceneViews.hero.find(v=>v.actorId===(mp.role==='join'?'a':'b'));if(view)P.ring(view.x,view.y,view.r+17,'#659cb0',.55,1.4,21);}

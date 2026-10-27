@@ -10,7 +10,7 @@
   function actorOf(id){return id==='b'?guestPlayer:hostPlayer;}
   function withActor(actor,fn){const before=player;player=actor;try{return fn();}finally{player=before;}}
   const camera={x:0,y:0,zoom:1};
-  const world={regionKills:[0,0,0],obstacles:[],grid:new Map(),decals:[],trees:[],houses:[],enemies:[],projectiles:[],hazards:[],casts:[],particles:[],floaters:[],pickups:[],fields:[],commands:[],castQueue:[],rollMarks:[],rollTarget:null,nextId:1,seed:0x31415,clockMs:0,kills:0,bossesDefeated:0,hitstopMs:0,lastHitstopClockMs:-1000,hitFlashMs:0,slowRatio:1,screenTextMs:0,screenText:'',effectShakeMs:0,mode:'playing',deathMs:0,lastResult:null};
+  const world={regionKills:[0,0,0],obstacles:[],grid:new Map(),decals:[],trees:[],houses:[],enemies:[],summons:[],hazards:[],casts:[],particles:[],floaters:[],pickups:[],fields:[],commands:[],castQueue:[],rollMarks:[],rollTarget:null,nextId:1,seed:0x31415,clockMs:0,kills:0,bossesDefeated:0,hitstopMs:0,lastHitstopClockMs:-1000,hitFlashMs:0,slowRatio:1,screenTextMs:0,screenText:'',effectShakeMs:0,mode:'playing',deathMs:0,lastResult:null};
   const audioRecipes={
     draw:{category:'sfx',layers:[{kind:'tone',type:'sine',hz:610,end:910,ms:90,gain:.3}]},
     throw:{category:'sfx',layers:[{kind:'tone',type:'triangle',hz:410,end:950,ms:128,gain:.42},{kind:'noise',hz:2100,ms:65,gain:.17}]},
@@ -38,7 +38,7 @@
   }
   const enemyDefs={chaser:{r:19,hp:55,speed:89,damage:11,color:'#a57673',name:'종이 사냥꾼'},spitter:{r:20,hp:48,speed:65,damage:9,color:'#8e8ba8',name:'잉크 투척수'},charger:{r:23,hp:85,speed:72,damage:18,color:'#c1966b',name:'낙서 돌격수'}};
   // Bosses take their stats from BOSS_PROFILES[bossId]; every enemy keeps its own copy of the stats the AI and renderer read.
-  function spawnEnemy(kind,x,y,bossId=kind==='boss'?0:-1){const profile=bossId>=0?BOSS_PROFILES[bossId]:null,d=profile||enemyDefs[kind],id=world.nextId++;const e={id,kind,bossId,name:d.name,color:d.color,speed:d.speed,damage:d.damage,region:regionAt(x),x,y,r:d.r,hp:d.hp,maxHp:d.hp,vx:0,vy:0,ageMs:0,aiMs:0,windupMs:0,attackMs:400+rand()*550,chargeMs:0,chargeDX:0,chargeDY:0,hitMs:0,burnMs:0,burnTickMs:400,burnAmount:0,wetMs:0,stunMs:0,dead:false};world.enemies.push(e);return e;}
+  function spawnEnemy(kind,x,y,bossId=kind==='boss'?0:-1){const profile=bossId>=0?BOSS_PROFILES[bossId]:null,d=profile||enemyDefs[kind],id=world.nextId++;const e={id,kind,bossId,name:d.name,color:d.color,speed:d.speed,damage:d.damage,region:regionAt(x),x,y,r:d.r,hp:d.hp,maxHp:d.hp,vx:0,vy:0,ageMs:0,aiMs:0,windupMs:0,attackMs:400+rand()*550,chargeMs:0,chargeDX:0,chargeDY:0,hitMs:0,burnMs:0,burnTickMs:400,burnAmount:0,wetMs:0,stunMs:0,tid:0,dead:false};world.enemies.push(e);return e;}
   function announce(text,time=1700){world.screenText=text;world.screenTextMs=time;if(!resimulatingGame){$('screenMessage').textContent=text;$('screenMessage').classList.add('show');}}
   createWorld(initialMapSeed());
 
@@ -113,7 +113,7 @@
   }
   function takeDamage(amount,fromX,fromY){if(player.invulMs>0||world.mode!=='playing')return false;player.hp=Math.max(0,player.hp-Math.round(amount));player.invulMs=520;player.hits++;world.effectShakeMs=180;floating(player.x,player.y-32,`-${Math.round(amount)}`,'#bb604f');burst(player.x,player.y,'#d07962',10,83);sfx('hit');if(fromX!=null){const d=hypot(player.x-fromX,player.y-fromY)||1;moveCollider(player,(player.x-fromX)/d*17,(player.y-fromY)/d*17,player.r);}if(player.hp<=0){if(!resimulatingGame&&player===(mp.role==='join'?guestPlayer:hostPlayer))dropDraw();if(mp.shared){player.koMs=1150;announce('동료의 잉크가 번졌다 · 잠시 뒤 부활!',1100);}else{world.mode='down';world.deathMs=1150;announce('먹물이 번졌다… 마을로 돌아갑니다',1100);}}return true;}
   function reviveActor(actor){withActor(actor,()=>{player.x=actor===guestPlayer?536:480;player.y=actor===guestPlayer?756:735;player.hp=Math.ceil(player.maxHp*.75);player.invulMs=1600;player.koMs=0;player.dash.leftMs=0;player.dash.charges=CFG.player.roll.capacity;player.dash.rechargeMs=0;player.nextCastAtMs=0;});}
-  function revive(){player.x=480;player.y=735;player.hp=Math.ceil(player.maxHp*.75);player.invulMs=1600;player.dash.leftMs=0;player.dash.charges=CFG.player.roll.capacity;player.dash.rechargeMs=0;player.nextCastAtMs=0;world.hazards.length=0;world.projectiles.length=0;world.casts.length=0;world.castQueue.length=0;world.rollMarks.length=0;world.mode='playing';}
+  function revive(){world.summons.length=0;player.x=480;player.y=735;player.hp=Math.ceil(player.maxHp*.75);player.invulMs=1600;player.dash.leftMs=0;player.dash.charges=CFG.player.roll.capacity;player.dash.rechargeMs=0;player.nextCastAtMs=0;world.hazards.length=0;world.casts.length=0;world.castQueue.length=0;world.rollMarks.length=0;world.mode='playing';}
   function nearestEnemy(range=900,x=player.x,y=player.y,excludeId=null){
     let nearest=null,best=range;
     for(const e of world.enemies){if(e.dead||e.id===excludeId)continue;const d=hypot(e.x-x,e.y-y);if(d<best){best=d;nearest=e;}}
@@ -189,19 +189,19 @@ if(e.hp<=0){e.dead=true;world.kills++;if(e.kind!=='boss')world.regionKills[e.reg
     const profile=BOSS_PROFILES[next];spawnEnemy('boss',site.x,site.y,next);
     announce(`${profile.name} 등장 · ${profile.ruleText()}`,3200);
   }
-  function enemyAction(e){if(e.dead||world.mode!=='playing')return;const dx=player.x-e.x,dy=player.y-e.y,d=hypot(dx,dy)||1;
-    if(e.attackType==='melee'){if(d<e.r+player.r+48)takeDamage(e.damage,e.x,e.y);burst(e.x+dx/d*20,e.y+dy/d*20,'#a87978',6,38);}
+  function enemyAction(e){if(e.dead||world.mode!=='playing')return;const summon=summonById(e.tid),tgt=summon&&summon.hp>0?summon:player,dx=tgt.x-e.x,dy=tgt.y-e.y,d=hypot(dx,dy)||1;
+    if(e.attackType==='melee'){if(d<e.r+tgt.r+48){if(tgt===player)takeDamage(e.damage,e.x,e.y);else hurtSummon(tgt,e.damage);}burst(e.x+dx/d*20,e.y+dy/d*20,'#a87978',6,38);}
     else if(e.attackType==='charge'){e.chargeMs=e.kind==='boss'?510:390;e.chargeDX=dx/d;e.chargeDY=dy/d;}
-    else if(e.attackType==='spit'){enemyProjectile(e.x,e.y,player.x,player.y,'ink',280,e.damage);}
+    else if(e.attackType==='spit'){enemyProjectile(e.x,e.y,tgt.x,tgt.y,'ink',280,e.damage);}
     else if(e.attackType==='nova'){for(let i=0;i<12;i++){const a=i*Math.PI/6+world.clockMs*.0003;enemyProjectile(e.x,e.y,e.x+Math.cos(a)*130,e.y+Math.sin(a)*130,'orb',215,10);}burst(e.x,e.y,'#bb86b4',14,95);}
     e.attackType=null;}
   function moveEnemy(e,dt,dx,dy){const wet=e.wetMs>0?.56:1;moveCollider(e,dx*wet*dt/1000,dy*wet*dt/1000,e.r*.68);}
   function updateEnemies(dt){const previousActor=player;try{for(const e of world.enemies){if(e.dead)continue;
     if(mp.shared){const h=hypot(hostPlayer.x-e.x,hostPlayer.y-e.y),g=hypot(guestPlayer.x-e.x,guestPlayer.y-e.y);player=guestPlayer&&guestPlayer.koMs<=0&&g<h?guestPlayer:hostPlayer;if(hostPlayer.koMs>0&&guestPlayer.koMs<=0)player=guestPlayer;}e.ageMs+=dt;e.hitMs=Math.max(0,e.hitMs-dt);e.stunMs=Math.max(0,e.stunMs-dt);e.wetMs=Math.max(0,e.wetMs-dt);if(e.burnMs>0){e.burnMs=Math.max(0,e.burnMs-dt);e.burnTickMs-=dt;if(e.burnTickMs<=0){e.burnTickMs+=470;damageEnemy(e,e.burnAmount,e.x,e.y-13,art.flame,'flame');if(e.dead)continue;}}
       // Inactive far-off enemies never simulate AI, but status timers remain consistent.
-      const dx=player.x-e.x,dy=player.y-e.y,d=hypot(dx,dy)||1;if(d>970&&e.kind!=='boss')continue;
+      const tgt=enemyTarget(e,player),dx=tgt.x-e.x,dy=tgt.y-e.y,d=hypot(dx,dy)||1;e.tid=tgt===player?0:tgt.id;if(hypot(player.x-e.x,player.y-e.y)>970&&tgt===player&&e.kind!=='boss')continue;
       if(e.stunMs>0){moveCollider(e,e.vx*dt/1000,e.vy*dt/1000,e.r*.68);e.vx*=.85;e.vy*=.85;continue;}
-      if(e.chargeMs>0){e.chargeMs=Math.max(0,e.chargeMs-dt);moveCollider(e,e.chargeDX*(e.kind==='boss'?490:570)*dt/1000,e.chargeDY*(e.kind==='boss'?490:570)*dt/1000,e.r*.67);if(hypot(player.x-e.x,player.y-e.y)<player.r+e.r+6){takeDamage(e.damage,e.x,e.y);e.chargeMs=0;}continue;}
+      if(e.chargeMs>0){e.chargeMs=Math.max(0,e.chargeMs-dt);moveCollider(e,e.chargeDX*(e.kind==='boss'?490:570)*dt/1000,e.chargeDY*(e.kind==='boss'?490:570)*dt/1000,e.r*.67);if(hypot(player.x-e.x,player.y-e.y)<player.r+e.r+6){takeDamage(e.damage,e.x,e.y);e.chargeMs=0;}else{const hitSummon=world.summons.find(s=>s.hp>0&&hypot(s.x-e.x,s.y-e.y)<s.r+e.r+6);if(hitSummon){hurtSummon(hitSummon,e.damage);e.chargeMs=0;}}continue;}
       if(e.windupMs>0){e.windupMs-=dt;if(e.windupMs<=0){e.windupMs=0;enemyAction(e);}continue;}
       e.attackMs-=dt;
       if(e.kind==='chaser'){
@@ -224,34 +224,19 @@ if(e.hp<=0){e.dead=true;world.kills++;if(e.kind!=='boss')world.regionKills[e.reg
       const separation=hypot(player.x-e.x,player.y-e.y);const overlap=player.r+e.r*.69-separation;
       if(overlap>0.1&&separation>.01)moveCollider(e,(e.x-player.x)/separation*overlap*.55,(e.y-player.y)/separation*overlap*.55,e.r*.68);
     }}finally{player=previousActor;} }
-  // Actual attack rate: fast low-area lines, slower recognized drawings with longer ricochet persistence.
-  function castDurationMs(shot){return shot.kind==='line'||shot.kind==='normal'?clamp(92+shot.geo.length*.050,90,150):clamp(255+Math.sqrt(Math.max(0,shot.areaPower))*165+shot.geo.length*.05,245,530);}
-  function spellRecoveryMs(shot){return shot.kind==='line'||shot.kind==='normal'?40:185+Math.min(190,shot.areaPower*150);}
+  // A summon is drawn in, so the pause is a short, fixed summoning pose (longer strokes take slightly longer).
+  function castDurationMs(shot){return clamp(220+shot.geo.length*.04,220,380);}
+  function spellRecoveryMs(){return 120;}
   function makeCast(shot){
     const duration=castDurationMs(shot);
     world.casts.push({id:world.nextId++,owner:actorId(player),shot,ageMs:0,durationMs:duration,x:player.x,y:player.y});
     player.nextCastAtMs=world.clockMs+duration+spellRecoveryMs(shot);
-    showResult(`${shot.name} · ${shot.kind==='normal'?'빠른 단발':'지속 반사'} · 피해 ${Math.round(shot.baseDamage*player.power)}`,1450);sfx('draw');
+    showResult(`${shot.name} 소환 · ${summonSpecOf(shot.kind).role} · 체력 ${summonSpecOf(shot.kind).maxHp(shot.areaPower)}`,1450);sfx('draw');
   }
   function submitSpell(shot){if(player.hp<=0||player.koMs>0||world.castQueue.filter(c=>c.owner===actorId(player)).length>=3||!spendInk(player,spellInkCost(player,shot)))return false;world.castQueue.push({shot,owner:actorId(player)});return true;}
-  function fireProjectile(c){
-    const shot=c.shot,dx=Math.cos(shot.aim),dy=Math.sin(shot.aim);
-    const special=shot.kind!=='normal'&&shot.kind!=='line',bulk=clamp(shot.areaPower,0,1);
-    const bounces=special?Math.min(9,Math.max(3,3+Math.floor(bulk*4)+(shot.kind==='lightning'||shot.kind==='shuriken'?2:0)+(shot.kind==='starcircle'?2:0))):0;
-    const speed=special?clamp(590-bulk*110+(shot.kind==='lightning'||shot.kind==='shuriken'?90:0),445,710):830;
-    const radius=clamp(7+Math.sqrt(Math.max(0,bulk))*8,7,21);
-    const p={id:world.nextId++,x:player.x+dx*27,y:player.y+dy*27,prevX:player.x,prevY:player.y,
-      vx:dx*speed,vy:dy*speed,speed,angle:Math.atan2(dy,dx),shape:shot.shape,color:shot.color,kind:shot.kind,
-      areaPower:shot.areaPower,baseDamage:shot.baseDamage*player.power,impact:shot.impact,pen:shot.pen,r:radius,
-      hitAt:new Map(),bouncesLeft:bounces,bouncesTotal:bounces,bounceCount:0,lastHitId:null,
-      state:'flight',targetId:null,orbitMs:0,orbitDurationMs:0,orbitCenter:null,orbitAngle:0,
-      lifeMs:special?clamp(2750+bounces*440,3250,7900):840,ageMs:0};
-    if(world.projectiles.length>=55)world.projectiles.shift();world.projectiles.push(p);
-    burst(p.x,p.y,p.color,5,42);sfx('throw');
-  }
   function tickCasts(dt){
     for(let i=world.casts.length-1;i>=0;i--){const c=world.casts[i];const actor=actorOf(c.owner);c.ageMs+=dt;c.x=actor.x;c.y=actor.y;
-      if(c.ageMs>=c.durationMs){withActor(actor,()=>fireProjectile(c));world.casts.splice(i,1);}}
+      if(c.ageMs>=c.durationMs){withActor(actor,()=>spawnSummon(actor,c.shot));world.casts.splice(i,1);}}
     for(const actor of actors()){
       const id=actorId(actor);if(world.clockMs<actor.nextCastAtMs||world.casts.some(c=>c.owner===id))continue;
       const index=world.castQueue.findIndex(c=>c.owner===id);if(index>=0&&world.casts.length<CFG.castLimit){
@@ -259,115 +244,13 @@ if(e.hp<=0){e.dead=true;world.kills++;if(e.kind!=='boss')world.regionKills[e.reg
     }
   }
   function segmentCircle(x1,y1,x2,y2,cx,cy,r){const vx=x2-x1,vy=y2-y1,l=vx*vx+vy*vy,t=l?clamp(((cx-x1)*vx+(cy-y1)*vy)/l,0,1):0;return hypot(cx-(x1+vx*t),cy-(y1+vy*t))<=r;}
-  function chooseRicochetTarget(p,hit){
-    const other=nearestEnemy(1080,hit.x,hit.y,hit.id);
-    if(other)return other;
-    return hit.dead?null:hit; // Single boss: circle away briefly, then strike again.
-  }
-  function ricochet(p,hit){
-    if(p.bouncesLeft<=0)return true;
-    const next=chooseRicochetTarget(p,hit);if(!next)return true;
-    p.bouncesLeft--;p.bounceCount++;
-    p.lastHitId=hit.id;p.targetId=next.id;
-    p.hitAt.set(hit.id,p.ageMs);
-    p.state='orbit';p.orbitCenter={x:hit.x,y:hit.y,r:hit.r,id:hit.id};
-    p.orbitDurationMs=next.id===hit.id?245:105;
-    p.orbitMs=p.orbitDurationMs;
-    // Start the orbit at the actual hit position; a new radius/+0.32 angle snapped the center sideways.
-    p.orbitStartRadius=hypot(p.x-hit.x,p.y-hit.y);
-    p.orbitAngle=Math.atan2(p.y-hit.y,p.x-hit.x);
-    p.baseDamage*=p.kind==='shuriken'?.91:.89;
-    world.fields.push({kind:'arc',x:hit.x,y:hit.y,ex:next.x,ey:next.y,ageMs:0,lifeMs:225,color:p.color});sfx('bounce');
-    return false;
-  }
-  function hitProjectile(p,e){
-    if(e.dead)return false;
-    const v=hypot(p.vx,p.vy)||1;
-    const multiplier=p.kind==='triangle'?1.26:p.kind==='shuriken'?.67:p.kind==='water'?.90:1;
-    const inflicted=damageEnemy(e,p.baseDamage*multiplier*(e.kind==='boss'?.88:1),e.x,e.y-18,p.color,p.kind);
-    e.vx+=p.vx/v*(16+p.impact*73);e.vy+=p.vy/v*(16+p.impact*73);
-    p.hitAt.set(e.id,p.ageMs);
-    if(p.kind==='circle'){
-      const radius=40+Math.sqrt(p.areaPower)*47;
-      world.fields.push({kind:'ring',x:e.x,y:e.y,r:radius,ageMs:0,lifeMs:360,color:art.circle});
-      for(const n of world.enemies)if(!n.dead&&n.id!==e.id&&hypot(e.x-n.x,e.y-n.y)<radius+n.r){damageEnemy(n,p.baseDamage*.21,n.x,n.y-13,art.circle,'circle');}
-    }else if(p.kind==='triangle'){
-      if(!e.dead){e.stunMs=Math.max(e.stunMs,140);}
-      world.fields.push({kind:'slash',x:e.x,y:e.y,r:55,ageMs:0,lifeMs:260,color:art.triangle});
-    }else if(p.kind==='square'){
-      if(!e.dead)e.stunMs=Math.max(e.stunMs,760);
-      world.fields.push({kind:'ring',x:e.x,y:e.y,r:50,ageMs:0,lifeMs:390,color:art.square});
-    }else if(p.kind==='flame'){
-      if(!e.dead){e.burnMs=Math.max(e.burnMs,2400);e.burnTickMs=400;e.burnAmount=Math.max(e.burnAmount,Math.max(3,p.baseDamage*.15));}
-      world.fields.push({kind:'flame',x:e.x,y:e.y,r:36,ageMs:0,lifeMs:1050,color:art.flame});
-    }else if(p.kind==='water'){
-      if(!e.dead)e.wetMs=Math.max(e.wetMs,3300);
-      world.fields.push({kind:'splash',x:e.x,y:e.y,r:63,ageMs:0,lifeMs:420,color:art.water});
-    }else if(p.kind==='lightning'){
-      const wet=e.wetMs>0;
-      if(wet&&!e.dead)damageEnemy(e,Math.max(5,p.baseDamage*.37),e.x,e.y-25,art.lightning,'lightning');
-      const range=wet?320:230;
-      const near=world.enemies.filter(n=>!n.dead&&n.id!==e.id&&hypot(n.x-e.x,n.y-e.y)<range).sort((a,b)=>hypot(a.x-e.x,a.y-e.y)-hypot(b.x-e.x,b.y-e.y)).slice(0,wet?3:2);
-      for(let i=0;i<near.length;i++){const n=near[i],boost=n.wetMs>0?1.65:1;
-        damageEnemy(n,p.baseDamage*(i===0?.31:.18)*boost,n.x,n.y,art.lightning,'lightning');
-        world.fields.push({kind:'arc',x:e.x,y:e.y,ex:n.x,ey:n.y,ageMs:0,lifeMs:235,color:art.lightning});}
-    }else if(p.kind==='star'||p.kind==='starcircle'){
-      const range=p.kind==='starcircle'?152:88;
-      world.fields.push({kind:p.kind==='starcircle'?'magiccircle':'star',x:e.x,y:e.y,r:range,ageMs:0,lifeMs:p.kind==='starcircle'?1700:480,color:art[p.kind],power:p.baseDamage*.17,tickMs:310});
-      for(const n of world.enemies)if(!n.dead&&n.id!==e.id&&hypot(e.x-n.x,e.y-n.y)<range+n.r){damageEnemy(n,p.baseDamage*(p.kind==='starcircle'?.34:.28),n.x,n.y-17,p.color,p.kind);if(p.kind==='star')n.stunMs=Math.max(n.stunMs,340);}
-    }else if(p.kind==='shuriken'){
-      world.fields.push({kind:'slash',x:e.x,y:e.y,r:38,ageMs:0,lifeMs:210,color:art.shuriken});
-      if(!e.dead)e.stunMs=Math.max(e.stunMs,130);
-    }
-    if(inflicted>=22)world.fields.push({kind:'impact',x:e.x,y:e.y,r:67,ageMs:0,lifeMs:230,color:p.color});
-    return ricochet(p,e);
-  }
-  function advanceHoming(p,dt){
-    if(p.kind==='normal'||p.kind==='line'||p.bounceCount===0)return;
-    const target=world.enemies.find(e=>e.id===p.targetId&&!e.dead) || nearestEnemy(850,p.x,p.y);
-    if(!target)return;
-    p.targetId=target.id;
-    const want=Math.atan2(target.y-p.y,target.x-p.x),now=Math.atan2(p.vy,p.vx);
-    let delta=Math.atan2(Math.sin(want-now),Math.cos(want-now));
-    const turn=clamp(delta,-dt*.011,dt*.011),next=now+turn;
-    p.vx=Math.cos(next)*p.speed;p.vy=Math.sin(next)*p.speed;
-    p.angle=next;
-  }
-  function advanceOrbit(p,dt){
-    const c=p.orbitCenter,center=world.enemies.find(e=>e.id===c.id&&!e.dead)||c;
-    p.orbitMs=Math.max(0,p.orbitMs-dt);
-    const progress=clamp((p.orbitDurationMs-p.orbitMs)/p.orbitDurationMs,0,1);
-    const radius=mix(p.orbitStartRadius,center.r+p.r+50,progress),theta=p.orbitAngle+progress*Math.PI*(p.targetId===c.id?1.6:.72);
-    p.x=center.x+Math.cos(theta)*radius;p.y=center.y+Math.sin(theta)*radius;
-    p.angle=theta+Math.PI/2;
-    if(p.orbitMs<=0){
-      const target=world.enemies.find(e=>e.id===p.targetId&&!e.dead) || nearestEnemy(1080,p.x,p.y);
-      if(!target)return false;
-      const dx=target.x-p.x,dy=target.y-p.y,dist=hypot(dx,dy)||1;
-      p.targetId=target.id;p.vx=dx/dist*p.speed;p.vy=dy/dist*p.speed;
-      p.state='flight';p.angle=Math.atan2(p.vy,p.vx);
-    }
-    return true;
-  }
-  function tickProjectiles(dt,hostileDt=dt){
-    for(let i=world.projectiles.length-1;i>=0;i--){const p=world.projectiles[i];p.ageMs+=dt;p.prevX=p.x;p.prevY=p.y;
-      let remove=p.ageMs>=p.lifeMs;
-      if(!remove&&p.state==='orbit')remove=!advanceOrbit(p,dt);
-      else if(!remove){advanceHoming(p,dt);p.x+=p.vx*dt/1000;p.y+=p.vy*dt/1000;remove=!circleBounds(p.x,p.y,0);
-        if(!remove)for(const e of world.enemies){if(e.dead||p.ageMs-(p.hitAt.get(e.id)??-1e6)<(p.kind==='shuriken'?130:310))continue;
-          if(segmentCircle(p.prevX,p.prevY,p.x,p.y,e.x,e.y,e.r+p.r)){remove=hitProjectile(p,e);break;}}
-      }
-      if(remove)world.projectiles.splice(i,1);
-    }
+  function tickHazards(hostileDt){
     for(let i=world.hazards.length-1;i>=0;i--){const p=world.hazards[i];p.ageMs+=hostileDt;p.prevX=p.x;p.prevY=p.y;p.x+=p.vx*hostileDt/1000;p.y+=p.vy*hostileDt/1000;
       let hit=false;for(const actor of actors()){if(actor.koMs>0)continue;if(segmentCircle(p.prevX,p.prevY,p.x,p.y,actor.x,actor.y,actor.r+p.r)){withActor(actor,()=>takeDamage(p.damage,p.x,p.y));burst(p.x,p.y,p.color,5,55);hit=true;break;}}
+      if(!hit)for(const s of world.summons){if(s.hp>0&&segmentCircle(p.prevX,p.prevY,p.x,p.y,s.x,s.y,s.r+p.r)){hurtSummon(s,p.damage);burst(p.x,p.y,p.color,5,55);hit=true;break;}}
       if(hit||p.ageMs>p.lifeMs||!circleBounds(p.x,p.y,0))world.hazards.splice(i,1);}
   }
   function tickEffects(dt){for(let i=world.fields.length-1;i>=0;i--){const f=world.fields[i];f.ageMs+=dt;
-      if(f.kind==='magiccircle'){
-        f.tickMs-=dt;
-        if(f.tickMs<=0){f.tickMs+=330;for(const e of world.enemies){if(!e.dead&&hypot(e.x-f.x,e.y-f.y)<f.r){damageEnemy(e,Math.max(2,f.power),e.x,e.y-22,f.color,'starcircle');}}}
-      }
       if(f.ageMs>=f.lifeMs)world.fields.splice(i,1);}
     const drag=Math.pow(.14,dt/1000);
     for(let i=world.particles.length-1;i>=0;i--){const f=world.particles[i];f.lifeMs-=dt;f.x+=f.vx*dt/1000;f.y+=f.vy*dt/1000;f.vx*=drag;f.vy*=drag;
@@ -401,7 +284,7 @@ if(e.hp<=0){e.dead=true;world.kills++;if(e.kind!=='boss')world.regionKills[e.reg
     // Time dilation is local-only; online rollback must not depend on device pointer state.
     const hostileDt=!mp.connected&&drawInput.pointer!==null?dt*.25:dt;
     world.slowRatio=hostileDt/dt;
-    updateBossSummon();updateEnemies(hostileDt);tickCasts(dt);tickProjectiles(dt,hostileDt);tickEffects(dt);
+    updateBossSummon();updateEnemies(hostileDt);tickCasts(dt);tickSummons(dt);tickHazards(hostileDt);tickEffects(dt);
     // Dead enemies have already delivered their XP, drops and ink fragments. Their records must NOT
     // survive forever in the canonical rollback history or AI scans. Stable IDs never get reused.
     for(let i=world.enemies.length-1;i>=0;i--)if(world.enemies[i].dead)world.enemies.splice(i,1);
