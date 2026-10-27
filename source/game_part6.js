@@ -49,7 +49,7 @@
       if(!Number.isSafeInteger(w.nextId)||w.nextId<1||!Number.isSafeInteger(w.seed)||w.seed<0||!Number.isFinite(w.clockMs)||w.clockMs<0)return false;
       for(const name of canonicalArrays)if(!Array.isArray(w[name])||w[name].length>({enemies:75,summons:8,hazards:150,casts:8,pickups:120,fields:350,castQueue:8}[name]))return false;
       // Recovery must preserve the released direction; missing/invalid aim is not an old-schema fallback.
-      for(const name of ['casts','castQueue'])if(w[name].some(c=>!validShotAim(c?.shot?.aim)||!validShotReach(c?.shot?.reach)||!validExpressionId(c?.shot?.face)))return false;
+      for(const name of ['casts','castQueue'])if(w[name].some(c=>!validShotPoint(c?.shot?.x,c?.shot?.y)||!validExpressionId(c?.shot?.face)))return false;
       if(w.summons.some(s=>!SUMMON_SPECS[s?.kind]||!validExpressionId(s.face)||!Number.isFinite(s.x)||!Number.isFinite(s.y)||!Number.isFinite(s.hp)||s.hp<0||(s.owner!=='a'&&s.owner!=='b')))return false;
       if(!Array.isArray(w.regionKills)||w.regionKills.length!==3||w.regionKills.some(n=>!Number.isSafeInteger(n)||n<0))return false;
       for(const a of data.actors)if(!validCards(a.cards)||!Number.isFinite(a.ink)||a.ink<0||a.ink>derivedStats(a.cards).maxInk+1e-6||!Number.isFinite(a.inkDelayMs)||a.inkDelayMs<0||a.inkDelayMs>750||!a||!Number.isFinite(a.x)||!Number.isFinite(a.y)||!Number.isFinite(a.hp)||!a.dash||!Number.isFinite(a.dash.charges))return false;
@@ -72,14 +72,12 @@
     clearVisualEffects();world.rollMarks.length=0;world.rollTarget=null;
     mp.poseReset=true;
   }
-  function validShotAim(aim){return Number.isFinite(aim)&&aim>=-Math.PI&&aim<=Math.PI;}
-  function validShotReach(reach){return Number.isFinite(reach)&&reach>=0&&reach<=SUMMON_MAX_REACH+.01;}
+  function validShotPoint(x,y){return Number.isFinite(x)&&Number.isFinite(y)&&x>=0&&y>=0&&x<=CFG.world.width&&y<=CFG.world.height;}
   function normalizeCommand(cmd){
     if(cmd.type==='cast'&&Array.isArray(cmd.shot?.shape)&&cmd.shot.shape.length){
       const s=cmd.shot;
-      if(!validShotAim(s.aim))return null;
-      // Preserve the released radians exactly, rather than re-aiming or quantizing at submission/replay.
-      return {type:'cast',shot:{kind:s.kind,name:s.name,color:s.color,aim:s.aim,reach:+clamp(s.reach,SUMMON_MIN_REACH,SUMMON_MAX_REACH).toFixed(1),face:validExpressionId(s.face)?s.face:'neutral',baseDamage:+s.baseDamage.toFixed(3),
+      if(!validShotPoint(s.x,s.y))return null;
+      return {type:'cast',shot:{kind:s.kind,name:s.name,color:s.color,x:+s.x.toFixed(1),y:+s.y.toFixed(1),face:validExpressionId(s.face)?s.face:'neutral',baseDamage:+s.baseDamage.toFixed(3),
         areaPower:+s.areaPower.toFixed(5),impact:+s.impact.toFixed(5),pen:+s.pen.toFixed(5),
         geo:{length:+s.geo.length.toFixed(3)},
         shape:s.shape.filter((_,i)=>i%Math.max(1,Math.ceil(s.shape.length/28))===0).slice(0,28).map(p=>({x:+p.x.toFixed(2),y:+p.y.toFixed(2)}))}};
@@ -102,7 +100,7 @@
       executeRollVector(actor,dx,dy,distance);
     }else if(command?.type==='cast'){
       const shot=command.shot;
-      if(!shot||!validShotAim(shot.aim)||!validShotReach(shot.reach)||!validExpressionId(shot.face)||typeof shot.color!=='string'||!/^#[0-9a-fA-F]{6}$/.test(shot.color)||!['normal',...glyphKinds].includes(shot.kind)||!Number.isFinite(shot.baseDamage)||shot.baseDamage<0||shot.baseDamage>250||!Number.isFinite(shot.areaPower)||shot.areaPower<0||shot.areaPower>1.6||!Number.isFinite(shot.geo?.length)||shot.geo.length<0||shot.geo.length>3500||!Array.isArray(shot.shape)||shot.shape.length<2||shot.shape.length>28||shot.shape.some(p=>!Number.isFinite(p?.x)||!Number.isFinite(p?.y)||Math.abs(p.x)>150||Math.abs(p.y)>150))return;
+      if(!shot||!validShotPoint(shot.x,shot.y)||!validExpressionId(shot.face)||typeof shot.color!=='string'||!/^#[0-9a-fA-F]{6}$/.test(shot.color)||!['normal',...glyphKinds].includes(shot.kind)||!Number.isFinite(shot.baseDamage)||shot.baseDamage<0||shot.baseDamage>250||!Number.isFinite(shot.areaPower)||shot.areaPower<0||shot.areaPower>1.6||!Number.isFinite(shot.geo?.length)||shot.geo.length<0||shot.geo.length>3500||!Array.isArray(shot.shape)||shot.shape.length<2||shot.shape.length>28||shot.shape.some(p=>!Number.isFinite(p?.x)||!Number.isFinite(p?.y)||Math.abs(p.x)>150||Math.abs(p.y)>150))return;
       withActor(actor,()=>submitSpell(shot));
     }
   }

@@ -299,15 +299,15 @@ async def run_desktop(browser, suite: E2E, html: str):
         },{once:true});}""")
         await page.mouse.up()
         released=await page.evaluate("window.releasedShot")
-        suite.check('release freezes latest visible-player to drawing-center aim',
-                    released is not None and abs(released['aim']-held['ink']['aim'])<1e-10, released and {'aim':released['aim'],'visibleAim':held['ink']['aim']})
+        suite.check('release freezes the drawing-center map position',
+                    released is not None and abs(released['x']-held['ink']['world']['x'])<0.2 and abs(released['y']-held['ink']['world']['y'])<0.2, released and {'x':released['x'],'y':released['y'],'drawn':held['ink']['world']})
         await page.keyboard.up('s')
         await page.keyboard.down('a')
         await page.wait_for_function("window.__sketchRpgDebug.summons().length>0",timeout=4000)
         summoned=await page.evaluate("window.__sketchRpgDebug.summons()[0]")
         await page.keyboard.up('a')
         suite.check('summon keeps the drawn shape and kind despite later movement',
-                    summoned['kind']==released['kind'] and summoned['shape']==released['shape'] and 48<=released['reach']<=320,{'kind':summoned['kind'],'reach':released['reach']})
+                    summoned['kind']==released['kind'] and summoned['shape']==released['shape'] and 0<=released['x']<=4400,{'kind':summoned['kind'],'x':released['x']})
 
         # Interrupted drawings cannot leave a delayed cast or pointer ownership behind.
         await page.evaluate("window.__sketchRpgDebug.combatFixture('boss',1600,735)")
@@ -704,6 +704,15 @@ async def run_summons(browser, suite: E2E):
             await page.wait_for_function("m=>__sketchRpgDebug.summons().some(q=>q.id>m&&q.kind==='circle')",arg=max_id,timeout=6000)
             placed=await page.evaluate("__sketchRpgDebug.summons().filter(q=>q.kind==='circle').at(-1)")
             suite.check('a real body stroke 150 px to the right plus a drawn joy face summons a joyful shield ball there',shot is not None and shot['kind']=='circle' and placed['face']=='joy' and abs(placed['x']-630)<45,{'shot':shot and shot['kind'],'face':placed['face'],'at':[placed['x'],placed['y']]})
+            # No direction or distance limit: a body drawn 450 units away (beyond the old 320 reach) appears exactly there.
+            await page.evaluate("__sketchRpgDebug.moveTo(480,735);__sketchRpgDebug.setInk(100)")
+            max_id=await page.evaluate("Math.max(0,...__sketchRpgDebug.summons().map(q=>q.id))")
+            far_shot=await draw_circle(page,120,'triangle',at=[480+450,735])
+            await draw_face(page,'surprise')
+            await page.click('#faceDone')
+            await page.wait_for_function("m=>__sketchRpgDebug.summons().some(q=>q.id>m&&q.kind==='triangle')",arg=max_id,timeout=6000)
+            far=await page.evaluate("__sketchRpgDebug.summons().filter(q=>q.kind==='triangle').at(-1)")
+            suite.check('a body drawn 450 units away is summoned exactly there, not clamped toward the player',far_shot is not None and abs(far_shot['x']-930)<60 and abs(far_shot['y']-735)<60 and far['x']>800 and 'aim' not in far_shot and 'reach' not in far_shot,{'shot':[far_shot and far_shot['x'],far_shot and far_shot['y']],'x':far['x'],'y':far['y'],'keys':sorted(far_shot or {})[:12]})
             # Ink cost.
             cost=await page.evaluate("""()=>{const d=__sketchRpgDebug;d.combatFixture('chaser',3000,735);d.moveTo(480,735);d.setInk(100);
               const shot=d.spellSpec(d.sample('triangle',180,180));d.castKind('triangle',0,120);return {area:shot.areaPower};}""")
@@ -879,7 +888,7 @@ async def run_real_p2p(browser, suite: E2E):
               pending:__sketchRpgDebug.pendingCommands(),snapshot:__sketchRpgDebug.snapshot(),
               castAim:window.castReleasedAim,castStarted:window.castSampleStarted,
               casts:JSON.parse(new TextDecoder().decode(__sketchRpgDebug.canonicalSnapshot())).world.casts
-                .map(c=>({owner:c.owner,ageMs:c.ageMs,durationMs:c.durationMs,aim:c.shot?.aim}))})""") for p in (host,guest)))
+                .map(c=>({owner:c.owner,ageMs:c.ageMs,durationMs:c.durationMs,x:c.shot?.x,y:c.shot?.y}))})""") for p in (host,guest)))
             print('REAL_CAST_DIAGNOSTIC',json.dumps({'stage':stage,'peers':diagnostics},ensure_ascii=False),flush=True)
             for name,page in (('host',host),('guest',guest)):
                 await page.screenshot(path=str(ARTIFACTS/f'real-cast-{stage}-{name}.png'))
@@ -993,7 +1002,7 @@ async def run_real_p2p(browser, suite: E2E):
                 boundary=min(s['confirmedTick'] for s in states)
                 hashes=await asyncio.gather(*(p.evaluate("t=>window.__sketchRpgDebug.stateHash(t)",boundary) for p in (host,guest)))
                 suite.check("late duplicated RTC input reconciles to equal confirmed hash",hashes[0] is not None and hashes[0]==hashes[1],{'tick':boundary,'hashes':hashes,'rollbacks':[s['stats'].get('rollbacks',0) for s in states]})
-                suite.check("both peers use pinned protocol 3 bundle",all(s['gamekitSHA']=='418e17c455db56d6ed073d82d115191d9dd8bf04' and s['namespace']=='sketch-town-coop-0.18.0' and s['simulationVersion'].startswith('sketch-town-0.18.0-') and s['inputScheduling']=='network' and s['inputHz']==60 for s in states))
+                suite.check("both peers use pinned protocol 3 bundle",all(s['gamekitSHA']=='418e17c455db56d6ed073d82d115191d9dd8bf04' and s['namespace']=='sketch-town-coop-0.18.1' and s['simulationVersion'].startswith('sketch-town-0.18.1-') and s['inputScheduling']=='network' and s['inputHz']==60 for s in states))
                 for sender,actor in ((host,'a'),(guest,'b')):
                     for page in (host,guest):
                         await page.evaluate("""actor => {
@@ -1003,7 +1012,7 @@ async def run_real_p2p(browser, suite: E2E):
                             const d=__sketchRpgDebug,snapshot=JSON.parse(new TextDecoder().decode(d.canonicalSnapshot()));
                             const cast=snapshot.world.casts.find(c=>c.owner===actor);
                             const actors=d.renderedActors(),localActor=actors.find(p=>p.id===actor);
-                            if(cast&&castReleasedAim===null)castReleasedAim=cast.shot?.aim??null;
+                            if(cast&&castReleasedAim===null)castReleasedAim=cast.shot?.x??null;
                             if(!castSampleStarted&&(cast||localActor?.castActive)){
                               castSampleStarted=true;window.castSampleEnd=performance.now()+1400;
                             }
@@ -1037,7 +1046,7 @@ async def run_real_p2p(browser, suite: E2E):
                     await sender.mouse.down()
                     for point in stroke[1:]:
                         await sender.mouse.move(point['x'],point['y'])
-                    before_release_aim=await sender.evaluate("window.__sketchRpgDebug.drawingState().aim")
+                    before_release_aim=await sender.evaluate("window.__sketchRpgDebug.drawingState().world.x")
                     await sender.mouse.up()
                     sender_index=0 if actor=='a' else 1
                     before_submissions=len(before_audits[sender_index]['submitted'])

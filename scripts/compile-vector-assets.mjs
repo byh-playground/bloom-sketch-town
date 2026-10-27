@@ -5,7 +5,7 @@ import { compileVectorAssetFile, compiledAssetModuleSource } from '../source/gam
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const directory = path.join(root, 'source/assets');
-const curveSegments = 8;
+const curveSegments = 4;
 const names = (await readdir(directory)).filter(name => name.endsWith('.svg')).sort();
 if (!names.length) throw new Error('No SVG source assets found in source/assets');
 const assets = [];

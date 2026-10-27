@@ -103,11 +103,11 @@ GameKit PR47의 지연된 중첩 상태 전환과 PR48의 preview 복귀 수정�
 ### 0.14.0 전장 직접 그리기
 
 - 전장의 원하는 자리에 한 획을 그리면 그 자리에 소환수가 나타납니다(조준 없음). WASD/왼쪽 스틱으로 이동하고, Space/구르기 버튼으로 회피합니다. 짧은 탭은 소환·구르기를 만들지 않습니다. 학습 패드는 유지합니다.
-- 화면의 잉크는 카메라가 움직여도 고정됩니다. 소환 위치는 그림 경계 상자 중심을 현재 표시된 캐릭터에서 잰 방향 `aim`과 거리 `reach`(48~320 월드 거리)로 확정하며, 놓는 순간 값이 고정됩니다. 막힌 자리(장애물)면 캐릭터 쪽으로 32씩 당겨 처음 빈 자리에 둡니다.
+- 화면의 잉크는 카메라가 움직여도 고정됩니다. 소환 위치는 그림 경계 상자 중심이 놓인 맵 좌표(월드 `x`,`y`) 그대로이며 방향·거리 제한이 없습니다. 놓는 순간 값이 고정되고, 막힌 자리(장애물)면 28씩 넓혀 가며 224 안에서 가장 가까운 빈 자리에 둡니다.
 - 포인터 취소·포커스 상실·창 크기 변경·모달 열기·사망은 미완성 획을 취소합니다. 화면/스틱/UI 포인터를 분리하며 온라인 시간 정지나 예측 소환수·피해를 추가하지 않습니다.
 - 도형 인식은 정규화 좌표, 피해 면적은 고정 280×150 기준을 사용합니다. 같은 CSS 크기의 그림은 화면 위치·뷰포트·DPR과 관계없이 같은 피해를 내며, 큰 그림의 면적 효과는 유지합니다. 닫힌 그림은 시작점·그린 방향과 무관한 형태를 사용합니다.
 - 소환수는 그린 획을 몸으로 그립니다(`shape` 28점 이하). 획의 크기가 클수록 강해집니다(공격·체력 ×0.85~1.30, 잉크 ×0.85~1.15).
-- 소환 명령 `cast`와 롤백 체크포인트(`casts`·`castQueue`)에 유한한 `aim`과 `reach`를 필수로 저장합니다. 방 이름과 simulationVersion은 0.18.0으로 분리하며 이전 명령 형식 fallback은 없습니다. GameKit v0.3.1 manifest와 공식 번들은 변경하지 않았습니다.
+- 소환 명령 `cast`와 롤백 체크포인트(`casts`·`castQueue`)에 맵 안의 유한한 `x`,`y`를 필수로 저장합니다(0.18.1부터 `aim`·`reach` 폐기). 방 이름과 simulationVersion은 0.18.1로 분리하며 이전 명령 형식 fallback은 없습니다. GameKit v0.3.1 manifest와 공식 번들은 변경하지 않았습니다.
 
 기존 `python source/e2e.py --live-p2p`에서 실제 Windows Edge/WebGL, 전장 한 획·이동 중 조준·방향 고정·취소·모바일 동시 입력과 공개 Nostr·2인 WebRTC를 확인했습니다. 2026-10-14 실행은 66 PASS, 0 NOT RUN, 39.62초입니다. 실제 그림에서 생성된 명령의 공격자·중복 실행·확정 상태 해시를 양쪽에서 확인했고, 반사·회전도 실제 렌더 프레임과 화면으로 관측했습니다. 모바일 실기기·외부 NAT·장시간 밸런스는 미검증입니다. 이번 변경과 실제 결과의 원본은 [PR #9](https://github.com/byh-playground/bloom-sketch-town/pull/9)에 기록합니다.
 
@@ -190,3 +190,9 @@ GameKit PR47의 지연된 중첩 상태 전환과 PR48의 preview 복귀 수정�
 The branch authors static character and environment resources in `source/assets/*.svg`, compiled with the pinned GameKit Vector Assets 0.6.5 compiler at `curveSegments: 8`; live user strokes and transient combat effects remain runtime geometry. The renderer uses the official GameKit 0.15.1 rendering module (dist commit `50f835a801a8fae3c982e051290a26555ac031df`), while retaining the existing Vector Assets runtime/compiler, compiled geometry, and multiplayer modules. The non-radial pipeline passes its isolated comparison gate and final bundle E2E, but the SwiftShader comparison against legacy WebGL1 L still misses the performance gate: desktop p95 is 19.86% slower, and the mobile-sized viewport is 16.60% slower at median and 14.21% at p95. Stage 4's static-combine experiment was not adopted; Stage 5's DPR comparison was inconclusive. The explicitly approved merge does not imply a performance improvement or close that gate. See the [implementation notes](docs/svg-renderer.md) and [fixed-scene benchmark](docs/svg-renderer-benchmark-v0.16.0.md).
 [SVG renderer migration implementation notes](docs/svg-renderer.md)
 [Fixed-scene renderer benchmark and current SwiftShader regression](docs/svg-renderer-benchmark-v0.16.0.md)
+
+### 0.18.1 — 위치 기반 소환과 SVG 경량화
+
+- 소환수는 그린 몸의 중심이 있는 맵 좌표에 그대로 나타납니다(화면 어디든, 방향·거리 제한 없음). `aim`·`reach`가 `x`,`y`로 바뀌어 방 이름·simulationVersion을 0.18.1로 올렸습니다.
+- `scripts/compile-vector-assets.mjs`의 `curveSegments`를 8에서 4(컴파일러 허용 최소값)로 낮췄습니다. 17개 SVG 정점 합계 7,782 → 5,749(−26%), 시작 화면 렌더 정점 52,365 → 35,763(−32%, 소프트웨어 GL 컨테이너 측정, 실기기 FPS는 미측정).
+- 검증: `--flow summon` 23(450 단위 떨어진 곳에 그린 몸이 그 자리에 소환), `boss` 10, `progression` 8, `map` 12, `ux` 5 PASS.

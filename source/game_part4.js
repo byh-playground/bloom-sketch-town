@@ -1,6 +1,6 @@
   // Device collection: BLOOM GameKit createDOMInput + ActionState, one writer for commands.
   const ui={modal:null,returnFocus:null};
-  const drawInput={pointer:null,points:[],length:0,finished:null,previewUntilMs:0,aim:0,reach:SUMMON_MIN_REACH,center:null,origin:null};
+  const drawInput={pointer:null,points:[],length:0,finished:null,previewUntilMs:0,world:{x:0,y:0},center:null,origin:null};
   const sampleFromPointer=o=>({x:clamp(o.x,0,vw),y:clamp(o.y,0,vh)});
   function appendDrawPoint(p){const prev=drawInput.points.at(-1);if(prev){const d=hypot(p.x-prev.x,p.y-prev.y);if(d<1.25)return;drawInput.length+=d;}if(drawInput.points.length<1200)drawInput.points.push(p);}
   function setSlowUi(on){on=on&&!mp.connected;$('slowFx').classList.toggle('visible',on);$('slowIndicator').classList.toggle('visible',on);}
@@ -11,15 +11,11 @@
     if(!drawInput.points.length)return;
     let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
     for(const p of drawInput.points){minX=Math.min(minX,p.x);maxX=Math.max(maxX,p.x);minY=Math.min(minY,p.y);maxY=Math.max(maxY,p.y);}
-    const actor=displayedDrawingActor(),origin={x:0,y:0};renderer.worldToScreenInto(actor.x,actor.y,origin);
-    const center={x:(minX+maxX)/2,y:(minY+maxY)/2},dx=center.x-origin.x,dy=center.y-origin.y;
-    if(hypot(dx,dy)>=24)drawInput.aim=Math.atan2(dy,dx);
-    drawInput.center=center;drawInput.origin=origin;
-    // Where the summon appears: the drawing's center, measured from the player in world units.
-    const unit={x:0,y:0};renderer.worldToScreenInto(actor.x+100,actor.y,unit);
-    drawInput.reach=clamp(hypot(dx,dy)/Math.max(.01,(unit.x-origin.x)/100),SUMMON_MIN_REACH,SUMMON_MAX_REACH);
+    // The summon appears where the drawing's bounding-box center lies on the map (no direction or distance limit).
+    const center={x:(minX+maxX)/2,y:(minY+maxY)/2};
+    drawInput.center=center;renderer.screenToWorldInto(center.x,center.y,drawInput.world);
   }
-  function dropDraw(){drawInput.pointer=null;drawInput.points.length=0;drawInput.length=0;drawInput.finished=null;drawInput.previewUntilMs=0;drawInput.center=null;drawInput.origin=null;gesture.drawId=null;setSlowUi(false);$('strokeStatus').textContent='원하는 자리에 한 획 · 그 자리에 소환';}
+  function dropDraw(){drawInput.pointer=null;drawInput.points.length=0;drawInput.length=0;drawInput.finished=null;drawInput.previewUntilMs=0;drawInput.center=null;gesture.drawId=null;setSlowUi(false);$('strokeStatus').textContent='원하는 자리에 한 획 · 그 자리에 소환';}
   // Two-step summon: the body stroke is recognized first, then the face is drawn (any number of strokes, any place).
   // A face cannot be drawn in one stroke, so the player ends the step with a button (or Enter). Nothing is sent to the
   // simulation or paid for until then; cancelling, a modal, death or 15 s without input leaves the ink untouched.
@@ -68,19 +64,19 @@
   });
   function finishDraw(){
     if(!drawingAllowed()){dropDraw();cancelSummonDraft();return;}
-    updateDrawingAim();const points=drawInput.points.slice(),length=drawInput.length,aim=drawInput.aim,reach=drawInput.reach,center=drawInput.center;dropDraw();focusGameplay();
+    updateDrawingAim();const points=drawInput.points.slice(),length=drawInput.length,at={x:drawInput.world.x,y:drawInput.world.y},center=drawInput.center;dropDraw();focusGameplay();
     if(summonDraft.active){addFaceStroke(points);return;}
     if(points.length<3||length<16){showResult('조금 더 길게 한 획을 그려 주세요',1100);return;}
     gesture.lastCombatStroke=points.map(p=>({...p}));
     try{
-      const shot=normalizeCommand({type:'cast',shot:{...makeShotData(points),aim,reach,face:'neutral'}}).shot,cost=spellInkCost(player,shot);
+      const shot=normalizeCommand({type:'cast',shot:{...makeShotData(points),x:at.x,y:at.y,face:'neutral'}}).shot,cost=spellInkCost(player,shot);
       if(cost>player.ink+1e-6){showResult(`잉크 ${cost.toFixed(1)} 필요 · 현재 ${player.ink.toFixed(1)} · 약 ${inkWait(player,cost).toFixed(1)}초 회복 대기`,2200);return;}
       beginSummonDraft(shot,points,center);
     }catch(error){console.error(error);showResult('소환 분석 실패 · 다시 그려 보세요',950);}}
   function collectCombatDrawing(e){
     if(e.type==='down'&&drawInput.pointer===null&&drawingAllowed()){
       focusGameplay();dropDraw();drawInput.pointer=e.pointerId;gesture.drawId=e.pointerId;gesture.startMs=world.clockMs;
-      const actor=displayedDrawingActor();drawInput.aim=Math.atan2(actor.faceY,actor.faceX);setSlowUi(true);appendDrawPoint(sampleFromPointer(e));updateDrawingAim();$('strokeStatus').textContent='놓은 자리에 소환';
+      setSlowUi(true);appendDrawPoint(sampleFromPointer(e));updateDrawingAim();$('strokeStatus').textContent='놓은 자리에 소환';
     }else if(drawInput.pointer===e.pointerId){
       if(!drawingAllowed()||e.type==='cancel'){dropDraw();return;}
       if(e.type==='move'||e.type==='up'){appendDrawPoint(sampleFromPointer(e));updateDrawingAim();if(e.type==='up')finishDraw();}
@@ -162,7 +158,7 @@
     drawCtx.setTransform(drawDpr,0,0,drawDpr,0,0);drawCtx.clearRect(0,0,vw,vh);
     drawCtx.save();drawCtx.lineCap='round';drawCtx.lineJoin='round';paintSummonDraft();
     if(!points?.length){drawCtx.restore();return;}
-    if(drawInput.pointer!==null&&drawInput.center&&!summonDraft.active){const c=drawInput.center;drawCtx.strokeStyle='#315f68';drawCtx.lineWidth=2;drawCtx.beginPath();drawCtx.arc(c.x,c.y,SUMMON_MIN_REACH*.45,0,Math.PI*2);drawCtx.stroke();}
+    if(drawInput.pointer!==null&&drawInput.center&&!summonDraft.active){const c=drawInput.center;drawCtx.strokeStyle='#315f68';drawCtx.lineWidth=2;drawCtx.beginPath();drawCtx.arc(c.x,c.y,18,0,Math.PI*2);drawCtx.stroke();}
     drawCtx.beginPath();points.forEach((p,i)=>i?drawCtx.lineTo(p.x,p.y):drawCtx.moveTo(p.x,p.y));drawCtx.lineWidth=6;drawCtx.strokeStyle='#fff7dd';drawCtx.stroke();drawCtx.lineWidth=3.5;drawCtx.strokeStyle='#34484e';drawCtx.stroke();drawCtx.restore();
   }
   function updateTrainingView(){const g=$('datasetGallery');const n=dataset.entries.length;g.innerHTML=n?dataset.entries.slice(-45).map((entry,i)=>{const points=normalizeStroke(entry.points,64),d=points.map((p,j)=>(j?'L':'M')+(42+p.x*24).toFixed(1)+' '+(39+p.y*24).toFixed(1)).join(' ');return `<div class="sample-thumb"><svg viewBox="0 0 84 78"><path d="${d}"/></svg><b>${shapeNames[entry.label]}</b></div>`;}).join(''):'<div style="grid-column:1/-1;color:#7b877e;font-size:12px;padding:10px">아직 수집한 그림이 없어요. 한 획씩 그려 주세요.</div>';
