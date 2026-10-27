@@ -16,29 +16,28 @@
     drawInput.center=center;renderer.screenToWorldInto(center.x,center.y,drawInput.world);
   }
   function dropDraw(){drawInput.pointer=null;drawInput.points.length=0;drawInput.length=0;drawInput.finished=null;drawInput.previewUntilMs=0;drawInput.center=null;gesture.drawId=null;setSlowUi(false);$('strokeStatus').textContent='원하는 자리에 한 획 · 그 자리에 소환';}
-  // Two-step summon: the body stroke is recognized first, then the face is drawn (any number of strokes, any place).
-  // A face cannot be drawn in one stroke, so the player ends the step with a button (or Enter). Nothing is sent to the
-  // simulation or paid for until then; cancelling, a modal, death or 15 s without input leaves the ink untouched.
-  const FACE_CANCEL_MS=15000,FACE_MAX_STROKES=12;
-  let lastFaceResult=null;
-  const summonDraft={active:false,shot:null,body:null,center:null,strokes:[],lastActivityMs:0,live:null,liveSig:'',liveMs:0};
-  function showFaceStep(on){$('faceBar').hidden=!on;$('faceDone').textContent='✓ 소환';}
-  // Live "afterimage" recognition: while a body or face is being drawn, the best-matching reference is shown as a faint ghost
-  // laid over the drawing. Faces cost ~0.3 ms per call; the body classifier ~7 ms (CPU, unoptimized container), so both are throttled.
-  const LIVE_FACE_MS=100,LIVE_BODY_MS=160;
+  // One-step summon: the drawn outline alone summons. The two temperament sliders (#traitDock) stay on screen; the
+  // steps they show are attached to every body drawn afterwards, and the summon's face is generated from them.
+  const traitSteps={...NEUTRAL_STEPS};
+  let lastShot=null; // the last shot a finished stroke queued (read by the debug hooks)
+  // Live "afterimage" recognition: while a body is being drawn, the best-matching reference is shown as a faint ghost
+  // laid over the drawing (body classifier ~7 ms on the CPU of an unoptimized container, so it is throttled).
+  const LIVE_BODY_MS=160;
   const liveBody={sig:'',ms:0,result:null};
-  function liveFaceStrokes(){const s=summonDraft.strokes.slice();if(drawInput.pointer!==null&&drawInput.points.length>1)s.push(drawInput.points);return s;}
-  function updateLiveFace(force=false){
-    if(!summonDraft.active)return;
-    const strokes=liveFaceStrokes(),sig=strokes.length+':'+strokes.reduce((n,s)=>n+s.length,0),now=performance.now();
-    if(!force&&(sig===summonDraft.liveSig||now-summonDraft.liveMs<LIVE_FACE_MS))return;
-    summonDraft.liveSig=sig;summonDraft.liveMs=now;
-    summonDraft.live=strokes.length?faceRecognizer.recognize(strokes):null;
-    const live=summonDraft.live,name=!live?'':live.accepted?expressionOf(live.id).name:'무표정';
-    $('faceDone').textContent=name?`✓ 소환 · ${name}`:'✓ 소환';
+  function buildTraitDock(){
+    const rows=$('traitSliders');
+    for(const axis of TRAIT_AXES){
+      const row=document.createElement('label');row.className='trait-row';row.dataset.axis=axis.id;
+      row.innerHTML=`<span class="trait-low">${axis.lowLabel}</span><input type="range" min="${-TRAIT_STEP_MAX}" max="${TRAIT_STEP_MAX}" step="1" value="0" aria-label="${axis.name}: ${axis.lowLabel}에서 ${axis.highLabel}"><span class="trait-high">${axis.highLabel}</span>`;
+      row.querySelector('input').addEventListener('input',e=>{traitSteps[axis.id]=+e.target.value;paintTraitDock();});
+      rows.appendChild(row);
+    }
+    paintTraitDock();
   }
+  function paintTraitDock(){$('traitFace').innerHTML=traitFaceSvg(traitSteps);$('traitSummary').textContent=temperamentOf(traitSteps).summary();}
+  buildTraitDock();
   function updateLiveBody(){
-    if(drawInput.pointer===null||summonDraft.active){liveBody.result=null;liveBody.sig='';return;}
+    if(drawInput.pointer===null){liveBody.result=null;liveBody.sig='';return;}
     const pts=drawInput.points,sig=pts.length+':'+Math.round(drawInput.length),now=performance.now();
     if(pts.length<8||drawInput.length<48){liveBody.result=null;return;}
     if(sig===liveBody.sig||now-liveBody.ms<LIVE_BODY_MS)return;
@@ -67,18 +66,10 @@
     return minX===Infinity?null:{x:minX,y:minY,w:maxX-minX,h:maxY-minY};
   }
   function paintLiveGhost(){
-    if(summonDraft.active){
-      const live=summonDraft.live,strokes=liveFaceStrokes(),box=strokesBox(strokes);
-      if(live&&live.candidate&&box){const e=expressionOf(live.candidate);paintGhost(e.guide,box,live.accepted?.5:.22,live.accepted?e.name:'');}
-    }else if(liveBody.result?.top&&drawInput.points.length>1){
+    if(liveBody.result?.top&&drawInput.points.length>1){
       const box=strokesBox([drawInput.points]),kind=liveBody.result.top;
       paintGhost([glyphReferences.paths[kind]],box,liveBody.result.accepted?.5:.22,liveBody.result.accepted?`${shapeNames[kind]} · ${summonSpecOf(kind).name}`:'');
     }
-  }
-  function cancelSummonDraft(message){
-    const was=summonDraft.active;
-    Object.assign(summonDraft,{active:false,shot:null,body:null,center:null,strokes:[],live:null,liveSig:''});showFaceStep(false);
-    if(was&&message){showResult(message,1600);$('strokeStatus').textContent='원하는 자리에 한 획 · 그 자리에 소환';}
   }
   // Merge selection: a tap on one of your summons toggles it; a recognized star while two or three are selected merges them.
   // Selection is presentation state only; the sim receives a 'merge' command with the ids.
@@ -126,52 +117,23 @@
       b.innerHTML=`${shapeSvg(kind)}<b>${spec.name}</b><small>${spec.role}</small>`;
       b.addEventListener('click',()=>{world.commands.push({type:'unlock',kind});wakeInputPreview();});box.appendChild(b);}
   }
-  function beginSummonDraft(shot,bodyPoints,center){
-    Object.assign(summonDraft,{active:true,shot,body:bodyPoints.map(p=>({...p})),center:{...center},strokes:[],lastActivityMs:performance.now()});
-    showFaceStep(true);
-    $('lastSpell').textContent=`${shot.name} · 표정을 그려 주세요`;$('strokeStatus').textContent='도감처럼 눈·입을 그리고 ✓ 소환을 누르세요';
-    showResult(`${shot.name} 인식 · 표정을 그리고 ✓ 소환`,2400);
+  function summonBody(shot){
+    const temper=temperamentOf(shot);
+    lastShot=structuredClone(shot);world.commands.push({type:'cast',shot});wakeInputPreview();
+    $('lastSpell').textContent=`${shot.name} · ${temper.summary()}`;$('strokeStatus').textContent='소환 준비 중';
+    showResult(`${shot.name} · ${temper.summary()}`,2000);
   }
-  function addFaceStroke(points){
-    if(!points.length)return;
-    if(summonDraft.strokes.length>=FACE_MAX_STROKES){showResult(`표정은 ${FACE_MAX_STROKES}획까지예요 · ✓ 소환을 눌러 주세요`,1400);return;}
-    summonDraft.strokes.push(points.map(p=>({x:p.x,y:p.y})));summonDraft.lastActivityMs=performance.now();updateLiveFace(true);
-    $('strokeStatus').textContent=`표정 ${summonDraft.strokes.length}획 · 다 그렸으면 ✓ 소환`;
-  }
-  function commitSummon(){
-    if(!summonDraft.active)return;
-    if(!summonDraft.strokes.length){summonDraft.lastActivityMs=performance.now();showResult('표정을 먼저 그려 주세요 · 눈과 입',1400);return;}
-    const result=faceRecognizer.recognize(summonDraft.strokes),face=expressionOf(result.id),shot={...summonDraft.shot,face:face.id},drew=true;
-    cancelSummonDraft();
-    world.commands.push({type:'cast',shot});wakeInputPreview();
-    lastFaceResult={id:face.id,confidence:result.confidence,accepted:result.accepted,strokes:drew};
-    $('lastSpell').textContent=`${shot.name} · ${face.name}`;$('strokeStatus').textContent='소환 준비 중';
-    showResult(result.accepted?`${shot.name} · ${face.name} · ${face.temperament.summary()}`:`${shot.name} · 어떤 표정과도 맞지 않아 무표정(ㅡㅡ) · 특성 없음`,2600);
-  }
-  function tickSummonDraft(){
-    if(!summonDraft.active)return;
-    if(!drawingAllowed()){cancelSummonDraft();return;}
-    if(drawInput.pointer===null&&performance.now()-summonDraft.lastActivityMs>FACE_CANCEL_MS)cancelSummonDraft('표정 입력 시간이 지나 취소 · 잉크 소모 없음');
-  }
-  $('faceDone').addEventListener('click',()=>commitSummon());
-  $('faceCancel').addEventListener('click',()=>cancelSummonDraft('소환 취소 · 잉크 소모 없음'));
-  document.addEventListener('keydown',e=>{
-    if(!summonDraft.active||e.repeat)return;
-    if(e.code==='Enter'||e.code==='NumpadEnter'){e.preventDefault();commitSummon();}
-    else if(e.code==='Escape'){e.preventDefault();cancelSummonDraft('소환 취소 · 잉크 소모 없음');}
-  });
   function finishDraw(){
-    if(!drawingAllowed()){dropDraw();cancelSummonDraft();return;}
+    if(!drawingAllowed()){dropDraw();return;}
     updateDrawingAim();const points=drawInput.points.slice(),length=drawInput.length,at={x:drawInput.world.x,y:drawInput.world.y},center=drawInput.center;dropDraw();focusGameplay();
-    if(summonDraft.active){addFaceStroke(points);return;}
     if(length<16){if(toggleUnitAt(at))return;}
     if(points.length<3||length<16){showResult('조금 더 길게 한 획을 그려 주세요',1100);return;}
     gesture.lastCombatStroke=points.map(p=>({...p}));
     try{
-      const shot=normalizeCommand({type:'cast',shot:{...makeShotData(points),x:at.x,y:at.y,face:'neutral'}}).shot,cost=spellInkCost(player,shot);
+      const shot=normalizeCommand({type:'cast',shot:{...makeShotData(points),x:at.x,y:at.y,...traitSteps}}).shot,cost=spellInkCost(player,shot);
       if(shot.kind==='star'&&selectedUnits.size>=2){requestMerge();return;}
-      if(shot.kind==='line'){world.commands.push({type:'cast',shot});wakeInputPreview();$('lastSpell').textContent='선 · 투사체';return;}
-      beginSummonDraft(shot,points,center);
+      if(shot.kind==='line'){lastShot=structuredClone(shot);world.commands.push({type:'cast',shot});wakeInputPreview();$('lastSpell').textContent='선 · 투사체';return;}
+      summonBody(shot);
     }catch(error){console.error(error);showResult('소환 분석 실패 · 다시 그려 보세요',950);}}
   function collectCombatDrawing(e){
     if(e.type==='down'&&drawInput.pointer===null&&drawingAllowed()){
@@ -247,23 +209,15 @@
   function strokePad(canvas,context,w,h,ratio,points,guide){context.setTransform(ratio,0,0,ratio,0,0);context.clearRect(0,0,w,h);context.save();context.lineJoin='round';context.lineCap='round';if(guide&&guide.length>1){context.setLineDash([4,6]);context.lineWidth=2.3;context.strokeStyle='#d4b78e';context.globalAlpha=points?.length?.18:.48;context.beginPath();guide.forEach((p,i)=>i?context.lineTo(p.x,p.y):context.moveTo(p.x,p.y));context.stroke();context.setLineDash([]);}
     context.lineWidth=1;context.strokeStyle='#eadcc8';context.beginPath();context.moveTo(w*.5,h*.17);context.lineTo(w*.5,h*.83);context.moveTo(w*.17,h*.5);context.lineTo(w*.83,h*.5);context.stroke();
     if(points?.length>1){context.lineWidth=4.4;context.strokeStyle='#34484e';context.beginPath();points.forEach((p,i)=>i?context.lineTo(p.x,p.y):context.moveTo(p.x,p.y));context.stroke();context.lineWidth=1.4;context.strokeStyle='#fff7dd';context.stroke();const end=points.at(-1);context.beginPath();context.arc(end.x,end.y,4.2,0,Math.PI*2);context.fillStyle='#d9a057';context.fill();}context.restore();}
-  function paintSummonDraft(){
-    if(!summonDraft.active)return;
-    const trace=pts=>{drawCtx.beginPath();pts.forEach((p,i)=>i?drawCtx.lineTo(p.x,p.y):drawCtx.moveTo(p.x,p.y));};
-    trace(summonDraft.body);drawCtx.lineWidth=6;drawCtx.strokeStyle='rgba(255,247,221,.75)';drawCtx.stroke();drawCtx.lineWidth=3.2;drawCtx.strokeStyle='rgba(52,72,78,.62)';drawCtx.stroke();
-    for(const stroke of summonDraft.strokes){
-      if(stroke.length===1){drawCtx.beginPath();drawCtx.arc(stroke[0].x,stroke[0].y,6.5,0,Math.PI*2);drawCtx.fillStyle='#fff7dd';drawCtx.fill();drawCtx.beginPath();drawCtx.arc(stroke[0].x,stroke[0].y,4,0,Math.PI*2);drawCtx.fillStyle='#8a5f4a';drawCtx.fill();continue;}
-      trace(stroke);drawCtx.lineWidth=6;drawCtx.strokeStyle='#fff7dd';drawCtx.stroke();drawCtx.lineWidth=3.4;drawCtx.strokeStyle='#8a5f4a';drawCtx.stroke();}
-  }
   function renderDrawPad(){
     if(drawInput.pointer!==null&&!drawingAllowed())dropDraw();
     if(drawInput.pointer!==null)updateDrawingAim();
-    tickSummonDraft();updateLiveFace();updateLiveBody();updateRewardPanel();updateRunEndPanel();updateSelectionChip();
+    updateLiveBody();updateRewardPanel();updateRunEndPanel();updateSelectionChip();
     const points=drawInput.pointer!==null?drawInput.points:drawInput.previewUntilMs>performance.now()?drawInput.finished:null;
     drawCtx.setTransform(drawDpr,0,0,drawDpr,0,0);drawCtx.clearRect(0,0,vw,vh);
-    drawCtx.save();drawCtx.lineCap='round';drawCtx.lineJoin='round';paintSummonDraft();paintLiveGhost();
+    drawCtx.save();drawCtx.lineCap='round';drawCtx.lineJoin='round';paintLiveGhost();
     if(!points?.length){drawCtx.restore();return;}
-    if(drawInput.pointer!==null&&drawInput.center&&!summonDraft.active){const c=drawInput.center;drawCtx.strokeStyle='#315f68';drawCtx.lineWidth=2;drawCtx.beginPath();drawCtx.arc(c.x,c.y,18,0,Math.PI*2);drawCtx.stroke();}
+    if(drawInput.pointer!==null&&drawInput.center){const c=drawInput.center;drawCtx.strokeStyle='#315f68';drawCtx.lineWidth=2;drawCtx.beginPath();drawCtx.arc(c.x,c.y,18,0,Math.PI*2);drawCtx.stroke();}
     drawCtx.beginPath();points.forEach((p,i)=>i?drawCtx.lineTo(p.x,p.y):drawCtx.moveTo(p.x,p.y));drawCtx.lineWidth=6;drawCtx.strokeStyle='#fff7dd';drawCtx.stroke();drawCtx.lineWidth=3.5;drawCtx.strokeStyle='#34484e';drawCtx.stroke();drawCtx.restore();
   }
   function updateTrainingView(){const g=$('datasetGallery');const n=dataset.entries.length;g.innerHTML=n?dataset.entries.slice(-45).map((entry,i)=>{const points=normalizeStroke(entry.points,64),d=points.map((p,j)=>(j?'L':'M')+(42+p.x*24).toFixed(1)+' '+(39+p.y*24).toFixed(1)).join(' ');return `<div class="sample-thumb"><svg viewBox="0 0 84 78"><path d="${d}"/></svg><b>${shapeNames[entry.label]}</b></div>`;}).join(''):'<div style="grid-column:1/-1;color:#7b877e;font-size:12px;padding:10px">아직 수집한 그림이 없어요. 한 획씩 그려 주세요.</div>';
