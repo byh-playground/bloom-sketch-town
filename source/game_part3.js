@@ -139,8 +139,8 @@
     const blinkT=(t+seed*.37)%3.4,blink=blinkT<.12,L=-1,R=1;
     const eyeY=cy-.2*u,gx=look*.05*u;
     if(id==='neutral'){
-      for(const s of [L,R]){if(blink)inkLine(cx+s*.42*u-.1*u,eyeY,cx+s*.42*u+.1*u,eyeY,2);else inkDot(cx+s*.42*u+gx,eyeY,Math.max(1.6,.1*u));}
-      inkLine(cx-.28*u,cy+.4*u,cx+.28*u,cy+.4*u,2);
+      // 무표정은 'ㅡㅡ': 눈 두 줄만 있고 입이 없다. 표정 신뢰도 미달일 때만 나온다.
+      for(const s of [L,R]){const ex=cx+s*.42*u+gx;inkLine(ex-.16*u,eyeY+.08*u,ex+.16*u,eyeY+.08*u,2.4);}
     }else if(id==='joy'){
       const open=.12*Math.sin(t*6)+1;
       for(const s of [L,R])inkArc(cx+s*.42*u,eyeY+.1*u,.15*u,.13*u,Math.PI,Math.PI*2,2.2,7);

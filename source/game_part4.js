@@ -52,7 +52,7 @@
     world.commands.push({type:'cast',shot});wakeInputPreview();
     lastFaceResult={id:face.id,confidence:result.confidence,accepted:result.accepted,strokes:drew};
     $('lastSpell').textContent=`${shot.name} · ${face.name}`;$('strokeStatus').textContent='소환 준비 중';
-    showResult(result.accepted?`${shot.name} · ${face.name} · ${face.temperament.summary()}`:`${shot.name} · 표정을 알아보지 못해 무표정 · 특성 없음`,2600);
+    showResult(result.accepted?`${shot.name} · ${face.name} · ${face.temperament.summary()}`:`${shot.name} · 어떤 표정과도 맞지 않아 무표정(ㅡㅡ) · 특성 없음`,2600);
   }
   function tickSummonDraft(){
     if(!summonDraft.active)return;
