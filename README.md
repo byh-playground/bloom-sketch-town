@@ -34,7 +34,7 @@ python source/e2e.py --live-p2p
 
 ## GameKit과 입력
 
-멀티플레이에 사용하는 simloop, interpolation, rollback, transport는 모두 공식 GameKit v0.14.3 dist 커밋 `418e17c455db56d6ed073d82d115191d9dd8bf04` (source commit `dd59a57fcf66409cef16632ffb433c0b760324fa`)에 고정했습니다. 고정된 GameKit ESM 파일을 source/gamekit/에서 직접 읽으며 더 이상 배포용 HTML에 병합하지 않습니다. 기존 source/gamekit/manifest.json은 SDK 의존성 검증의 원본으로 유지합니다. 기존 renderer/input/dom/audio와 게임 규칙은 원본을 유지합니다. 이전 멀티플레이 버전과는 방 namespace와 simulationVersion을 분리합니다.
+멀티플레이에 사용하는 simloop, rollback, transport는 공식 GameKit v0.14.3 dist 커밋 `418e17c455db56d6ed073d82d115191d9dd8bf04` (source commit `dd59a57fcf66409cef16632ffb433c0b760324fa`)에 고정했고(netcode 호환 때문에 바꾸지 않음), 표시 전용 interpolation과 rendering은 GameKit v0.19.5 dist 커밋 `7b2597e76761ca6a2bd7c7caec9e2fd4b7d3f99b`로 올렸습니다. 고정된 GameKit ESM 파일을 source/gamekit/에서 직접 읽으며 더 이상 배포용 HTML에 병합하지 않습니다. 기존 source/gamekit/manifest.json은 SDK 의존성 검증의 원본으로 유지합니다. 기존 renderer/input/dom/audio와 게임 규칙은 원본을 유지합니다. 이전 멀티플레이 버전과는 방 namespace와 simulationVersion을 분리합니다.
 
 입력 이벤트는 `observeInput` → 공식 `submitInput`으로 즉시 송신합니다. 입력 60Hz, 시뮬레이션 30TPS, 렌더 최대 60FPS는 독립 실행되며 게임 설정입니다. Command는 한 번만 제출하고 최초 예약 T를 바꾸지 않습니다. `MP_PROFILE`의 network scheduling, safety margin 8ms, jitter multiplier 2로 정상 입력에 도착 여유를 주며 늦은 입력만 공식 rollback으로 보정합니다. `reconciled`에서 표시 상태를 다시 게시합니다.
 
@@ -274,3 +274,5 @@ The branch authors static character and environment resources in `source/assets/
 - 시드 100개 검사(Node): 실패 0, 재시도 6, 평균 206ms, 보스 간 최소 거리 952px, 같은 시드 두 번 결과 동일.
 - 미확인: 실기기 FPS(샌드박스 소프트웨어 GL 4FPS), 공개 P2P(`--live-p2p`), 15분 진행 시간·밸런스 수치, 중심 구역 야생 둥지 0개인 시드 존재. `--flow all`의 데스크톱·모바일 구간과 "release freezes the drawing-center map position" 검사는 변경 전부터 실패.
 - 로딩 표시: 첫 화면에 `#boot` 로딩 막(진행 막대)을 두고, `bootstrap.js`의 `SOURCES` 적재 진행률로 채웁니다. 맵 생성(`game_part2.js`) 직전에 "맵 만드는 중…"을 먼저 그린 뒤 적재하며, 마지막 스크립트 적재 후 막이 사라집니다.
+- 렉 수정(GameKit v0.19.5 반영): 원인은 렌더가 아니라 `interpolation.js`의 `bufferInterval`이 매 시뮬 틱마다 엔티티별 이력 항목을 구조분해로 복사하던 것이었습니다(GameKit v0.15.2에서 수정). 같은 5초 CPU 프로파일에서 `interpolation.js` 자체 시간 28% → 1% 미만, GC 16% → 2%, 유휴 35% → 75~83%. `rendering.js`도 0.15.1 → 0.19.5(`source/gamekit/0.19.5/`)로 교체했으며 이 게임이 쓰는 Vector Assets 0.6.5에는 v0.17의 GPU 포즈 아틀라스·v0.19 래스터 아틀라스 경로가 연결되어 있지 않아 렌더 모듈 교체만으로 측정된 CPU 이득은 없습니다. 방 namespace·simulationVersion은 그대로입니다(시뮬레이션 변경 없음).
+- 측정 한계: 소프트웨어 GL 컨테이너 한 대의 CPU 프로파일이며 실기기 FPS는 측정하지 못했습니다.

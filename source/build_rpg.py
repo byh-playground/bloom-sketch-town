@@ -18,17 +18,17 @@ for rel,expected in gk_pin['sha256'].items():
  if rel in gk_pin['runtimeModules'].values():
   manifest_hash=next((module['sha256'] for module in dist['modules'] if module['file']==rel),None)
   assert manifest_hash==expected, 'GameKit 0.6.5 manifest module checksum mismatch: '+rel
-renderer_root=root/'gamekit'/'0.15.1'
+renderer_root=root/'gamekit'/'0.19.5'
 renderer_pin=json.loads((renderer_root/'provenance.json').read_text(encoding='utf-8'))
-assert renderer_pin['version']=='0.15.1', 'Unexpected pinned GameKit renderer version'
+assert renderer_pin['version']=='0.19.5', 'Unexpected pinned GameKit renderer version'
 renderer_manifest_data=(renderer_root/renderer_pin['manifest']).read_bytes()
-assert hashlib.sha256(renderer_manifest_data).hexdigest()==renderer_pin['manifestSha256'], 'GameKit 0.15.1 dist manifest hash mismatch'
+assert hashlib.sha256(renderer_manifest_data).hexdigest()==renderer_pin['manifestSha256'], 'GameKit 0.19.5 dist manifest hash mismatch'
 renderer_manifest=json.loads(renderer_manifest_data)
 renderer_file=renderer_root/renderer_pin['runtimeModule']
 renderer_data=renderer_file.read_bytes()
-assert hashlib.sha256(renderer_data).hexdigest()==renderer_pin['sha256'], 'GameKit 0.15.1 rendering.js checksum mismatch'
+assert hashlib.sha256(renderer_data).hexdigest()==renderer_pin['sha256'], 'GameKit 0.19.5 rendering.js checksum mismatch'
 renderer_dist_hash=next((module['sha256'] for module in renderer_manifest['modules'] if module['file']==renderer_pin['runtimeModule']),None)
-assert renderer_dist_hash==renderer_pin['sha256'], 'GameKit 0.15.1 manifest rendering.js checksum mismatch'
+assert renderer_dist_hash==renderer_pin['sha256'], 'GameKit 0.19.5 manifest rendering.js checksum mismatch'
 vector_assets_file=gk_root/gk_pin['runtimeModules']['vectorAssets']
 gk_urls={
  'rendering':'data:text/javascript;base64,'+base64.b64encode(renderer_data).decode(),
@@ -36,7 +36,7 @@ gk_urls={
 }
 sdk='const GAMEKIT_VECTOR_URLS='+json.dumps(gk_urls)+';\nconst [gamekitRendering,gamekitVectorAssets]=await Promise.all([import(GAMEKIT_VECTOR_URLS.rendering),import(GAMEKIT_VECTOR_URLS.vectorAssets)]);\nconst {WebGLDevice,VectorContext,MeshBuilder,MeshRenderer}=gamekitRendering;\nconst {createVectorAsset}=gamekitVectorAssets;\n'+sdk
 manifest_data=(root/'gamekit/manifest.json').read_bytes()
-assert hashlib.sha256(manifest_data).hexdigest()=='20244c2beeee33719f407a9baa92c55a4bd55a0e4eb9f094590bb0eed652296e', 'GameKit manifest hash mismatch'
+assert hashlib.sha256(manifest_data).hexdigest()=='55bf76979aa99bbe377ae810ec76e9f02902f307eb48edac1b50985718efc3e7', 'GameKit manifest hash mismatch'
 manifest=json.loads(manifest_data)
 urls={}
 for name in ['simloop','interpolation','rollback','transport']:
@@ -51,4 +51,4 @@ out=(root/'layout.html').read_text(encoding='utf-8').replace('__CNN_DATA__',cnn)
 path=root.parent/'index.html'
 path.write_text(out,encoding='utf-8',newline='')
 (root/'standalone.js').write_text(sdk+parts,encoding='utf-8',newline='')
-print('built',path,'bytes',path.stat().st_size,'renderer GameKit 0.15.1','vector-assets/compiler GameKit 0.6.5')
+print('built',path,'bytes',path.stat().st_size,'renderer GameKit 0.19.5','vector-assets/compiler GameKit 0.6.5')

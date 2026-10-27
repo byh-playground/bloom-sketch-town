@@ -43,7 +43,7 @@ function bootProgress(done, total, label) {
 }
 async function boot() {
   const [rendering, vectorAssets, simloop, interpolation] = await Promise.all([
-    import('./gamekit/0.15.1/rendering.js'),
+    import('./gamekit/0.19.5/rendering.js'),
     import('./gamekit/0.6.5/vector-assets.js'),
     import('./gamekit/simloop.js'),
     import('./gamekit/interpolation.js'),
