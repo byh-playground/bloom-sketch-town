@@ -7,6 +7,7 @@ const SOURCES = [
   'source/vector-assets-compiled.js',
   'source/game_part1.js',
   'source/map-generator.js',
+  'source/bosses.js',
   'source/progression.js',
   'source/region-map.js',
   'source/game_part2.js',

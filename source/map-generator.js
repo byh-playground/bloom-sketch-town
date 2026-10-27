@@ -7,6 +7,7 @@
   const VILLAGE=Object.freeze({x:485,y:740,safeRadius:330,houses:Object.freeze([
     {x:275,y:540,w:173,h:127,type:'house'},{x:575,y:462,w:167,h:119,type:'library'},{x:360,y:960,w:162,h:112,type:'shop'}])});
   const BOSS_ARENA_RADIUS=255;
+const BOSS_SITE_RADIUS=150;// ring drawn at the centre of each clearing that hosts a boss
   const MAP_ATTEMPTS=8;
   // Per-region generation parameters. Ranges are inclusive [min,max].
   const MAP_REGION_PLAN=Object.freeze([
@@ -98,6 +99,7 @@
     blocks(x,y,r){return x<r||y<r||x>CFG.world.width-r||y>CFG.world.height-r||this.terrainBlocks(x,y,r)||this.solidBlocks(x,y,r);}
     * hashNumbers(){
       yield this.seed;yield this.attempt;yield this.boss.x;yield this.boss.y;
+      for(const s of this.bossSites){yield s.x;yield s.y;yield s.radius;}
       for(const p of this.route.points){yield p.x;yield p.y;}
       for(const e of [...this.ponds,...this.ridges,...this.clearings]){yield e.x;yield e.y;yield e.rx;yield e.ry;}
       for(const l of this.landmarks){yield l.x;yield l.y;yield l.r;}
@@ -123,6 +125,8 @@
       this.placeProps();
       this.placeDecals();
       this.placeEdges();
+      // Boss order is route order: the four clearings (west to east), then the arena at the end of the route.
+      this.parts.bossSites=[...this.parts.clearings.map(c=>({x:c.x,y:c.y,radius:BOSS_SITE_RADIUS})),{x:this.parts.boss.x,y:this.parts.boss.y,radius:BOSS_ARENA_RADIUS}];
       const layout=new MapLayout(this.parts);
       return MapGenerator.reachable(layout)?layout:null;
     }
@@ -154,13 +158,13 @@
       const rng=this.rng,p=this.parts;
       for(const [region,plan]of MAP_REGION_PLAN.entries()){
         const [min,max]=REGION_BANDS[region],chosen=[];
-        const candidates=rng.shuffled(p.route.samples.filter(q=>q.x>=Math.max(min+250,plan.clearingMinX)&&q.x<=max-250));
+        const candidates=rng.shuffled(p.route.samples.filter(q=>q.x>=Math.max(min+250,plan.clearingMinX)&&q.x<=max-250&&mapDist(q.x,q.y,p.boss.x,p.boss.y)>BOSS_ARENA_RADIUS+300));
         for(const q of candidates){
           if(chosen.length>=plan.clearings)break;
           if(chosen.every(c=>Math.abs(c.x-q.x)>=450))chosen.push(q);
         }
         if(chosen.length<plan.clearings)return false;
-        for(const [i,q]of chosen.entries())p.clearings.push(new Clearing(Math.round(q.x)+rng.int(-25,25),Math.round(q.y)+rng.int(-25,25),rng.int(200,260),rng.int(170,220),region,plan.clearingColors[i%plan.clearingColors.length]));
+        for(const [i,q]of chosen.sort((a,b)=>a.x-b.x).entries())p.clearings.push(new Clearing(Math.round(q.x)+rng.int(-25,25),Math.round(q.y)+rng.int(-25,25),rng.int(200,260),rng.int(170,220),region,plan.clearingColors[i%plan.clearingColors.length]));
       }
       return true;
     }

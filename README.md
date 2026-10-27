@@ -21,7 +21,7 @@ python source/e2e.py
 python source/e2e.py --live-p2p
 ```
 
-고정 사용자 흐름만 선택하려면 `--flow map`(시드 생성 맵·결정성·도달 가능성·실제 키 입력 경로 주행), `--flow progression`(카드 단계 파생값·지역 정리·보스 소환), `--flow ux`(잉크 바) 또는 `--flow online --live-p2p`(실제 방 참가·재접속·체크포인트 해시)를 사용합니다. `--flow all`이 기본이며 전체 실행은 180초 안에서 끝납니다.
+고정 사용자 흐름만 선택하려면 `--flow map`(시드 생성 맵·결정성·도달 가능성·실제 키 입력 경로 주행), `--flow boss`(보스 규칙·순차 소환·보스 바), `--flow progression`(카드 단계 파생값·지역 정리·보스 소환), `--flow ux`(잉크 바) 또는 `--flow online --live-p2p`(실제 방 참가·재접속·체크포인트 해시)를 사용합니다. `--flow all`이 기본이며 전체 실행은 180초 안에서 끝납니다.
 
 마지막 명령은 공개 Nostr relay와 실제 WebRTC 2인 연결까지 검사합니다. `SKETCH_CHROMIUM`으로 설치된 Chromium/Edge 실행 경로를 지정할 수 있습니다. 결과는 Git에서 제외되는 `e2e_artifacts/`에 기록합니다. 과거 원본 결과는 `docs/original-e2e/`에 따로 보존했으며 현재 코드의 검증 결과로 간주하지 않습니다.
 
@@ -154,6 +154,15 @@ GameKit PR47의 지연된 중첩 상태 전환과 PR48의 preview 복귀 수정�
 - 결정성: 생성기는 `+ - * /`, `Math.sqrt`, 32비트 정수 연산만 쓰고(`Math.hypot`·삼각함수·`Math.random` 없음) 모든 좌표를 정수로 저장합니다. 방에서는 `mapSeed`가 체크포인트 정본 키에 들어가고, 참가자는 체크포인트를 받은 뒤 시드가 다를 때만 지형을 다시 만듭니다. 소품과 지형은 체크포인트에 싣지 않습니다.
 - 보스 위치는 `CFG.boss` 상수 대신 `mapLayout.boss`(길의 끝)입니다.
 - 검증: `--flow map` 12 PASS(같은 시드의 데스크톱·390px 해시 일치, 150개 시드 반복 생성, 체크포인트 복원 시 지형 재생성, 실제 키 입력으로 마을→보스 길 주행, 연못 가장자리에서 정지). 다른 브라우저 엔진(Firefox·Safari)에서의 해시 일치는 이 환경에 해당 엔진이 없어 확인하지 못했습니다.
+
+### 0.17.0 3단계 — 보스 5종
+
+- 보스 5종은 `source/bosses.js`의 `BOSS_PROFILES`가 정본입니다. `BossProfile`이 `ShapeRule`을 여러 개 가지고(has-a), `ImmuneRule`(면역 0배)·`WeakRule`(약점 1.8배)·`OnlyRule`(목록 밖 도형은 0.25배)이 `ShapeRule`을 상속합니다(is-a). 규칙 배율은 곱합니다.
+- 피해를 준 도형은 CNN 분류 결과(`normal·line·circle·triangle·square·flame·water·lightning·star·shuriken·starcircle`)이고, 검증 정확도 95% 이상인 도형만 규칙에 씁니다.
+- 보스: ① 잉크 감시자(규칙 없음) ② 물안개 거북(물 면역·불꽃 ×1.8) ③ 불씨 허수아비(불꽃 면역·물 ×1.8) ④ 돌 서예가(삼각형·번개 외 25%) ⑤ 빈 종이 거인(원 면역·표창 ×1.8).
+- 배치: 보스 1~4는 공터 4곳(서→동), 보스 5는 길 끝 최종 구역입니다. 보스 n은 보스 n-1을 쓰러뜨린 뒤 살아 있는 플레이어가 자리 n의 `radius+220` 안에 들어오면 나타납니다. 지역 졸개는 남아 잉크를 떨어뜨리며, 지역 정리는 더 이상 아무것도 열지 않습니다.
+- 체크포인트 정본 키에 `bossesDefeated`(0~5)가 들어갑니다. 5종을 모두 쓰러뜨리면 퀘스트가 '새 페이지를 완성했어요'가 됩니다.
+- 검증: `--flow boss` 10 PASS(규칙표, 5보스×11도형 55쌍 실제 피해 경로, 실제 그림으로 물은 면역·불꽃은 피해, 순차 소환, 보스 바 표시, 체크포인트, 5종 격파 후 완성). `--flow map` 12, `ux` 5, `progression` 8 PASS.
 
 ### SVG renderer migration candidate
 

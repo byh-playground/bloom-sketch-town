@@ -141,16 +141,16 @@ async def ready_game(page, *, html: str):
     )
 
 
-async def draw_circle(page, size=180):
+async def draw_circle(page, size=180, kind='circle'):
     """Draw directly around the visible foe using real battlefield mouse events."""
-    await page.locator('.glyph[data-kind="circle"]').click()
-    points = await page.evaluate("""size => {
+    await page.locator(f'.glyph[data-kind="{kind}"]').click()
+    points = await page.evaluate("""([size,kind]) => {
       const d=window.__sketchRpgDebug,foe=d.foePositions()[0],center=d.screenAt(foe.x,foe.y);
-      const points=d.sample('circle',size,size);
+      const points=d.sample(kind,size,size);
       const minX=Math.min(...points.map(p=>p.x)),maxX=Math.max(...points.map(p=>p.x));
       const minY=Math.min(...points.map(p=>p.y)),maxY=Math.max(...points.map(p=>p.y));
       return points.map(p=>({x:Math.round(p.x-(minX+maxX)/2)+Math.round(center.x),y:Math.round(p.y-(minY+maxY)/2)+Math.round(center.y)}));
-    }""",size)
+    }""",[size,kind])
     await page.mouse.move(points[0]['x'],points[0]['y'])
     await page.mouse.down()
     for point in points[1::max(1, len(points)//44)]:
@@ -571,6 +571,71 @@ async def run_map(browser, suite: E2E):
             await mobile.close()
 
 
+async def run_bosses(browser, suite: E2E):
+    seed=20261026
+    with local_server() as url:
+        context,page,issues=await create_page(browser,width=1024,height=768)
+        try:
+            await page.goto(f'{url}?seed={seed}')
+            await page.wait_for_function('window.__sketchRpgDebug?.rendererStats().vertices>0')
+            state=await page.evaluate('__sketchRpgDebug.bossState()')
+            profiles=state['profiles']
+            suite.check('five distinct bosses on five sites, the last one in the end arena',len(profiles)==5 and len({p['name'] for p in profiles})==5 and len(state['sites'])==5 and state['sites'][4]['radius']==255,[p['name'] for p in profiles])
+            f=[p['factors'] for p in profiles]
+            kinds=['normal','line','circle','triangle','square','flame','water','lightning','star','shuriken','starcircle']
+            expected=[
+                {k:1 for k in kinds},
+                {**{k:1 for k in kinds},'water':0,'flame':1.8},
+                {**{k:1 for k in kinds},'flame':0,'water':1.8},
+                {k:(1 if k in ('triangle','lightning') else .25) for k in kinds},
+                {**{k:1 for k in kinds},'circle':0,'shuriken':1.8},
+            ]
+            suite.check('boss rule tables: none, water-immune/flame-weak, flame-immune/water-weak, triangle+lightning only, circle-immune/shuriken-weak',f==expected,f)
+            dealt=await page.evaluate("""kinds => {const d=__sketchRpgDebug,out=[];for(let i=0;i<5;i++)for(const k of kinds){const id=d.spawnBoss(i);out.push({boss:i,kind:k,hit:d.bossHit(id,k,100)});}return out;}""",kinds)
+            wrong=[x for x in dealt if x['hit']!=(0 if expected[x['boss']][x['kind']]==0 else max(1,round(100*expected[x['boss']][x['kind']])))]
+            suite.check('real damage path applies each rule for all 55 boss/shape pairs',not wrong,wrong[:5])
+            # Real drawing: the fog turtle ignores a drawn water drop and is hurt by a drawn flame.
+            await page.evaluate('__sketchRpgDebug.moveTo(480,735)')
+            boss_id=await page.evaluate('__sketchRpgDebug.spawnBoss(1)')
+            await page.wait_for_timeout(200)
+            water=await draw_circle(page,170,'water')
+            await page.wait_for_timeout(2500)
+            after_water=await page.evaluate('id=>__sketchRpgDebug.bossHp(id)',boss_id)
+            suite.check('drawn water leaves the water-immune boss untouched',water is not None and water['kind']=='water' and after_water['hp']==after_water['hp'] and after_water['hp']==720,{'shot':water and water['kind'],'hp':after_water})
+            flame=await draw_circle(page,170,'flame')
+            await page.wait_for_timeout(2500)
+            after_flame=await page.evaluate('id=>__sketchRpgDebug.bossHp(id)',boss_id)
+            suite.check('drawn flame hurts the flame-weak boss',flame is not None and flame['kind']=='flame' and after_flame['hp']<720-30,{'shot':flame and flame['kind'],'hp':after_flame})
+            # Sequence: boss n appears only at site n and only after boss n-1 fell.
+            await page.evaluate("""() => {const d=__sketchRpgDebug,s=JSON.parse(new TextDecoder().decode(d.canonicalSnapshot()));
+              s.world.enemies=[];s.world.hazards=[];s.world.pickups=[];s.world.bossesDefeated=0;d.canonicalRestore(new TextEncoder().encode(JSON.stringify(s)));}""")
+            sites=state['sites']
+            await page.evaluate('s=>__sketchRpgDebug.moveTo(s.x,s.y)',sites[2])
+            await page.wait_for_timeout(400)
+            nobody=await page.evaluate('__sketchRpgDebug.bossState().active')
+            suite.check('standing at boss site 3 summons nothing while boss 1 is still to come',nobody is None,nobody)
+            order=[]
+            for i in range(5):
+                await page.evaluate('s=>{__sketchRpgDebug.setPlayerHp(120);__sketchRpgDebug.moveTo(s.x,s.y);}',sites[i])
+                await page.wait_for_function(f'__sketchRpgDebug.bossState().active?.bossId=={i}',timeout=4000)
+                if i==1:
+                    hud=await page.evaluate("({shown:getComputedStyle(document.getElementById('bossBar')).display,name:document.getElementById('bossName').textContent,rule:document.getElementById('bossRule').textContent,quest:document.getElementById('questTitle').textContent})")
+                    suite.check('boss bar shows the name, order and rule text',hud['shown']!='none' and profiles[1]['name'] in hud['name'] and '2/5' in hud['name'] and hud['rule']==profiles[1]['ruleText'],hud)
+                    await page.screenshot(path=str(ARTIFACTS/'boss-2-desktop.png'))
+                await page.evaluate('__sketchRpgDebug.finishBoss()')
+                await page.wait_for_function(f'__sketchRpgDebug.snapshot().bossesDefeated=={i+1}',timeout=4000)
+                order.append(i)
+                if i==1:
+                    snapshot=await page.evaluate('JSON.parse(new TextDecoder().decode(__sketchRpgDebug.canonicalSnapshot())).world.bossesDefeated')
+                    suite.check('checkpoint carries the number of defeated bosses',snapshot==2,snapshot)
+            await page.wait_for_function("document.getElementById('questTitle').textContent.includes('완성')",timeout=4000)
+            final=await page.evaluate("({n:__sketchRpgDebug.snapshot().bossesDefeated,quest:document.getElementById('questTitle').textContent,active:__sketchRpgDebug.snapshot().activeBoss})")
+            suite.check('defeating all five bosses completes the page',final['n']==5 and final['active'] is None and '완성' in final['quest'] and order==[0,1,2,3,4],final)
+            suite.check('boss flow has no JavaScript errors',not issues,issues)
+        finally:
+            await context.close()
+
+
 async def run_ink_hud(browser,suite):
     with local_server() as url:
         context,page,issues=await create_page(browser,width=390,height=844,mobile=True)
@@ -627,12 +692,7 @@ async def run_run_state(browser, suite: E2E):
             suite.check('resized region fixture queues the actual circle stroke',region_shot is not None and region_shot['kind']=='circle',region_shot)
             if region_shot is None:return
             await page.wait_for_function('__sketchRpgDebug.runState().regionKills[1]>=5',timeout=10000)
-            await page.evaluate('__sketchRpgDebug.regionCombatFixture(2);__sketchRpgDebug.setInk(100)')
-            await page.wait_for_timeout(150)
-            await draw_circle(page,140)
-            await page.wait_for_function('__sketchRpgDebug.snapshot().bossSpawned===true',timeout=10000)
-            suite.check('clearing all three regions spawns the boss',True)
-            await page.screenshot(path=str(ARTIFACTS/'boss-spawned-mobile.png'))
+            suite.check('regions still count their own defeated enemies',await page.evaluate('__sketchRpgDebug.runState().regionKills.slice(0,2).every(n=>n>=5)'))
             suite.check('run state workflow has no JavaScript errors',not issues,issues)
         finally:
             await context.close()
@@ -936,7 +996,7 @@ async def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--headed", action="store_true", help="use with xvfb-run when testing headed SwiftShader")
     parser.add_argument("--live-p2p", action="store_true", help="require actual public Nostr + WebRTC connection, never mock")
-    parser.add_argument("--flow", choices=['all','progression','online','ux','map'], default='all', help="select a fixed user workflow within this single entrypoint")
+    parser.add_argument("--flow", choices=['all','progression','online','ux','map','boss'], default='all', help="select a fixed user workflow within this single entrypoint")
     args = parser.parse_args()
     ARTIFACTS.mkdir(exist_ok=True)
     suite = E2E(headed=args.headed, live_p2p=args.live_p2p)
@@ -957,6 +1017,8 @@ async def main():
                         await run_mobile(browser, suite, html)
                     if args.flow in ('all','map'):
                         await run_map(browser, suite)
+                    if args.flow in ('all','boss'):
+                        await run_bosses(browser, suite)
                     if args.flow in ('all','ux'):
                         await run_ink_hud(browser,suite)
                     if args.flow in ('all','progression'):

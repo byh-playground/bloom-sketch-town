@@ -54,9 +54,11 @@
   function ground(){
     regionGround();
     P.oval(484,740,368,318,'#f2e5ca',.62);
-    P.oval(mapLayout.boss.x,mapLayout.boss.y,mapLayout.boss.radius*.89,mapLayout.boss.radius*.89,'#e6dde8',.4);
-    P.ring(mapLayout.boss.x,mapLayout.boss.y,mapLayout.boss.radius,'#b4a7b4',.42,2,32);
-    P.ring(mapLayout.boss.x,mapLayout.boss.y,mapLayout.boss.radius*.7,'#b7a8b7',.2,1.4,24);
+    // One ring per boss site: bold while that boss is still to come, faint once defeated.
+    for(const [i,site]of mapLayout.bossSites.entries()){const alive=i>=world.bossesDefeated,tint=BOSS_PROFILES[i].color;
+      P.oval(site.x,site.y,site.radius*.89,site.radius*.89,'#e6dde8',alive?.4:.14);
+      P.ring(site.x,site.y,site.radius,alive?tint:'#b4a7b4',alive?.62:.2,2,32);
+      P.ring(site.x,site.y,site.radius*.7,'#b7a8b7',alive?.3:.1,1.4,24);}
     // Village safety circle.
     P.oval(504,735,98,81,'#dceade',.65);P.ring(504,735,92,'#86a68e',.52,1.8,28);
     P.dot(503,730,16,'#fafbf3');P.ring(503,730,17,'#789b89',.73,2,24);P.dot(503,730,7,'#a5c9a3',.8);
@@ -82,6 +84,7 @@
     const {x,y,r,kind}=e,hit=e.hitMs>0,clip=e.windupMs>0?'attack':hypot(e.vx||0,e.vy||0)>5?'move':'idle',expression=hit?'hit':e.windupMs>0?'alert':'neutral';
     P.oval(x,y+r*.79,r*.83,r*.22,'#74726b',.13);
     if(e.stunMs>0)P.ring(x,y-7,r+7,'#d2a257',.53,1.8,16);
+    if(e.bossId>=0){P.oval(x,y+r*.1,r*1.25,r*1.1,e.color,.16);P.ring(x,y,r+6,e.color,.55,2.4,30);}
     const config={chaser:{pivotX:60,pivotY:77,scale:r/36},spitter:{pivotX:60,pivotY:75,scale:r/48},charger:{pivotX:65,pivotY:77,scale:r/36},boss:{pivotX:80,pivotY:83,scale:r/44}}[kind];
     if(!config)throw new TypeError('No SVG enemy asset mapping for '+kind);const s=config.scale;
     drawVector('enemy-'+kind,expression,clip,paintClockMs+e.id*37,[s,0,0,s,x-config.pivotX*s,y-config.pivotY*s]);
@@ -180,7 +183,7 @@
       txtCtx.translate(px,py);txtCtx.scale(pop,pop);txtCtx.translate(-px,-py);
       txtCtx.font='1000 17px system-ui,sans-serif';txtCtx.lineWidth=4.0;txtCtx.strokeStyle='#fff9ee';txtCtx.strokeText(f.text,anchorReuse.x,anchorReuse.y);txtCtx.fillStyle=f.color;txtCtx.fillText(f.text,anchorReuse.x,anchorReuse.y);txtCtx.setTransform(screenDpr,0,0,screenDpr,0,0);}
     if(visible(504,735,140)){renderer.worldToScreenInto(504,625,anchorReuse);txtCtx.textAlign='center';txtCtx.font='900 12px system-ui';txtCtx.lineWidth=3.4;txtCtx.strokeStyle='#fffaf0';txtCtx.strokeText('푸른 잉크 샘 · 회복',anchorReuse.x,anchorReuse.y);txtCtx.fillStyle='#568276';txtCtx.fillText('푸른 잉크 샘 · 회복',anchorReuse.x,anchorReuse.y);}
-    if(world.bossSpawned&&!world.bossDefeated&&visible(mapLayout.boss.x,mapLayout.boss.y,100)){renderer.worldToScreenInto(mapLayout.boss.x,mapLayout.boss.y-112,anchorReuse);txtCtx.textAlign='center';txtCtx.font='900 13px system-ui';txtCtx.lineWidth=3.7;txtCtx.strokeStyle='#fffaf0';txtCtx.strokeText('잉크 감시자',anchorReuse.x,anchorReuse.y);txtCtx.fillStyle='#8c647e';txtCtx.fillText('잉크 감시자',anchorReuse.x,anchorReuse.y);}
+    for(const boss of world.enemies)if(boss.kind==='boss'&&!boss.dead&&visible(boss.x,boss.y,100)){renderer.worldToScreenInto(boss.x,boss.y-boss.r-56,anchorReuse);txtCtx.textAlign='center';txtCtx.font='900 13px system-ui';txtCtx.lineWidth=3.7;txtCtx.strokeStyle='#fffaf0';txtCtx.strokeText(boss.name,anchorReuse.x,anchorReuse.y);txtCtx.fillStyle='#8c647e';txtCtx.fillText(boss.name,anchorReuse.x,anchorReuse.y);}
     txtCtx.globalAlpha=1;drawMapLabels();
   }
   let lastCameraAt=0;
