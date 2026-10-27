@@ -107,7 +107,52 @@
     shuriken: new MobileSpec({name:'표창 닌자',role:'근접',hp:50,r:12,ink:68,speed:175,strike:new MeleeStrike({damage:9,cooldownMs:330,range:14}),effects:[new StunEffect(130)]}),
     starcircle:new AnchoredSpec({name:'마법진',role:'고정·범위·회복',hp:100,r:20,ink:95,strike:new AreaPulse({damage:11,cooldownMs:600,range:200}),effects:[new HealOwnerEffect(1)]})
   });
-  function summonSpecOf(kind){return SUMMON_SPECS[kind]||SUMMON_SPECS.normal;}
+  // ---- merging ------------------------------------------------------------------------------------------------------
+  // Two ways to merge selected summons (the owner must have a full ink bar; it is spent entirely, and the result has full hp):
+  //   tier-up: three summons of the same kind and the same tier become one of the next tier (max 3; hp/power x1.0, x1.8, x3.0);
+  //   fusion:  two summons whose kinds form a recipe become the recipe's result (hp = sum of both; unlisted pairs cannot merge).
+  const MERGE_TIER_MAX=3,TIER_STATS=Object.freeze([1,1.8,3]),TIER_SCALE=Object.freeze([1,1.18,1.4]);
+  const FUSION_SPECS=Object.freeze({
+    steam:     new MobileSpec({name:'증기 정령',role:'원거리·범위',hp:100,r:15,ink:0,speed:105,strike:new RangedBolt({damage:12,cooldownMs:800,range:300}),effects:[new SplashEffect(70,.6),new StunEffect(450)]}),
+    storm:     new MobileSpec({name:'폭풍 구름',role:'원거리·연쇄',hp:90,r:15,ink:0,speed:130,strike:new RangedBolt({damage:14,cooldownMs:750,range:340}),effects:[new WetEffect(),new ChainEffect(260,360,.45)]}),
+    fortress:  new TauntMobileSpec({name:'성벽 거인',role:'방어',hp:300,r:24,ink:0,speed:70,strike:new MeleeStrike({damage:14,cooldownMs:900,range:16}),effects:[new SplashEffect(70,.5),new StunEffect(800)]}),
+    bladestorm:new MobileSpec({name:'칼날 폭풍',role:'근접',hp:110,r:14,ink:0,speed:190,strike:new MeleeStrike({damage:14,cooldownMs:300,range:16}),effects:[new StunEffect(120)]}),
+    altar:     new AnchoredSpec({name:'성좌 제단',role:'고정·범위·회복',hp:200,r:22,ink:0,strike:new AreaPulse({damage:18,cooldownMs:700,range:230}),effects:[new StunEffect(350),new HealOwnerEffect(2)]})
+  });
+  const FUSION_COLORS=Object.freeze({steam:'#8fb8c9',storm:'#7a86c9',fortress:'#8a8f93',bladestorm:'#c9a85a',altar:'#c98fb8'});
+  const FUSION_RECIPES=Object.freeze({'flame+water':'steam','lightning+water':'storm','circle+square':'fortress','shuriken+triangle':'bladestorm','star+starcircle':'altar'});
+  const recipeKey=(a,b)=>[a,b].sort().join('+');
+  function summonSpecOf(kind){return SUMMON_SPECS[kind]||FUSION_SPECS[kind]||SUMMON_SPECS.normal;}
+  function isSummonKind(kind){return !!(SUMMON_SPECS[kind]||FUSION_SPECS[kind]);}
+  // What a selection would become, or null when it cannot merge. Pure: reads units only.
+  function planMerge(units){
+    if(units.length===3&&units.every(u=>u.kind===units[0].kind&&(u.tier||1)===(units[0].tier||1))&&SUMMON_SPECS[units[0].kind]&&(units[0].tier||1)<MERGE_TIER_MAX)
+      return {type:'tier',kind:units[0].kind,tier:(units[0].tier||1)+1};
+    if(units.length===2&&SUMMON_SPECS[units[0].kind]&&SUMMON_SPECS[units[1].kind]){const kind=FUSION_RECIPES[recipeKey(units[0].kind,units[1].kind)];if(kind)return {type:'fusion',kind,tier:1};}
+    return null;
+  }
+  function mergeSummons(actor,ids){
+    const owner=actorId(actor),units=ids.map(summonById);
+    if(actor.hp<=0||actor.koMs>0||new Set(ids).size!==ids.length||units.some(u=>!u||u.owner!==owner||u.hp<=0))return false;
+    const plan=planMerge(units),isLocal=actor===player;
+    if(!plan){if(isLocal)showResult('이 조합은 합체할 수 없어요',1600);return false;}
+    if(actor.ink<actor.maxInk-1e-6){if(isLocal)showResult(`잉크가 가득 차야 합체해요 · 약 ${inkWait(actor,actor.maxInk).toFixed(1)}초`,1800);return false;}
+    actor.ink=0;actor.inkDelayMs=400;
+    const spec=summonSpecOf(plan.kind),count=units.length,avg=f=>units.reduce((sum,u)=>sum+f(u),0)/count;
+    const ratio=plan.type==='tier'?TIER_STATS[plan.tier-1]/TIER_STATS[plan.tier-2]:1;
+    const maxHp=plan.type==='tier'?Math.round(avg(u=>u.maxHp)*ratio):Math.round(units.reduce((sum,u)=>sum+u.maxHp,0));
+    const power=+(avg(u=>u.power)*ratio).toFixed(3),r=plan.type==='tier'?Math.round(spec.r*TIER_SCALE[plan.tier-1]):spec.r;
+    const main=units.reduce((a,b)=>summonSpecOf(b.kind).ink>summonSpecOf(a.kind).ink?b:a);
+    const point=summonSpawnPoint(actor,{x:avg(u=>u.x),y:avg(u=>u.y)},r);
+    for(const u of units){world.summons.splice(world.summons.indexOf(u),1);burst(u.x,u.y,u.color,6,50);}
+    const s={id:world.nextId++,owner,kind:plan.kind,face:main.face,name:spec.name,color:plan.type==='fusion'?FUSION_COLORS[plan.kind]:main.color,shape:main.shape,x:point.x,y:point.y,r,
+      hp:maxHp,maxHp,power,tier:plan.tier,cdMs:400,ageMs:0,hitMs:0,faceX:1,targetId:0};
+    world.summons.push(s);
+    world.fields.push({kind:'ring',x:s.x,y:s.y,r:70,ageMs:0,lifeMs:520,color:s.color});
+    burst(s.x,s.y,s.color,16,90);sfx('throw');
+    if(isLocal)showResult(plan.type==='tier'?`${spec.name} ${plan.tier}단계로 합체!`:`${spec.name} 합체!`,2000);
+    return true;
+  }
 
   // ---- world operations ---------------------------------------------------------------------------------------------
   // The summon appears exactly where the body was drawn (world coordinates), anywhere on the map.
@@ -125,7 +170,7 @@
     if(mine.length>=SUMMON_LIMIT){const oldest=mine[0];world.summons.splice(world.summons.indexOf(oldest),1);burst(oldest.x,oldest.y,oldest.color,6,50);}
     const face=expressionOf(shot.face),temper=face.temperament,maxHp=Math.round(spec.maxHp(shot.areaPower)*temper.hp);
     const s={id:world.nextId++,owner:id,kind:shot.kind,face:face.id,name:spec.name,color:shot.color,shape:shot.shape,x:point.x,y:point.y,r:spec.r,
-      hp:maxHp,maxHp,power:+(spec.power(shot.areaPower)*owner.power*temper.damage).toFixed(3),cdMs:400,ageMs:0,hitMs:0,faceX:1,targetId:0};
+      hp:maxHp,maxHp,power:+(spec.power(shot.areaPower)*owner.power*temper.damage).toFixed(3),tier:1,cdMs:400,ageMs:0,hitMs:0,faceX:1,targetId:0};
     world.summons.push(s);
     world.fields.push({kind:'ring',x:s.x,y:s.y,r:46,ageMs:0,lifeMs:420,color:s.color});
     burst(s.x,s.y,s.color,10,70);sfx('throw');
