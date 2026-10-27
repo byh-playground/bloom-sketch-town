@@ -5,7 +5,7 @@
   //   withTaunt (mixin)       -> enemies prefer a taunting summon over the player
   //   SummonSpec HAS a Strike (MeleeStrike | RangedBolt | AreaPulse) and a list of HitEffect objects.
   // The damage source passed to damageEnemy is the drawn shape kind, so boss rules (bosses.js) keep working.
-  const SUMMON_LIMIT=4;          // live summons per player; a fifth replaces that player's oldest
+  const SUMMON_LIMIT=10;         // live summons per player; an eleventh replaces that player's oldest
   const SUMMON_SIGHT=480;        // distance within which a summon notices an enemy
   const SUMMON_LEASH=760;        // a summon never chases an enemy farther than this from its owner
   const SUMMON_RETURN=900;       // beyond this distance from the owner a summon is placed next to the owner
@@ -147,7 +147,7 @@
     const spec=summonSpecOf(s.kind),owner=actorOf(s.owner),temper=expressionOf(s.face).temperament,speed=spec.speed*temper.speed;
     s.ageMs+=dt;s.hitMs=Math.max(0,s.hitMs-dt);s.cdMs=Math.max(0,s.cdMs-dt);
     const ownerDistance=hypot(owner.x-s.x,owner.y-s.y);
-    if(!spec.anchored&&ownerDistance>SUMMON_RETURN){const p=summonSpawnPoint(owner,0,SUMMON_FOLLOW,s.r);s.x=p.x;s.y=p.y;s.targetId=0;return;}
+    if(!spec.anchored&&ownerDistance>SUMMON_RETURN){const p=summonSpawnPoint(owner,{x:owner.x+SUMMON_FOLLOW,y:owner.y},s.r);s.x=p.x;s.y=p.y;s.targetId=0;return;}
     let enemy=nearestEnemyOf(s,SUMMON_SIGHT);
     if(enemy&&hypot(owner.x-enemy.x,owner.y-enemy.y)>SUMMON_LEASH)enemy=null;
     s.targetId=enemy?enemy.id:0;
@@ -160,6 +160,42 @@
       const dx=owner.x-s.x,dy=owner.y-s.y;moveCollider(s,dx/ownerDistance*speed*.9*dt/1000,dy/ownerDistance*speed*.9*dt/1000,s.r*.68);
     }
   }
+  // ---- unit collision -----------------------------------------------------------------------------------------------
+  // Summons and living enemies are soft discs: overlapping pairs are pushed apart in proportion to how little each one weighs.
+  // Anchored summons never move, bosses barely move. Pair order is the array order (enemies, then summons), so every peer
+  // computes the same positions. The player keeps the existing enemy-vs-hero separation and is not blocked by summons.
+  class UnitBody {
+    constructor(unit,weight,radiusScale){this.unit=unit;this.weight=weight;this.radiusScale=radiusScale;}
+    get radius(){return this.unit.r*this.radiusScale;}
+    get inverseMass(){return this.weight===Infinity?0:1/this.weight;}
+    static of(unit,isSummon){
+      if(isSummon){const spec=summonSpecOf(unit.kind);return new UnitBody(unit,spec.anchored?Infinity:spec.taunt?2:1,1.15);}
+      return new UnitBody(unit,unit.kind==='boss'?8:1,.85);
+    }
+  }
+  class UnitSeparator {
+    constructor({strength=.9,maxStep=8,passes=2}={}){this.strength=strength;this.maxStep=maxStep;this.passes=passes;}
+    resolve(enemies,summons){
+      const bodies=[];
+      for(const e of enemies)if(!e.dead)bodies.push(UnitBody.of(e,false));
+      for(const s of summons)if(s.hp>0)bodies.push(UnitBody.of(s,true));
+      for(let pass=0;pass<this.passes;pass++)for(let i=0;i<bodies.length;i++)for(let j=i+1;j<bodies.length;j++)this.separate(bodies[i],bodies[j]);
+    }
+    separate(a,b){
+      const contact=a.radius+b.radius,dx=b.unit.x-a.unit.x,dy=b.unit.y-a.unit.y;
+      if(Math.abs(dx)>=contact||Math.abs(dy)>=contact)return;
+      let d=hypot(dx,dy);if(d>=contact)return;
+      const total=a.inverseMass+b.inverseMass;if(total===0)return;
+      let nx,ny;
+      if(d<.001){const angle=(a.unit.id*2.399963+b.unit.id*1.618034)%(Math.PI*2);nx=Math.cos(angle);ny=Math.sin(angle);d=0;}else{nx=dx/d;ny=dy/d;}
+      const push=Math.min(this.maxStep,(contact-d)*this.strength);
+      this.shift(a.unit,-nx*push*a.inverseMass/total,-ny*push*a.inverseMass/total);
+      this.shift(b.unit, nx*push*b.inverseMass/total, ny*push*b.inverseMass/total);
+    }
+    shift(unit,dx,dy){if(!dx&&!dy)return;moveCollider(unit,dx,dy,unit.r*.68);}
+  }
+  const unitSeparator=new UnitSeparator();
+  function separateUnits(){unitSeparator.resolve(world.enemies,world.summons);}
   function tickSummons(dt){
     for(const s of world.summons)stepSummon(s,dt);
     for(let i=world.summons.length-1;i>=0;i--)if(world.summons[i].hp<=0)world.summons.splice(i,1);

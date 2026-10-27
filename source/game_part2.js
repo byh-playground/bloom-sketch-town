@@ -284,7 +284,7 @@ if(e.hp<=0){e.dead=true;world.kills++;if(e.kind!=='boss')world.regionKills[e.reg
     // Time dilation is local-only; online rollback must not depend on device pointer state.
     const hostileDt=!mp.connected&&drawInput.pointer!==null?dt*.25:dt;
     world.slowRatio=hostileDt/dt;
-    updateBossSummon();updateEnemies(hostileDt);tickCasts(dt);tickSummons(dt);tickHazards(hostileDt);tickEffects(dt);
+    updateBossSummon();updateEnemies(hostileDt);tickCasts(dt);tickSummons(dt);separateUnits();tickHazards(hostileDt);tickEffects(dt);
     // Dead enemies have already delivered their XP, drops and ink fragments. Their records must NOT
     // survive forever in the canonical rollback history or AI scans. Stable IDs never get reused.
     for(let i=world.enemies.length-1;i>=0;i--)if(world.enemies[i].dead)world.enemies.splice(i,1);

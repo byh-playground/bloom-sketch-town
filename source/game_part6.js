@@ -47,7 +47,7 @@
       if(!Number.isSafeInteger(w.bossesDefeated)||w.bossesDefeated<0||w.bossesDefeated>BOSS_PROFILES.length)return false;
       if(!Number.isSafeInteger(w.mapSeed)||w.mapSeed<0||w.mapSeed>0xFFFFFFFF)return false;
       if(!Number.isSafeInteger(w.nextId)||w.nextId<1||!Number.isSafeInteger(w.seed)||w.seed<0||!Number.isFinite(w.clockMs)||w.clockMs<0)return false;
-      for(const name of canonicalArrays)if(!Array.isArray(w[name])||w[name].length>({enemies:75,summons:8,hazards:150,casts:8,pickups:120,fields:350,castQueue:8}[name]))return false;
+      for(const name of canonicalArrays)if(!Array.isArray(w[name])||w[name].length>({enemies:75,summons:20,hazards:150,casts:8,pickups:120,fields:350,castQueue:8}[name]))return false;
       // Recovery must preserve the released direction; missing/invalid aim is not an old-schema fallback.
       for(const name of ['casts','castQueue'])if(w[name].some(c=>!validShotPoint(c?.shot?.x,c?.shot?.y)||!validExpressionId(c?.shot?.face)))return false;
       if(w.summons.some(s=>!SUMMON_SPECS[s?.kind]||!validExpressionId(s.face)||!Number.isFinite(s.x)||!Number.isFinite(s.y)||!Number.isFinite(s.hp)||s.hp<0||(s.owner!=='a'&&s.owner!=='b')))return false;

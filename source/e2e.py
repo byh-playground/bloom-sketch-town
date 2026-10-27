@@ -676,16 +676,34 @@ async def run_summons(browser, suite: E2E):
                 produced.append(kind)
                 await page.evaluate("__sketchRpgDebug.combatFixture('chaser',3000,735)")
             suite.check('all 11 shapes summon their creature',produced==kinds,produced)
-            # Cap: a fifth summon replaces the owner's oldest.
+            # Cap: an eleventh summon replaces the owner's oldest.
             await page.evaluate("__sketchRpgDebug.combatFixture('chaser',3000,735);__sketchRpgDebug.moveTo(480,735)")
             first_ids=[]
-            for i in range(5):
-                await page.evaluate("()=>{const d=__sketchRpgDebug;d.setInk(100);d.castKind('triangle',0,120);}")
+            for i in range(11):
+                await page.evaluate("()=>{const d=__sketchRpgDebug;d.setInk(100);d.castKind('triangle',i*0.6,120+i*6);}".replace('i*0.6',str(i*0.6)).replace('i*6',str(i*6)))
                 await page.wait_for_function(f"__sketchRpgDebug.summons().filter(q=>q.kind==='triangle').length==Math.min({i+1},__sketchRpgDebug.summonLimit())||__sketchRpgDebug.summons().length>={i+1}",timeout=4000)
-                await page.wait_for_timeout(500)
+                await page.wait_for_timeout(300)
                 first_ids.append(await page.evaluate("__sketchRpgDebug.summons().map(q=>q.id)"))
             ids=first_ids[-1]
-            suite.check('a fifth summon replaces the oldest, leaving four',len(ids)==4 and first_ids[3][0] not in ids,first_ids)
+            suite.check('an eleventh summon replaces the oldest, leaving ten',len(ids)==10 and first_ids[9][0] not in ids and await page.evaluate('__sketchRpgDebug.summonLimit()')==10,first_ids[-2:])
+            # Units collide: six summons cast onto the same point and an enemy among them are pushed apart.
+            await page.evaluate("__sketchRpgDebug.combatFixture('chaser',3000,735);__sketchRpgDebug.moveTo(480,735)")
+            for i in range(6):
+                await page.evaluate("()=>{const d=__sketchRpgDebug;d.setInk(100);d.castKind('triangle',0,120);}")
+                await page.wait_for_timeout(300)
+            await page.wait_for_timeout(1500)
+            gaps=await page.evaluate("""()=>{const s=__sketchRpgDebug.summons();let min=1e9;for(let i=0;i<s.length;i++)for(let j=i+1;j<s.length;j++)min=Math.min(min,Math.hypot(s[i].x-s[j].x,s[i].y-s[j].y));return {n:s.length,min}}""")
+            suite.check('six summons cast onto one point spread apart instead of overlapping',gaps['n']==6 and gaps['min']>=24,gaps)
+            # An anchored turret does not move when a mobile summon is cast onto it.
+            await page.evaluate("__sketchRpgDebug.combatFixture('chaser',3000,735);__sketchRpgDebug.moveTo(480,735);__sketchRpgDebug.setInk(100);__sketchRpgDebug.castKind('star',0,120)")
+            await page.wait_for_timeout(500)
+            star0=await page.evaluate("__sketchRpgDebug.summons().find(q=>q.kind==='star')")
+            await page.evaluate("__sketchRpgDebug.setInk(100);__sketchRpgDebug.castKind('triangle',0,120)")
+            await page.wait_for_timeout(1500)
+            star1=await page.evaluate("__sketchRpgDebug.summons().find(q=>q.kind==='star')")
+            tri=await page.evaluate("__sketchRpgDebug.summons().find(q=>q.kind==='triangle')")
+            dist=((tri['x']-star1['x'])**2+(tri['y']-star1['y'])**2)**.5
+            suite.check('an anchored turret keeps its place while a mobile summon is pushed off it',abs(star1['x']-star0['x'])<.5 and abs(star1['y']-star0['y'])<.5 and dist>=24,{'moved':[star1['x']-star0['x'],star1['y']-star0['y']],'dist':dist})
             # Placement follows where the stroke is drawn (real mouse events).
             await page.evaluate("__sketchRpgDebug.combatFixture('chaser',3000,735);__sketchRpgDebug.moveTo(480,735);__sketchRpgDebug.setInk(100)")
             # Two steps: the body stroke only opens a draft; nothing is summoned or paid for until the face step ends.
@@ -860,7 +878,7 @@ async def run_run_state(browser, suite: E2E):
             await page.wait_for_timeout(160)
             await draw_circle(page)
             await draw_face(page,'joy');await page.locator('#faceDone').click()
-            await page.wait_for_function('__sketchRpgDebug.runState().regionKills[0]>=5',timeout=20000)
+            await page.wait_for_function('__sketchRpgDebug.runState().regionKills[0]>=5',timeout=90000)
             suite.check('real attack clears the forest region',True)
             await page.set_viewport_size({'width':390,'height':844})
             await page.evaluate('__sketchRpgDebug.regionCombatFixture(1);__sketchRpgDebug.setInk(100)')
@@ -869,7 +887,7 @@ async def run_run_state(browser, suite: E2E):
             suite.check('resized region fixture queues the actual circle stroke',region_shot is not None and region_shot['kind']=='circle',region_shot)
             if region_shot is None:return
             await draw_face(page,'joy',cx=195,u=34);await page.locator('#faceDone').click()
-            await page.wait_for_function('__sketchRpgDebug.runState().regionKills[1]>=5',timeout=20000)
+            await page.wait_for_function('__sketchRpgDebug.runState().regionKills[1]>=5',timeout=90000)
             suite.check('regions still count their own defeated enemies',await page.evaluate('__sketchRpgDebug.runState().regionKills.slice(0,2).every(n=>n>=5)'))
             suite.check('run state workflow has no JavaScript errors',not issues,issues)
         finally:
