@@ -100,20 +100,94 @@
     drawStroke(c.shot.shape,c.x,c.y-42,angle,1.35,c.shot.color,.95,2.6,p);
     const pts=c.shot.shape,n=pts.length-1; if(n>0){const fi=Math.min(n,Math.floor(n*p)),head=pts[fi];P.dot(c.x+head.x*1.35,c.y-42+head.y*1.35,4.8,'#fff1a1',.77);P.dot(c.x+head.x*1.35,c.y-42+head.y*1.35,2.6,c.shot.color,.95);}
   }
-  // The summon IS the player's drawing: its stroke is the body, scaled to the creature's collider.
+  // The summon IS the player's drawing: the body is the stroke as drawn (only scaled to the collider), and the face
+  // is an animated preset chosen by the expression the player drew. Body and face move together.
+  const INK='#3a4a50',INK_EDGE='#fff5dc';
+  function inkLine(ax,ay,bx,by,w=2.2){P.line(ax,ay,bx,by,w+1.6,INK_EDGE,.65);P.line(ax,ay,bx,by,w,INK,.95);}
+  function inkPath(points,w=2.2){for(let i=1;i<points.length;i++)inkLine(points[i-1][0],points[i-1][1],points[i][0],points[i][1],w);}
+  function inkArc(cx,cy,rx,ry,a0,a1,w=2.2,n=9){const pts=[];for(let i=0;i<=n;i++){const a=a0+(a1-a0)*i/n;pts.push([cx+Math.cos(a)*rx,cy+Math.sin(a)*ry]);}inkPath(pts,w);}
+  function inkDot(x,y,r){P.dot(x,y,r+1.1,INK_EDGE,.7);P.dot(x,y,r,INK,.97);}
+  // Body motion per expression: [hop Hz, hop px, sway rad, squash, tremble px]
+  const BODY_MOTION={neutral:[1.4,1.2,.02,.03,0],joy:[3.1,5,.05,.09,0],anger:[2.2,1,.0,.04,1.1],sleepy:[.45,1.6,.07,.02,0],surprise:[1.6,3,.03,.06,0],sad:[.8,.8,.03,.02,0]};
+  function summonPose(v,spec,t){
+    const [hz,hop,sway,squash,tremble]=BODY_MOTION[v.face]||BODY_MOTION.neutral,ph=v.id*1.7,w=Math.sin(t*hz*Math.PI*2+ph);
+    let ox=Math.sin(t*37+ph)*tremble,oy=spec.anchored?0:-Math.abs(w)*hop,sx=1+(spec.anchored?0:squash*w*.6),sy=1-(spec.anchored?0:squash*w*.6),rot=Math.sin(t*hz*Math.PI+ph)*sway;
+    if(v.face==='sad'){sy*=.93;oy+=1.5;}
+    if(v.face==='surprise'){const j=(t+ph)%2.4;if(j<.22){oy-=Math.sin(j/.22*Math.PI)*10;sy*=1.1;sx*=.94;}}
+    const total=spec.strike.cooldownMs/expressionOf(v.face).temperament.attackRate,since=total-v.cdMs;
+    if(v.targetId&&since>=0&&since<190){const k=Math.sin(since/190*Math.PI);ox+=v.faceX*k*7;sx*=1+.12*k;sy*=1-.1*k;}
+    return {ox,oy,sx,sy,rot};
+  }
+  // Fill the inside of a closed drawing with horizontal ink lines (open strokes such as a line or lightning stay unfilled).
+  function fillClosedShape(points,x,y,rot,sx,sy,scale,color,alpha){
+    if(points.length<4)return;
+    let extent=0;for(const p of points)extent=Math.max(extent,Math.abs(p.x),Math.abs(p.y));
+    if(hypot(points[0].x-points.at(-1).x,points[0].y-points.at(-1).y)>extent*.45)return;
+    const cs=Math.cos(rot),sn=Math.sin(rot),poly=points.map(p=>{const px=p.x*scale*sx,py=p.y*scale*sy;return [x+px*cs-py*sn,y+px*sn+py*cs];});
+    let minY=Infinity,maxY=-Infinity;for(const q of poly){minY=Math.min(minY,q[1]);maxY=Math.max(maxY,q[1]);}
+    const step=2.4;
+    for(let yy=minY+step/2;yy<maxY;yy+=step){
+      const xs=[];for(let i=0;i<poly.length;i++){const a=poly[i],b=poly[(i+1)%poly.length];if((a[1]<=yy)!==(b[1]<=yy))xs.push(a[0]+(yy-a[1])/(b[1]-a[1])*(b[0]-a[0]));}
+      xs.sort((m,n)=>m-n);for(let k=0;k+1<xs.length;k+=2)P.line(xs[k],yy,xs[k+1],yy,step+.4,color,alpha);
+    }
+  }
+  function drawStrokeSquashed(points,x,y,rot,sx,sy,scale,color,alpha,width){
+    const cs=Math.cos(rot),sn=Math.sin(rot),map=p=>{const px=p.x*scale*sx,py=p.y*scale*sy;return [x+px*cs-py*sn,y+px*sn+py*cs];};
+    for(let i=1;i<points.length;i++){const a=map(points[i-1]),b=map(points[i]);P.line(a[0],a[1],b[0],b[1],width+1.6,'#fff5dc',alpha*.7);P.line(a[0],a[1],b[0],b[1],width,color,alpha);}
+  }
+  function drawFace(id,cx,cy,u,t,look,seed){
+    const blinkT=(t+seed*.37)%3.4,blink=blinkT<.12,L=-1,R=1;
+    const eyeY=cy-.2*u,gx=look*.05*u;
+    if(id==='neutral'){
+      for(const s of [L,R]){if(blink)inkLine(cx+s*.42*u-.1*u,eyeY,cx+s*.42*u+.1*u,eyeY,2);else inkDot(cx+s*.42*u+gx,eyeY,Math.max(1.6,.1*u));}
+      inkLine(cx-.28*u,cy+.4*u,cx+.28*u,cy+.4*u,2);
+    }else if(id==='joy'){
+      const open=.12*Math.sin(t*6)+1;
+      for(const s of [L,R])inkArc(cx+s*.42*u,eyeY+.1*u,.15*u,.13*u,Math.PI,Math.PI*2,2.2,7);
+      inkArc(cx,cy+.18*u,.34*u*open,.26*u*open,.1*Math.PI,.9*Math.PI,2.2,10);
+      P.dot(cx-.66*u,cy+.12*u,.1*u,'#e59a8f',.4);P.dot(cx+.66*u,cy+.12*u,.1*u,'#e59a8f',.4);
+    }else if(id==='anger'){
+      const q=Math.sin(t*30+seed)*.02*u;
+      for(const s of [L,R]){
+        inkLine(cx+s*.62*u,eyeY-.2*u+q,cx+s*.2*u,eyeY-.04*u+q,2.8);
+        if(blink)inkLine(cx+s*.42*u-.08*u,eyeY+.08*u,cx+s*.42*u+.08*u,eyeY+.08*u,2);else inkDot(cx+s*.42*u+gx,eyeY+.1*u,Math.max(1.8,.1*u));
+      }
+      const pts=[];for(let i=0;i<=6;i++)pts.push([cx-.3*u+.6*u*i/6,cy+.42*u+(i%2?-.06:.06)*u+q]);inkPath(pts,2.2);
+      const pulse=.7+.3*Math.sin(t*9);inkLine(cx+.52*u,cy-.7*u,cx+.74*u,cy-.5*u,2*pulse);inkLine(cx+.74*u,cy-.7*u,cx+.52*u,cy-.5*u,2*pulse);
+    }else if(id==='sleepy'){
+      const droop=.5+.5*Math.sin(t*1.1+seed),lid=.04*u+droop*.05*u;
+      for(const s of [L,R])inkArc(cx+s*.42*u,eyeY-lid*.4,.15*u,.07*u+lid,.05*Math.PI,.95*Math.PI,2.2,7);
+      const mr=.1*u*(1+.35*Math.sin(t*1.6));inkArc(cx,cy+.42*u,mr,mr,0,Math.PI*2,2,10);
+      const zt=(t*.45+seed*.13)%1;for(let k=0;k<2;k++){const f=(zt+k*.5)%1,zx=cx+.7*u+f*.35*u,zy=cy-.5*u-f*.8*u,zs=(.08+.07*f)*u;P.line(zx-zs,zy-zs,zx+zs,zy-zs,2,INK,.85*(1-f));P.line(zx+zs,zy-zs,zx-zs,zy+zs,2,INK,.85*(1-f));P.line(zx-zs,zy+zs,zx+zs,zy+zs,2,INK,.85*(1-f));}
+    }else if(id==='surprise'){
+      const wide=1+.14*Math.sin(t*7);
+      for(const s of [L,R]){inkArc(cx+s*.42*u,eyeY,.19*u*wide,.19*u*wide,0,Math.PI*2,2,12);inkDot(cx+s*.42*u+gx*2,eyeY,Math.max(1.4,.06*u));inkArc(cx+s*.42*u,eyeY-.38*u*wide,.2*u,.08*u,Math.PI*1.1,Math.PI*1.9,2,6);}
+      const m=.16*u*(1+.25*Math.sin(t*5));inkArc(cx,cy+.45*u,m*.9,m*1.2,0,Math.PI*2,2.2,12);
+      const bob=Math.sin(t*10)*1.5;inkLine(cx+.78*u,cy-.9*u+bob,cx+.78*u,cy-.55*u+bob,2.6);inkDot(cx+.78*u,cy-.4*u+bob,1.6);
+    }else if(id==='sad'){
+      const quiver=Math.sin(t*14+seed)*.015*u;
+      for(const s of [L,R]){
+        inkLine(cx+s*.6*u,eyeY-.3*u,cx+s*.22*u,eyeY-.46*u,2.4);
+        if(blink)inkLine(cx+s*.42*u-.08*u,eyeY+.02*u,cx+s*.42*u+.08*u,eyeY+.02*u,2);else{inkDot(cx+s*.42*u+gx,eyeY+.04*u,Math.max(1.8,.12*u));P.dot(cx+s*.42*u+gx+.03*u,eyeY,.04*u,'#fff',.9);}
+      }
+      inkArc(cx,cy+.62*u+quiver,.28*u,.16*u,1.12*Math.PI,1.88*Math.PI,2.2,9);
+      const f=(t*.7+seed*.21)%1,tx=cx+.5*u,ty=eyeY+.15*u+f*.7*u;P.dot(tx,ty,.07*u,'#7fb6d4',.85*(1-f));
+    }
+  }
   function drawSummon(v){
     if(!visible(v.x,v.y,120))return;
-    const spec=summonSpecOf(v.kind),bob=spec.anchored?0:Math.sin(paintClockMs*.006+v.id)*2,x=v.x,y=v.y+bob;
+    // Drawn larger than the collider so the body and its face stay readable; collision and targeting use v.r.
+    const spec=summonSpecOf(v.kind),t=paintClockMs/1000,pose=summonPose(v,spec,t),x=v.x+pose.ox,y=v.y+pose.oy,vr=v.r*1.35;
     let extent=1;for(const p of v.shape)extent=Math.max(extent,Math.abs(p.x),Math.abs(p.y));
-    const scale=v.r*1.15/extent;
+    const scale=vr*1.15/extent;
     if(spec.anchored)P.ring(v.x,v.y,spec.strike.range,v.color,.10+.05*Math.sin(paintClockMs*.004),1.4,40);
-    P.oval(v.x,v.y+v.r*.8,v.r*.95,v.r*.26,'#74726b',.16);
-    P.dot(x,y,v.r*.95,v.color,.20);
-    P.ring(x,y,v.r+(spec.taunt?4:2),v.color,spec.taunt?.75:.45,spec.taunt?3:1.6,24);
-    drawStroke(v.shape,x,y,spec.anchored?paintClockMs*.0006:0,scale,v.color,.97,3.0,1);
-    P.dot(x+v.faceX*v.r*.35,y-v.r*.2,2.2,'#fff8d0',.9);
-    if(v.hitMs>0){const f=clamp(v.hitMs/SKETCH.hitFlashMs,0,1);P.ring(x,y,v.r+6,'#fff8d9',f*.9,2.4,18);}
-    if(v.hp<v.maxHp){const pct=clamp(v.hp/v.maxHp,0,1),bar=Math.max(26,v.r*2);P.box(x,y-v.r-14,bar,5,'#605660',.65);if(pct>0)P.box(x-bar*(1-pct)/2,y-v.r-14,bar*pct,4,'#6f9a85');}
+    P.oval(v.x,v.y+vr*.8,vr*.95,vr*.26,'#74726b',.16);
+    const rot=spec.anchored?paintClockMs*.0006:pose.rot;
+    fillClosedShape(v.shape,x,y,rot,pose.sx,pose.sy,scale,v.color,.22);
+    drawStrokeSquashed(v.shape,x,y,rot,pose.sx,pose.sy,scale,v.color,.97,spec.taunt?5:3);
+    drawFace(v.face,x,y+vr*.04*pose.sy,vr*.62*Math.min(pose.sx,pose.sy+.05),t,v.faceX,v.id);
+    if(v.hitMs>0){const f=clamp(v.hitMs/SKETCH.hitFlashMs,0,1);drawStrokeSquashed(v.shape,x,y,rot,pose.sx*1.06,pose.sy*1.06,scale,'#fff8d9',f*.9,5);}
+    if(v.hp<v.maxHp){const pct=clamp(v.hp/v.maxHp,0,1),bar=Math.max(26,vr*2);P.box(v.x,v.y-vr-14,bar,5,'#605660',.65);if(pct>0)P.box(v.x-bar*(1-pct)/2,v.y-vr-14,bar*pct,4,'#6f9a85');}
   }
   function drawHazard(h){if(!visible(h.x,h.y,90))return;
     const phase=Math.floor(paintClockMs/SKETCH.boilMs),r=h.r;

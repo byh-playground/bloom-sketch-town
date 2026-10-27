@@ -157,10 +157,24 @@ async def draw_circle(page, size=180, kind='circle', at=None):
         await page.mouse.move(point['x'],point['y'])
     await page.mouse.move(points[-1]['x'],points[-1]['y'])
     await page.evaluate("""() => {window.lastGestureShot=null;document.addEventListener('pointerup',()=>{
-      window.lastGestureShot=structuredClone(__sketchRpgDebug.queuedShots().at(-1));
+      window.lastGestureShot=__sketchRpgDebug.draftShot()||structuredClone(__sketchRpgDebug.queuedShots().at(-1));
     },{once:true});}""")
     await page.mouse.up()
     return await page.evaluate("window.lastGestureShot")
+
+
+async def draw_face(page, expression, strokes=None, cx=512.0, cy=250.0, u=46.0):
+    """Draw the on-screen guide face (the same strokes the player sees) with real pointer events, one press-move-release per stroke."""
+    if strokes is None:
+        guide = await page.evaluate("id=>__sketchRpgDebug.expressionGuide(id)", expression)
+        strokes = [[(cx + p['x'] * u, cy + p['y'] * u) for p in stroke] for stroke in guide]
+    for stroke in strokes:
+        await page.mouse.move(stroke[0][0], stroke[0][1])
+        await page.mouse.down()
+        for x, y in stroke[1:]:
+            await page.mouse.move(x, y)
+        await page.mouse.up()
+        await page.wait_for_timeout(80)
 
 
 async def run_desktop(browser, suite: E2E, html: str):
@@ -599,12 +613,14 @@ async def run_bosses(browser, suite: E2E):
             boss_id=await page.evaluate('__sketchRpgDebug.spawnBoss(1)')
             await page.wait_for_timeout(200)
             water=await draw_circle(page,170,'water')
-            await page.wait_for_function("__sketchRpgDebug.summons().some(q=>q.kind==='water')",timeout=4000)
+            await draw_face(page,'joy');await page.click('#faceDone')
+            await page.wait_for_function("__sketchRpgDebug.summons().some(q=>q.kind==='water')",timeout=9000)
             await page.wait_for_timeout(4000)
             after_water=await page.evaluate('id=>__sketchRpgDebug.bossHp(id)',boss_id)
             suite.check('a drawn water summon cannot hurt the water-immune boss',water is not None and water['kind']=='water' and after_water['hp']==after_water['hp'] and after_water['hp']==720,{'shot':water and water['kind'],'hp':after_water})
             flame=await draw_circle(page,170,'flame')
-            await page.wait_for_function("__sketchRpgDebug.summons().some(q=>q.kind==='flame')",timeout=4000)
+            await draw_face(page,'joy');await page.click('#faceDone')
+            await page.wait_for_function("__sketchRpgDebug.summons().some(q=>q.kind==='flame')",timeout=9000)
             await page.wait_for_timeout(4000)
             after_flame=await page.evaluate('id=>__sketchRpgDebug.bossHp(id)',boss_id)
             suite.check('a drawn flame summon hurts the flame-weak boss',flame is not None and flame['kind']=='flame' and after_flame['hp']<720-30,{'shot':flame and flame['kind'],'hp':after_flame})
@@ -672,11 +688,22 @@ async def run_summons(browser, suite: E2E):
             suite.check('a fifth summon replaces the oldest, leaving four',len(ids)==4 and first_ids[3][0] not in ids,first_ids)
             # Placement follows where the stroke is drawn (real mouse events).
             await page.evaluate("__sketchRpgDebug.combatFixture('chaser',3000,735);__sketchRpgDebug.moveTo(480,735);__sketchRpgDebug.setInk(100)")
-            before=await page.evaluate("__sketchRpgDebug.summons().length")
+            # Two steps: the body stroke only opens a draft; nothing is summoned or paid for until the face step ends.
+            ink0=await page.evaluate("__sketchRpgDebug.runState().actor.ink")
+            max_id=await page.evaluate("Math.max(0,...__sketchRpgDebug.summons().map(q=>q.id))")
             shot=await draw_circle(page,120,'circle',at=[480+150,735])
-            await page.wait_for_function(f"__sketchRpgDebug.summons().length>={before}&&__sketchRpgDebug.summons().some(q=>q.kind==='circle'&&Math.abs(q.x-630)<45&&Math.abs(q.y-735)<45)",timeout=4000)
+            draft=await page.evaluate("__sketchRpgDebug.draftState()")
+            ink1=await page.evaluate("__sketchRpgDebug.runState().actor.ink")
+            fresh=await page.evaluate("m=>__sketchRpgDebug.summons().filter(q=>q.id>m).length",max_id)
+            suite.check('a body stroke opens a face draft and neither summons nor spends ink yet',draft['active'] and fresh==0 and ink1>=ink0-0.5,{'draft':draft,'fresh':fresh,'ink':[ink0,ink1]})
+            await page.wait_for_timeout(5500)
+            still=await page.evaluate("({d:__sketchRpgDebug.draftState(),n:__sketchRpgDebug.summons().filter(q=>q.id>%d).length})"%max_id)
+            suite.check('the face step waits for a button: no auto-summon after 5.5 s, bar shown, ribbon hidden',still['d']['active'] and still['n']==0 and still['d']['faceBarVisible'] and not still['d']['ribbonVisible'],still)
+            await draw_face(page,'joy')
+            await page.click('#faceDone')
+            await page.wait_for_function("m=>__sketchRpgDebug.summons().some(q=>q.id>m&&q.kind==='circle')",arg=max_id,timeout=6000)
             placed=await page.evaluate("__sketchRpgDebug.summons().filter(q=>q.kind==='circle').at(-1)")
-            suite.check('a real stroke drawn 150 px to the right summons there',shot is not None and shot['kind']=='circle' and abs(placed['x']-630)<45,{'shot':shot and shot['kind'],'at':[placed['x'],placed['y']]})
+            suite.check('a real body stroke 150 px to the right plus a drawn joy face summons a joyful shield ball there',shot is not None and shot['kind']=='circle' and placed['face']=='joy' and abs(placed['x']-630)<45,{'shot':shot and shot['kind'],'face':placed['face'],'at':[placed['x'],placed['y']]})
             # Ink cost.
             cost=await page.evaluate("""()=>{const d=__sketchRpgDebug;d.combatFixture('chaser',3000,735);d.moveTo(480,735);d.setInk(100);
               const shot=d.spellSpec(d.sample('triangle',180,180));d.castKind('triangle',0,120);return {area:shot.areaPower};}""")
@@ -694,6 +721,70 @@ async def run_summons(browser, suite: E2E):
             await page.wait_for_function("__sketchRpgDebug.summons().find(q=>q.kind==='circle')?.hp<__sketchRpgDebug.summons().find(q=>q.kind==='circle')?.maxHp",timeout=12000)
             php=await page.evaluate("__sketchRpgDebug.snapshot().player.hp")
             suite.check('an enemy near a summon hurts the summon, not the player 240 px away',php==120,php)
+            # Expressions: each drawn face is recognized, and temperaments are MECE (neutral none; others both an advantage and a disadvantage).
+            table=await page.evaluate("__sketchRpgDebug.expressions()")
+            ok=all((e['id']=='neutral')==(not e['summary'].startswith('이점')) for e in table)
+            both=all(any(v>1 for k,v in e['multipliers'].items()) and any(v<1 for k,v in e['multipliers'].items()) for e in table if e['id']!='neutral')
+            suite.check('neutral has no traits; every other expression has both an advantage and a disadvantage',ok and both and [e['id'] for e in table]==['neutral','joy','anger','sleepy','surprise','sad'],table)
+            seen={}
+            for expression in ['joy','anger','sleepy','surprise','sad']:
+                await page.evaluate("()=>{const d=__sketchRpgDebug;d.combatFixture('chaser',3000,735);d.moveTo(480,735);d.setInk(100);}")
+                max_id=await page.evaluate("Math.max(0,...__sketchRpgDebug.summons().map(q=>q.id))")
+                await draw_circle(page,120,'triangle',at=[480+110,735])
+                await draw_face(page,expression)
+                await page.click('#faceDone')
+                await page.wait_for_function("m=>__sketchRpgDebug.summons().some(q=>q.id>m)",arg=max_id,timeout=6000)
+                seen[expression]=await page.evaluate("m=>__sketchRpgDebug.summons().filter(q=>q.id>m).at(-1).face",max_id)
+            suite.check('real pointer faces are recognized as joy, anger, sleepy, surprise and sad',seen=={e:e for e in seen},seen)
+            # No face or an unreadable scribble -> neutral, no traits.
+            await page.evaluate("()=>{const d=__sketchRpgDebug;d.combatFixture('chaser',3000,735);d.moveTo(480,735);d.setInk(100);}")
+            max_id=await page.evaluate("Math.max(0,...__sketchRpgDebug.summons().map(q=>q.id))")
+            await draw_circle(page,120,'square',at=[480+110,735])
+            await page.click('#faceDone')
+            await page.wait_for_timeout(400)
+            nofacial=await page.evaluate("m=>({made:__sketchRpgDebug.summons().some(q=>q.id>m),active:__sketchRpgDebug.draftState().active})",max_id)
+            suite.check('pressing summon with no face drawn makes nothing and keeps the draft open',nofacial['made']==False and nofacial['active']==True,nofacial)
+            await page.click('#faceCancel')
+            scribble=[[(430,200),(560,310),(440,330),(590,190),(470,300)]]
+            max_id=await page.evaluate("Math.max(0,...__sketchRpgDebug.summons().map(q=>q.id))")
+            await page.evaluate("__sketchRpgDebug.setInk(100)")
+            await draw_circle(page,120,'square',at=[480+110,735])
+            await draw_face(page,'scribble',scribble)
+            await page.click('#faceDone')
+            await page.wait_for_function("m=>__sketchRpgDebug.summons().some(q=>q.id>m)",arg=max_id,timeout=6000)
+            scrib=await page.evaluate("m=>__sketchRpgDebug.summons().filter(q=>q.id>m).at(-1).face",max_id)
+            suite.check('an unreadable scribble becomes a neutral face',scrib=='neutral',scrib)
+            # Cancel leaves ink and summons untouched; Enter finishes; 15 s without input cancels.
+            await page.evaluate("()=>{const d=__sketchRpgDebug;d.combatFixture('chaser',3000,735);d.moveTo(480,735);d.setInk(100);}")
+            max_id=await page.evaluate("Math.max(0,...__sketchRpgDebug.summons().map(q=>q.id))")
+            await draw_circle(page,120,'triangle',at=[480+110,735])
+            await draw_face(page,'joy')
+            await page.click('#faceCancel')
+            await page.wait_for_timeout(300)
+            cancelled=await page.evaluate("m=>({d:__sketchRpgDebug.draftState(),n:__sketchRpgDebug.summons().filter(q=>q.id>m).length,ink:__sketchRpgDebug.runState().actor.ink})",max_id)
+            suite.check('cancel discards the draft: no summon, ink untouched, ribbon back',not cancelled['d']['active'] and cancelled['n']==0 and cancelled['ink']>=99 and cancelled['d']['ribbonVisible'] and not cancelled['d']['faceBarVisible'],cancelled)
+            await draw_circle(page,120,'triangle',at=[480+110,735])
+            await draw_face(page,'sad')
+            await page.keyboard.press('Enter')
+            await page.wait_for_function("m=>__sketchRpgDebug.summons().some(q=>q.id>m&&q.face==='sad')",arg=max_id,timeout=6000)
+            suite.check('Enter finishes the face step',True)
+            await draw_circle(page,120,'triangle',at=[480+110,735])
+            await page.wait_for_timeout(15600)
+            timed=await page.evaluate("({d:__sketchRpgDebug.draftState(),ink:__sketchRpgDebug.runState().actor.ink})")
+            suite.check('15 s without input cancels the draft without spending ink',not timed['d']['active'] and timed['ink']>=60,timed)
+            # Temperament numbers reach the summon.
+            by_face={}
+            for face in ['neutral','sleepy','anger','sad']:
+                await page.evaluate("()=>{const d=__sketchRpgDebug;d.combatFixture('chaser',3000,735);d.moveTo(480,735);d.setInk(100);}")
+                await page.evaluate("f=>__sketchRpgDebug.castKind('triangle',0,120,.5,f)",face)
+                await page.wait_for_function("__sketchRpgDebug.summons().length>0",timeout=4000)
+                by_face[face]=await page.evaluate("(({maxHp,power})=>({maxHp,power}))(__sketchRpgDebug.summons()[0])")
+            base=by_face['neutral']
+            suite.check('temperament multiplies hp and attack power',abs(by_face['sleepy']['maxHp']/base['maxHp']-1.4)<.03 and abs(by_face['anger']['power']/base['power']-1.35)<.02 and abs(by_face['sad']['maxHp']/base['maxHp']-1.25)<.03 and abs(by_face['sad']['power']/base['power']-.75)<.02,by_face)
+            # An unknown expression in a checkpoint is refused.
+            refused=await page.evaluate("""()=>{const d=__sketchRpgDebug,s=JSON.parse(new TextDecoder().decode(d.canonicalSnapshot()));s.world.summons[0].face='bogus';
+              try{d.canonicalRestore(new TextEncoder().encode(JSON.stringify(s)));return false;}catch(e){return true;}}""")
+            suite.check('a checkpoint with an unknown expression is rejected',refused)
             # Anchored summon never walks.
             await page.evaluate("()=>{const d=__sketchRpgDebug;d.combatFixture('chaser',3000,735);d.moveTo(480,735);d.setInk(100);d.castKind('star',0,100);}")
             await page.wait_for_function("__sketchRpgDebug.summons().some(q=>q.kind==='star')",timeout=4000)
@@ -733,7 +824,7 @@ async def run_ink_hud(browser,suite):
                 pass
             message=await page.locator('#resultChip').inner_text()
             await page.evaluate('clearInterval(window.__zeroInk)')
-            suite.check('spell with insufficient ink explains needed amount and wait',region_shot is not None and '필요' in message and '대기' in message,{'message':message,'shot':region_shot})
+            suite.check('spell with insufficient ink explains needed amount and wait',region_shot is None and '필요' in message and '대기' in message,{'message':message,'shot':region_shot})
             suite.check('ink HUD flow has no JavaScript error',not issues,issues)
         finally:
             await context.close()
@@ -759,7 +850,8 @@ async def run_run_state(browser, suite: E2E):
             await page.evaluate('__sketchRpgDebug.regionCombatFixture(0)')
             await page.wait_for_timeout(160)
             await draw_circle(page)
-            await page.wait_for_function('__sketchRpgDebug.runState().regionKills[0]>=5',timeout=10000)
+            await draw_face(page,'joy');await page.locator('#faceDone').click()
+            await page.wait_for_function('__sketchRpgDebug.runState().regionKills[0]>=5',timeout=20000)
             suite.check('real attack clears the forest region',True)
             await page.set_viewport_size({'width':390,'height':844})
             await page.evaluate('__sketchRpgDebug.regionCombatFixture(1);__sketchRpgDebug.setInk(100)')
@@ -767,7 +859,8 @@ async def run_run_state(browser, suite: E2E):
             region_shot=await draw_circle(page,140)
             suite.check('resized region fixture queues the actual circle stroke',region_shot is not None and region_shot['kind']=='circle',region_shot)
             if region_shot is None:return
-            await page.wait_for_function('__sketchRpgDebug.runState().regionKills[1]>=5',timeout=10000)
+            await draw_face(page,'joy',cx=195,u=34);await page.locator('#faceDone').click()
+            await page.wait_for_function('__sketchRpgDebug.runState().regionKills[1]>=5',timeout=20000)
             suite.check('regions still count their own defeated enemies',await page.evaluate('__sketchRpgDebug.runState().regionKills.slice(0,2).every(n=>n>=5)'))
             suite.check('run state workflow has no JavaScript errors',not issues,issues)
         finally:

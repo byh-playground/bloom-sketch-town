@@ -71,7 +71,7 @@
   class HeroView extends SceneView {static renderSchema={actorId:R.STEP,hp:R.STEP,maxHp:R.STEP,invulMs:R.COUNTDOWN_MS,faceX:R.STEP,faceY:R.STEP,moveX:R.STEP,moveY:R.STEP,
     'dash.leftMs':R.COUNTDOWN_MS,'dash.elapsedMs':R.LINEAR,'dash.durationMs':R.STEP,'dash.dirX':R.STEP,'dash.dirY':R.STEP,'dash.charges':R.STEP};}
   class EnemyView extends SceneView {static renderSchema={hp:R.STEP,maxHp:R.STEP,stunMs:R.COUNTDOWN_MS,chargeMs:R.COUNTDOWN_MS,chargeDX:R.STEP,chargeDY:R.STEP,hitMs:R.COUNTDOWN_MS,windupMs:R.COUNTDOWN_MS,attackType:R.STEP};}
-  class SummonView extends SceneView {static renderSchema={hp:R.STEP,maxHp:R.STEP,hitMs:R.COUNTDOWN_MS,faceX:R.STEP,shape:R.STEP,targetId:R.STEP};}
+  class SummonView extends SceneView {static renderSchema={hp:R.STEP,maxHp:R.STEP,hitMs:R.COUNTDOWN_MS,cdMs:R.COUNTDOWN_MS,faceX:R.STEP,face:R.STEP,shape:R.STEP,targetId:R.STEP};}
   class HazardView extends SceneView {static renderSchema={vx:R.STEP,vy:R.STEP};}
   class CastView extends SceneView {static renderSchema={durationMs:R.STEP,owner:R.STEP,shot:R.STEP};}
   class FieldView extends SceneView {static renderSchema={ex:R.STEP,ey:R.STEP};}
@@ -329,15 +329,20 @@
     analyze(raw){const s=makeShotData(raw);return {name:s.name,kind:s.kind,area:s.areaPx2,damage:s.baseDamage,cnn:s.cnn.prob,reference:s.reference};},
     sample:samplePoints,
     drawingState(){return {pointer:drawInput.pointer,points:drawInput.points.map(p=>({...p})),aim:drawInput.aim,center:drawInput.center,origin:drawInput.origin};},
-    summons(){return world.summons.map(q=>({id:q.id,owner:q.owner,kind:q.kind,name:q.name,x:q.x,y:q.y,r:q.r,hp:q.hp,maxHp:q.maxHp,power:q.power,targetId:q.targetId,shape:q.shape}));},
+    summons(){return world.summons.map(q=>({id:q.id,owner:q.owner,kind:q.kind,face:q.face,name:q.name,x:q.x,y:q.y,r:q.r,hp:q.hp,maxHp:q.maxHp,power:q.power,targetId:q.targetId,shape:q.shape}));},
     summonSpecs(){return Object.fromEntries(Object.entries(SUMMON_SPECS).map(([k,q])=>[k,{name:q.name,role:q.role,anchored:q.anchored,taunt:q.taunt,hp:q.hp,ink:q.ink,damage:q.strike.damage,cooldownMs:q.strike.cooldownMs,range:q.strike.range}]));},
     summonLimit(){return SUMMON_LIMIT;},
     queuedShots(){return [...world.commands.filter(c=>c.type==='cast'),...world.castQueue,...world.casts].map(c=>c.shot);},
     cast(type,aim=0,reach=120){const shot={...makeShotData(samplePoints(type)),aim,reach};world.commands.push({type:'cast',shot});},
     // Command for an exact summon kind (the stroke itself is only a reference outline).
-    castKind(kind,aim=0,reach=120,areaPower=.5){const base=makeShotData(samplePoints(kind==='normal'?'line':kind)),spec=summonSpecOf(kind),shot={...base,kind,name:spec.name,color:art[kind]||art.normal,aim,reach,areaPower,baseDamage:spec.damage(areaPower)};world.commands.push({type:'cast',shot});return shot.kind;},
+    castKind(kind,aim=0,reach=120,areaPower=.5,face='neutral'){const base=makeShotData(samplePoints(kind==='normal'?'line':kind)),spec=summonSpecOf(kind),shot={...base,kind,name:spec.name,color:art[kind]||art.normal,aim,reach,face,areaPower,baseDamage:spec.damage(areaPower)};world.commands.push({type:'cast',shot});return shot.kind;},
     castStroke(raw,aim=0,reach=120){const shot={...makeShotData(raw),aim,reach};world.commands.push({type:'cast',shot});return {kind:shot.kind,baseDamage:shot.baseDamage};},
     spellSpec(raw){const shot=makeShotData(raw);return {kind:shot.kind,castMs:castDurationMs(shot),recoveryMs:spellRecoveryMs(),areaPower:shot.areaPower,baseDamage:shot.baseDamage};},
+    draftShot(){return summonDraft.active?structuredClone(summonDraft.shot):null;},
+    draftState(){return {active:summonDraft.active,strokes:summonDraft.strokes.length,last:lastFaceResult,cancelMs:FACE_CANCEL_MS,faceBarVisible:!$('faceBar').hidden,ribbonVisible:!$('ribbon').hidden};},
+    expressionGuide(id){return expressionOf(id).guide.map(stroke=>stroke.map(([x,y])=>({x,y})));},
+    recognizeFace(strokes){const r=faceRecognizer.recognize(strokes);return {id:r.id,confidence:r.confidence,accepted:r.accepted,probabilities:r.probabilities};},
+    expressions(){return EXPRESSIONS.map(e=>({id:e.id,name:e.name,summary:e.temperament.summary(),multipliers:{...e.temperament}}));},
     presentedSummons(){return sceneViews.summon.map(q=>({id:q.id,x:q.x,y:q.y,kind:q.kind,hp:q.hp}));},
     renderedActors(){return [hostPlayer,guestPlayer].map(actor=>{const view=renderViewCache.get(actor);return {id:view?.actorId,x:view?.x,y:view?.y,castActive:!!view&&((view.castPreviewMs||0)>0||sceneViews.cast.some(c=>c.owner===view.actorId)),currentClip:view?.currentClip??null,currentExpression:view?.currentExpression??null,nextCastAtMs:actor.nextCastAtMs,screenX:view?(view.x-camera.x)*camera.zoom:null};});},
     previewInfo(){const now=performance.now(),model=mp.localPresentation&&mp.localPoseSource?mp.localPresentation.modelFor(mp.localPoseSource,now):null;return {enabled:!!mp.inputPreview,ready:mp.inputPreview?.ready??false,pending:mp.inputPreview?.pendingCount??0,metrics:mp.inputPreview?.metrics||null,x:model?.x??null,y:model?.y??null,castMs:model?.castMs??null,actorX:player.x,actorY:player.y,revision:mp.poseRevision};},

@@ -20,13 +20,62 @@
     drawInput.reach=clamp(hypot(dx,dy)/Math.max(.01,(unit.x-origin.x)/100),SUMMON_MIN_REACH,SUMMON_MAX_REACH);
   }
   function dropDraw(){drawInput.pointer=null;drawInput.points.length=0;drawInput.length=0;drawInput.finished=null;drawInput.previewUntilMs=0;drawInput.center=null;drawInput.origin=null;gesture.drawId=null;setSlowUi(false);$('strokeStatus').textContent='원하는 자리에 한 획 · 그 자리에 소환';}
+  // Two-step summon: the body stroke is recognized first, then the face is drawn (any number of strokes, any place).
+  // A face cannot be drawn in one stroke, so the player ends the step with a button (or Enter). Nothing is sent to the
+  // simulation or paid for until then; cancelling, a modal, death or 15 s without input leaves the ink untouched.
+  const FACE_CANCEL_MS=15000,FACE_MAX_STROKES=12;
+  let lastFaceResult=null;
+  const summonDraft={active:false,shot:null,body:null,center:null,strokes:[],lastActivityMs:0};
+  function showFaceStep(on){$('ribbon').hidden=on;$('faceBar').hidden=!on;}
+  function cancelSummonDraft(message){
+    const was=summonDraft.active;
+    Object.assign(summonDraft,{active:false,shot:null,body:null,center:null,strokes:[]});showFaceStep(false);
+    if(was&&message){showResult(message,1600);$('strokeStatus').textContent='원하는 자리에 한 획 · 그 자리에 소환';}
+  }
+  function beginSummonDraft(shot,bodyPoints,center){
+    Object.assign(summonDraft,{active:true,shot,body:bodyPoints.map(p=>({...p})),center:{...center},strokes:[],lastActivityMs:performance.now()});
+    showFaceStep(true);
+    $('lastSpell').textContent=`${shot.name} · 표정을 그려 주세요`;$('strokeStatus').textContent='도감처럼 눈·입을 그리고 ✓ 소환을 누르세요';
+    showResult(`${shot.name} 인식 · 표정을 그리고 ✓ 소환`,2400);
+  }
+  function addFaceStroke(points){
+    if(!points.length)return;
+    if(summonDraft.strokes.length>=FACE_MAX_STROKES){showResult(`표정은 ${FACE_MAX_STROKES}획까지예요 · ✓ 소환을 눌러 주세요`,1400);return;}
+    summonDraft.strokes.push(points.map(p=>({x:p.x,y:p.y})));summonDraft.lastActivityMs=performance.now();
+    $('strokeStatus').textContent=`표정 ${summonDraft.strokes.length}획 · 다 그렸으면 ✓ 소환`;
+  }
+  function commitSummon(){
+    if(!summonDraft.active)return;
+    if(!summonDraft.strokes.length){summonDraft.lastActivityMs=performance.now();showResult('표정을 먼저 그려 주세요 · 눈과 입',1400);return;}
+    const result=faceRecognizer.recognize(summonDraft.strokes),face=expressionOf(result.id),shot={...summonDraft.shot,face:face.id},drew=true;
+    cancelSummonDraft();
+    world.commands.push({type:'cast',shot});wakeInputPreview();
+    lastFaceResult={id:face.id,confidence:result.confidence,accepted:result.accepted,strokes:drew};
+    $('lastSpell').textContent=`${shot.name} · ${face.name}`;$('strokeStatus').textContent='소환 준비 중';
+    showResult(result.accepted?`${shot.name} · ${face.name} · ${face.temperament.summary()}`:`${shot.name} · 표정을 알아보지 못해 무표정 · 특성 없음`,2600);
+  }
+  function tickSummonDraft(){
+    if(!summonDraft.active)return;
+    if(!drawingAllowed()){cancelSummonDraft();return;}
+    if(drawInput.pointer===null&&performance.now()-summonDraft.lastActivityMs>FACE_CANCEL_MS)cancelSummonDraft('표정 입력 시간이 지나 취소 · 잉크 소모 없음');
+  }
+  $('faceDone').addEventListener('click',()=>commitSummon());
+  $('faceCancel').addEventListener('click',()=>cancelSummonDraft('소환 취소 · 잉크 소모 없음'));
+  document.addEventListener('keydown',e=>{
+    if(!summonDraft.active||e.repeat)return;
+    if(e.code==='Enter'||e.code==='NumpadEnter'){e.preventDefault();commitSummon();}
+    else if(e.code==='Escape'){e.preventDefault();cancelSummonDraft('소환 취소 · 잉크 소모 없음');}
+  });
   function finishDraw(){
-    if(!drawingAllowed()){dropDraw();return;}
-    updateDrawingAim();const points=drawInput.points.slice(),length=drawInput.length,aim=drawInput.aim,reach=drawInput.reach;dropDraw();focusGameplay();
+    if(!drawingAllowed()){dropDraw();cancelSummonDraft();return;}
+    updateDrawingAim();const points=drawInput.points.slice(),length=drawInput.length,aim=drawInput.aim,reach=drawInput.reach,center=drawInput.center;dropDraw();focusGameplay();
+    if(summonDraft.active){addFaceStroke(points);return;}
     if(points.length<3||length<16){showResult('조금 더 길게 한 획을 그려 주세요',1100);return;}
-    gesture.lastCombatStroke=points.map(p=>({...p}));drawInput.finished=points;drawInput.previewUntilMs=performance.now()+220;
-    try{const shot=normalizeCommand({type:'cast',shot:{...makeShotData(points),aim,reach}}).shot;world.commands.push({type:'cast',shot});wakeInputPreview();$('lastSpell').textContent=`${shot.name} · 공격 ${Math.round(shot.baseDamage*player.power)}`;$('strokeStatus').textContent='소환 준비 중';
-      if(shot.kind==='normal')showResult('도형이 아닌 낙서 · 낙서병 소환',950);
+    gesture.lastCombatStroke=points.map(p=>({...p}));
+    try{
+      const shot=normalizeCommand({type:'cast',shot:{...makeShotData(points),aim,reach,face:'neutral'}}).shot,cost=spellInkCost(player,shot);
+      if(cost>player.ink+1e-6){showResult(`잉크 ${cost.toFixed(1)} 필요 · 현재 ${player.ink.toFixed(1)} · 약 ${inkWait(player,cost).toFixed(1)}초 회복 대기`,2200);return;}
+      beginSummonDraft(shot,points,center);
     }catch(error){console.error(error);showResult('소환 분석 실패 · 다시 그려 보세요',950);}}
   function collectCombatDrawing(e){
     if(e.type==='down'&&drawInput.pointer===null&&drawingAllowed()){
@@ -97,18 +146,23 @@
   function strokePad(canvas,context,w,h,ratio,points,guide){context.setTransform(ratio,0,0,ratio,0,0);context.clearRect(0,0,w,h);context.save();context.lineJoin='round';context.lineCap='round';if(guide&&guide.length>1){context.setLineDash([4,6]);context.lineWidth=2.3;context.strokeStyle='#d4b78e';context.globalAlpha=points?.length?.18:.48;context.beginPath();guide.forEach((p,i)=>i?context.lineTo(p.x,p.y):context.moveTo(p.x,p.y));context.stroke();context.setLineDash([]);}
     context.lineWidth=1;context.strokeStyle='#eadcc8';context.beginPath();context.moveTo(w*.5,h*.17);context.lineTo(w*.5,h*.83);context.moveTo(w*.17,h*.5);context.lineTo(w*.83,h*.5);context.stroke();
     if(points?.length>1){context.lineWidth=4.4;context.strokeStyle='#34484e';context.beginPath();points.forEach((p,i)=>i?context.lineTo(p.x,p.y):context.moveTo(p.x,p.y));context.stroke();context.lineWidth=1.4;context.strokeStyle='#fff7dd';context.stroke();const end=points.at(-1);context.beginPath();context.arc(end.x,end.y,4.2,0,Math.PI*2);context.fillStyle='#d9a057';context.fill();}context.restore();}
+  function paintSummonDraft(){
+    if(!summonDraft.active)return;
+    const trace=pts=>{drawCtx.beginPath();pts.forEach((p,i)=>i?drawCtx.lineTo(p.x,p.y):drawCtx.moveTo(p.x,p.y));};
+    trace(summonDraft.body);drawCtx.lineWidth=6;drawCtx.strokeStyle='rgba(255,247,221,.75)';drawCtx.stroke();drawCtx.lineWidth=3.2;drawCtx.strokeStyle='rgba(52,72,78,.62)';drawCtx.stroke();
+    for(const stroke of summonDraft.strokes){
+      if(stroke.length===1){drawCtx.beginPath();drawCtx.arc(stroke[0].x,stroke[0].y,6.5,0,Math.PI*2);drawCtx.fillStyle='#fff7dd';drawCtx.fill();drawCtx.beginPath();drawCtx.arc(stroke[0].x,stroke[0].y,4,0,Math.PI*2);drawCtx.fillStyle='#8a5f4a';drawCtx.fill();continue;}
+      trace(stroke);drawCtx.lineWidth=6;drawCtx.strokeStyle='#fff7dd';drawCtx.stroke();drawCtx.lineWidth=3.4;drawCtx.strokeStyle='#8a5f4a';drawCtx.stroke();}
+  }
   function renderDrawPad(){
     if(drawInput.pointer!==null&&!drawingAllowed())dropDraw();
     if(drawInput.pointer!==null)updateDrawingAim();
+    tickSummonDraft();
     const points=drawInput.pointer!==null?drawInput.points:drawInput.previewUntilMs>performance.now()?drawInput.finished:null;
-    drawCtx.setTransform(drawDpr,0,0,drawDpr,0,0);drawCtx.clearRect(0,0,vw,vh);if(!points?.length)return;
-    drawCtx.save();drawCtx.lineCap='round';drawCtx.lineJoin='round';
-    if(drawInput.pointer!==null&&drawInput.origin){
-      const o=drawInput.origin,c=drawInput.center,a=drawInput.aim,tip={x:o.x+Math.cos(a)*88,y:o.y+Math.sin(a)*88};
-      drawCtx.strokeStyle='#315f68';drawCtx.lineWidth=2;drawCtx.setLineDash([5,5]);drawCtx.beginPath();drawCtx.moveTo(o.x,o.y);drawCtx.lineTo(c.x,c.y);drawCtx.stroke();drawCtx.setLineDash([]);
-      drawCtx.beginPath();drawCtx.moveTo(o.x,o.y);drawCtx.lineTo(tip.x,tip.y);drawCtx.moveTo(tip.x-12*Math.cos(a-.5),tip.y-12*Math.sin(a-.5));drawCtx.lineTo(tip.x,tip.y);drawCtx.lineTo(tip.x-12*Math.cos(a+.5),tip.y-12*Math.sin(a+.5));drawCtx.stroke();
-      drawCtx.beginPath();drawCtx.arc(c.x,c.y,6,0,Math.PI*2);drawCtx.stroke();
-    }
+    drawCtx.setTransform(drawDpr,0,0,drawDpr,0,0);drawCtx.clearRect(0,0,vw,vh);
+    drawCtx.save();drawCtx.lineCap='round';drawCtx.lineJoin='round';paintSummonDraft();
+    if(!points?.length){drawCtx.restore();return;}
+    if(drawInput.pointer!==null&&drawInput.center&&!summonDraft.active){const c=drawInput.center;drawCtx.strokeStyle='#315f68';drawCtx.lineWidth=2;drawCtx.beginPath();drawCtx.arc(c.x,c.y,SUMMON_MIN_REACH*.45,0,Math.PI*2);drawCtx.stroke();}
     drawCtx.beginPath();points.forEach((p,i)=>i?drawCtx.lineTo(p.x,p.y):drawCtx.moveTo(p.x,p.y));drawCtx.lineWidth=6;drawCtx.strokeStyle='#fff7dd';drawCtx.stroke();drawCtx.lineWidth=3.5;drawCtx.strokeStyle='#34484e';drawCtx.stroke();drawCtx.restore();
   }
   function updateTrainingView(){const g=$('datasetGallery');const n=dataset.entries.length;g.innerHTML=n?dataset.entries.slice(-45).map((entry,i)=>{const points=normalizeStroke(entry.points,64),d=points.map((p,j)=>(j?'L':'M')+(42+p.x*24).toFixed(1)+' '+(39+p.y*24).toFixed(1)).join(' ');return `<div class="sample-thumb"><svg viewBox="0 0 84 78"><path d="${d}"/></svg><b>${shapeNames[entry.label]}</b></div>`;}).join(''):'<div style="grid-column:1/-1;color:#7b877e;font-size:12px;padding:10px">아직 수집한 그림이 없어요. 한 획씩 그려 주세요.</div>';
