@@ -406,6 +406,10 @@
     mapState(){const m=mapLayout;return {seed:m.seed,attempt:m.attempt,hash:m.hash(),worldSeed:world.mapSeed,size:m.size,spawn:{x:m.spawn.x,y:m.spawn.y},bossSites:m.bossSites.map(q=>({...q})),sites:m.sites.map(q=>({kind:q.kind,x:q.x,y:q.y,zone:q.zone})),nests:m.nests.map(n=>({kind:n.kind,x:n.x,y:n.y,zone:n.zone,members:n.members.slice(),hpScale:n.hpScale,leash:n.leash})),report:{...m.report},counts:{props:m.props.length,decals:m.decals.length,obstacles:world.obstacles.length,trees:world.trees.length,houses:world.houses.length}};},
     mapHashFor(seed){const t=performance.now(),l=generateWorldMap(seed);return {hash:l.hash(),attempt:l.attempt,ms:performance.now()-t};},
     terrainBlocked(x,y,r){return touchesObstacle(x,y,r);},
+    terrainOnlyBlocked(x,y,r){return !circleBounds(x,y,r)||mapLayout.terrainBlocks(x,y,r);},
+    obstacleList(){return world.obstacles.map(o=>({...o}));},
+    houseList(){return world.houses.map(h=>({...h}));},
+    propList(){return world.trees.map(t=>({x:t.x,y:t.y,r:t.r,kind:t.kind,solid:t.solid}));},
     nestStates(){return world.nests.map((q,i)=>({i,on:q.on,cd:q.cd,done:q.done,alive:world.enemies.filter(e=>e.nest===i&&!e.dead).length,kind:mapLayout.nests[i].kind,zone:mapLayout.nests[i].zone,x:mapLayout.nests[i].x,y:mapLayout.nests[i].y,members:mapLayout.nests[i].members.length}));},
     spawnPoint(){return {x:mapLayout.spawn.x,y:mapLayout.spawn.y};},
     // Waypoints (every 2nd cell) of a walkable route from the hero to (x,y) that keeps 18 units from obstacles; null when none exists.
@@ -425,11 +429,11 @@
           if(free&&!touchesObstacle(x,y,16)&&!touchesObstacle(x-dx*40,y-dy*40,16))return {x,y,key,dx,dy,wallX:(i+.5)*g.cell,wallY:(j+.5)*g.cell};}}
       return null;
     },
-    // Open ground for fixtures: the nearest point to the spawn with a free strip of 520 units to the east. fx/fy is a point on the far side of the map.
+    // Open ground for fixtures: the nearest point to the spawn with a free strip 80 units wide and 580 long to the east, checked every 12 units. fx/fy is a point on the far side of the map.
     arena(){
       if(!arenaCache||arenaCache.seed!==mapLayout.seed){
         const sp=mapLayout.spawn;let found={x:sp.x,y:sp.y};
-        search:for(let ring=0;ring<=40;ring++){const R=ring*48;for(let a=0;a<(ring?16:1);a++){const t=a*Math.PI/8,x=Math.round(sp.x+Math.cos(t)*R),y=Math.round(sp.y+Math.sin(t)*R);let ok=true;for(let dx=-60;dx<=520&&ok;dx+=40)for(let dy=-130;dy<=130&&ok;dy+=65)if(touchesObstacle(x+dx,y+dy,28))ok=false;if(ok){found={x,y};break search;}}}
+        search:for(let ring=0;ring<=40;ring++){const R=ring*48;for(let a=0;a<(ring?16:1);a++){const t=a*Math.PI/8,x=Math.round(sp.x+Math.cos(t)*R),y=Math.round(sp.y+Math.sin(t)*R);let ok=true;for(let dx=-60;dx<=520&&ok;dx+=12)for(let dy=-40;dy<=40&&ok;dy+=20)if(touchesObstacle(x+dx,y+dy,20))ok=false;if(ok){found={x,y};break search;}}}
         arenaCache={seed:mapLayout.seed,x:found.x,y:found.y,fx:clamp(CFG.world.width-found.x,150,CFG.world.width-150),fy:clamp(CFG.world.height-found.y,150,CFG.world.height-150)};
       }
       return {x:arenaCache.x,y:arenaCache.y,fx:arenaCache.fx,fy:arenaCache.fy};

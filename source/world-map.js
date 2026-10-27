@@ -39,8 +39,12 @@ const WORLD_MAP=Object.freeze({
     beach:{kind:'reed',solid:false,size:[16,26],gap:150,max:70},forest:{kind:'canopy',solid:true,size:[30,46],gap:112,max:230},
     swamp:{kind:'reed',solid:false,size:[20,34],gap:62,max:240},snow:{kind:'canopy',solid:true,size:[28,42],gap:118,max:150},
     ruins:{kind:'slab',solid:true,size:[24,40],gap:110,max:170},ink:{kind:'crystal',solid:true,size:[24,38],gap:120,max:90}}),
-  solidScale:0.55   // 솔리드 소품의 충돌 반지름 = 그림 반지름 × 이 값
+  // 솔리드 소품의 충돌 원 = 그림이 땅에 닿는 자리. SVG 좌표(180×200, 땅 기준점 (90,190))로 적고 그림 크기 r/50을 곱합니다.
+  // dy: 기준점에서 위쪽으로 올린 거리, rad: 반지름. 나무는 줄기 굵기, 바위·결정은 바닥 폭입니다.
+  solidFoot:Object.freeze({canopy:{dy:0,rad:5},slab:{dy:18,rad:36},crystal:{dy:22,rad:34}})
 });
+// 솔리드 소품 p의 충돌 원 {x,y,r}. 그리는 곳(region-map.js)과 배치(생성기)가 같은 값을 씁니다.
+function solidFoot(p){const f=WORLD_MAP.solidFoot[p.kind],k=p.r/50;return{x:p.x,y:p.y-f.dy*k,r:f.rad*k};}
 const WALL_NONE=0,WALL_RIVER=1,WALL_CLIFF=2;
 
 // 정수 해시 기반 값 잡음. 시드·솔트마다 독립된 장.
@@ -294,7 +298,7 @@ class WorldMapGenerator{
       let dx=x-spawn.x,dy=y-spawn.y;if(dx*dx+dy*dy<M.safeRadius*M.safeRadius)continue;
       if(this.sites.some(s=>{dx=x-s.x;dy=y-s.y;const rr=s.r+(s.kind==='boss'?260:110);return dx*dx+dy*dy<rr*rr;}))continue;
       if(nearRoad(c,roadCells))continue;
-      if(this.props.some(p=>{dx=x-p.x;dy=y-p.y;const rr=(p.solid?p.r*WORLD_MAP.solidScale:0)+40;return dx*dx+dy*dy<rr*rr;}))continue;
+      if(this.props.some(p=>{dx=x-p.x;dy=y-p.y;const rr=(p.solid?solidFoot(p).r:0)+40;return dx*dx+dy*dy<rr*rr;}))continue;
       if(this.nests.some(n=>{dx=x-n.x;dy=y-n.y;return dx*dx+dy*dy<M.nestGap*M.nestGap;}))continue;
       this.nests.push({kind:'wild',x,y,zone:z,members:members(z,rng.int(M.group[z][0],M.group[z][1])),leash:M.leash,respawn:true,hpScale:M.hpScale[z]});have[z]++;
     }
@@ -324,12 +328,18 @@ class WorldMapLayout{
     this.bossSites=this.bosses.map((b,i)=>({x:b.x,y:b.y,radius:b.r,zone:b.zone,bossId:i}));
   }
   blockedAt(x,y){const g=this.grid,c=g.cellOf(x,y),k=g.index(c.i,c.j);return g.land[k]!==1||(g.wall[k]!==WALL_NONE&&g.road[k]!==1);}
-  // 반지름 r 원이 바다·강·절벽에 닿는가(중심 + 8방향 탐침). 길 위의 강은 다리라 통과.
+  // 반지름 r 원이 바다·강·절벽 칸에 닿는가: 원이 걸치는 칸마다 칸(사각형)과 원의 거리를 잽니다. 길 위의 강은 다리라 통과.
   terrainBlocks(x,y,r){
     if(x<0||y<0||x>=this.size||y>=this.size)return true;
-    const d=r*0.70710678;
-    return this.blockedAt(x,y)||this.blockedAt(x+r,y)||this.blockedAt(x-r,y)||this.blockedAt(x,y+r)||this.blockedAt(x,y-r)
-      ||this.blockedAt(x+d,y+d)||this.blockedAt(x-d,y+d)||this.blockedAt(x+d,y-d)||this.blockedAt(x-d,y-d);
+    const g=this.grid,cell=g.cell,i0=Math.floor((x-r)/cell),i1=Math.floor((x+r)/cell),j0=Math.floor((y-r)/cell),j1=Math.floor((y+r)/cell),rr=r*r;
+    for(let j=j0;j<=j1;j++)for(let i=i0;i<=i1;i++){
+      if(!g.inside(i,j))return true;
+      const k=g.index(i,j);
+      if(g.land[k]===1&&(g.wall[k]===WALL_NONE||g.road[k]===1))continue;
+      const nx=x<i*cell?i*cell:x>(i+1)*cell?(i+1)*cell:x,ny=y<j*cell?j*cell:y>(j+1)*cell?(j+1)*cell:y,dx=x-nx,dy=y-ny;
+      if(dx*dx+dy*dy<=rr)return true;
+    }
+    return false;
   }
   // 같은 시드 → 같은 값(결정론 검사용 FNV-1a)
   hash(){
