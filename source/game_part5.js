@@ -324,19 +324,22 @@
   window.addEventListener('pageshow',event=>{if(event.persisted)resumeGameLoops();});
   resizeAll();applyRoute();rebindGameLoop();
   // E2E probes observe the actual SDK frame / tick / draw / gameplay pipeline.
+  function pointAt(aim,reach){return {x:+clamp(player.x+Math.cos(aim)*reach,0,CFG.world.width).toFixed(1),y:+clamp(player.y+Math.sin(aim)*reach,0,CFG.world.height).toFixed(1)};}
   window.__sketchRpgDebug={
     source:{renderer:'BLOOM GameKit Renderer2D · WebGL1',input:'ActionState/createDOMInput + LocalInputPreview',time:'GameKit createDeadlineScheduler 30TPS + separate RAF capped 60FPS + InterpolationTimeline/PresentationRuntime',audio:'AudioPlayer'},
     analyze(raw){const s=makeShotData(raw);return {name:s.name,kind:s.kind,area:s.areaPx2,damage:s.baseDamage,cnn:s.cnn.prob,reference:s.reference};},
     sample:samplePoints,
-    drawingState(){return {pointer:drawInput.pointer,points:drawInput.points.map(p=>({...p})),aim:drawInput.aim,center:drawInput.center,origin:drawInput.origin};},
+    drawingState(){return {pointer:drawInput.pointer,points:drawInput.points.map(p=>({...p})),world:{...drawInput.world},center:drawInput.center};},
     summons(){return world.summons.map(q=>({id:q.id,owner:q.owner,kind:q.kind,face:q.face,name:q.name,x:q.x,y:q.y,r:q.r,hp:q.hp,maxHp:q.maxHp,power:q.power,targetId:q.targetId,shape:q.shape}));},
     summonSpecs(){return Object.fromEntries(Object.entries(SUMMON_SPECS).map(([k,q])=>[k,{name:q.name,role:q.role,anchored:q.anchored,taunt:q.taunt,hp:q.hp,ink:q.ink,damage:q.strike.damage,cooldownMs:q.strike.cooldownMs,range:q.strike.range}]));},
     summonLimit(){return SUMMON_LIMIT;},
     queuedShots(){return [...world.commands.filter(c=>c.type==='cast'),...world.castQueue,...world.casts].map(c=>c.shot);},
-    cast(type,aim=0,reach=120){const shot={...makeShotData(samplePoints(type)),aim,reach};world.commands.push({type:'cast',shot});},
+    // Test helper: a point `reach` units from the player along `aim` radians (the game itself places summons by drawn position).
+    pointAt(aim,reach){return pointAt(aim,reach);},
+    cast(type,aim=0,reach=120){const shot={...makeShotData(samplePoints(type)),...pointAt(aim,reach)};world.commands.push({type:'cast',shot});},
     // Command for an exact summon kind (the stroke itself is only a reference outline).
-    castKind(kind,aim=0,reach=120,areaPower=.5,face='neutral'){const base=makeShotData(samplePoints(kind==='normal'?'line':kind)),spec=summonSpecOf(kind),shot={...base,kind,name:spec.name,color:art[kind]||art.normal,aim,reach,face,areaPower,baseDamage:spec.damage(areaPower)};world.commands.push({type:'cast',shot});return shot.kind;},
-    castStroke(raw,aim=0,reach=120){const shot={...makeShotData(raw),aim,reach};world.commands.push({type:'cast',shot});return {kind:shot.kind,baseDamage:shot.baseDamage};},
+    castKind(kind,aim=0,reach=120,areaPower=.5,face='neutral'){const base=makeShotData(samplePoints(kind==='normal'?'line':kind)),spec=summonSpecOf(kind),shot={...base,kind,name:spec.name,color:art[kind]||art.normal,...pointAt(aim,reach),face,areaPower,baseDamage:spec.damage(areaPower)};world.commands.push({type:'cast',shot});return shot.kind;},
+    castStroke(raw,aim=0,reach=120){const shot={...makeShotData(raw),...pointAt(aim,reach)};world.commands.push({type:'cast',shot});return {kind:shot.kind,baseDamage:shot.baseDamage};},
     spellSpec(raw){const shot=makeShotData(raw);return {kind:shot.kind,castMs:castDurationMs(shot),recoveryMs:spellRecoveryMs(),areaPower:shot.areaPower,baseDamage:shot.baseDamage};},
     draftShot(){return summonDraft.active?structuredClone(summonDraft.shot):null;},
     draftState(){return {active:summonDraft.active,strokes:summonDraft.strokes.length,last:lastFaceResult,cancelMs:FACE_CANCEL_MS,faceBarVisible:!$('faceBar').hidden,ribbonVisible:!$('ribbon').hidden};},

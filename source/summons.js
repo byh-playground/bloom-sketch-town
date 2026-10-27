@@ -12,8 +12,7 @@
   const SUMMON_FOLLOW=96;        // idle summons keep this distance from the owner
   const SUMMON_AGGRO=260;        // enemies notice a summon within this distance
   const SUMMON_TAUNT_BONUS=140;  // extra notice distance for taunting summons
-  const SUMMON_MAX_REACH=320;    // farthest distance from the owner at which a drawing places a summon
-  const SUMMON_MIN_REACH=48;
+  const SUMMON_SEARCH_STEP=28,SUMMON_SEARCH_RINGS=8; // if the drawn spot is blocked, the nearest free spot within 224 units is used
 
   // ---- hit effects: what a strike additionally does to the enemy it hit -------------------------------------------
   class HitEffect{apply(){}}
@@ -111,16 +110,18 @@
   function summonSpecOf(kind){return SUMMON_SPECS[kind]||SUMMON_SPECS.normal;}
 
   // ---- world operations ---------------------------------------------------------------------------------------------
-  function summonSpawnPoint(owner,aim,reach,r){
-    const dx=Math.cos(aim),dy=Math.sin(aim);
-    for(let step=0;step<=8;step++){
-      const distance=Math.max(0,clamp(reach,SUMMON_MIN_REACH,SUMMON_MAX_REACH)-step*32),x=owner.x+dx*distance,y=owner.y+dy*distance;
-      if(!touchesObstacle(x,y,r))return {x,y};
+  // The summon appears exactly where the body was drawn (world coordinates), anywhere on the map.
+  function summonSpawnPoint(owner,shot,r){
+    const x0=clamp(shot.x,r,CFG.world.width-r),y0=clamp(shot.y,r,CFG.world.height-r);
+    if(!touchesObstacle(x0,y0,r))return {x:x0,y:y0};
+    for(let ring=1;ring<=SUMMON_SEARCH_RINGS;ring++){
+      const d=ring*SUMMON_SEARCH_STEP,n=ring*6;
+      for(let k=0;k<n;k++){const a=k*Math.PI*2/n,x=x0+Math.cos(a)*d,y=y0+Math.sin(a)*d;if(!touchesObstacle(x,y,r))return {x,y};}
     }
     return {x:owner.x,y:owner.y};
   }
   function spawnSummon(owner,shot){
-    const spec=summonSpecOf(shot.kind),point=summonSpawnPoint(owner,shot.aim,shot.reach,spec.r),id=actorId(owner),mine=world.summons.filter(s=>s.owner===id);
+    const spec=summonSpecOf(shot.kind),point=summonSpawnPoint(owner,shot,spec.r),id=actorId(owner),mine=world.summons.filter(s=>s.owner===id);
     if(mine.length>=SUMMON_LIMIT){const oldest=mine[0];world.summons.splice(world.summons.indexOf(oldest),1);burst(oldest.x,oldest.y,oldest.color,6,50);}
     const face=expressionOf(shot.face),temper=face.temperament,maxHp=Math.round(spec.maxHp(shot.areaPower)*temper.hp);
     const s={id:world.nextId++,owner:id,kind:shot.kind,face:face.id,name:spec.name,color:shot.color,shape:shot.shape,x:point.x,y:point.y,r:spec.r,
