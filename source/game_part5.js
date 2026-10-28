@@ -416,19 +416,19 @@
     propList(){return world.trees.map(t=>({x:t.x,y:t.y,r:t.r,kind:t.kind,solid:t.solid}));},
     nestStates(){return world.nests.map((q,i)=>({i,on:q.on,cd:q.cd,done:q.done,alive:world.enemies.filter(e=>e.nest===i&&!e.dead).length,kind:mapLayout.nests[i].kind,zone:mapLayout.nests[i].zone,x:mapLayout.nests[i].x,y:mapLayout.nests[i].y,members:mapLayout.nests[i].members.length}));},
     spawnPoint(){return {x:mapLayout.spawn.x,y:mapLayout.spawn.y};},
-    // Waypoints (every 2nd cell) of a walkable route from the hero to (x,y) that keeps 18 units from obstacles; null when none exists.
+    // Waypoints (every 2nd cell) of a walkable route from the hero to (x,y) that keeps 18 units from obstacles at every cell centre and every step midpoint; null when none exists.
     pathTo(x,y){
       const g=mapLayout.grid,cols=g.cols,start=g.cellOf(player.x,player.y),goal=g.cellOf(x,y),sk=g.index(start.i,start.j),gk=g.index(goal.i,goal.j);
       const prev=new Int32Array(cols*g.rows).fill(-2);prev[sk]=-1;const queue=[sk];
       for(let q=0;q<queue.length;q++){const k=queue[q];if(k===gk)break;const ci=k%cols,cj=Math.floor(k/cols);
-        for(let dj=-1;dj<=1;dj++)for(let di=-1;di<=1;di++){if(!di&&!dj)continue;const ni=ci+di,nj=cj+dj;if(!g.inside(ni,nj))continue;const nk=g.index(ni,nj);if(prev[nk]!==-2)continue;const c=g.center(ni,nj);if(touchesObstacle(c.x,c.y,18))continue;prev[nk]=k;queue.push(nk);}}
+        for(let dj=-1;dj<=1;dj++)for(let di=-1;di<=1;di++){if(!di&&!dj)continue;const ni=ci+di,nj=cj+dj;if(!g.inside(ni,nj))continue;const nk=g.index(ni,nj);if(prev[nk]!==-2)continue;const c=g.center(ni,nj),m=g.center(ci,cj);if(touchesObstacle(c.x,c.y,18)||touchesObstacle((c.x+m.x)/2,(c.y+m.y)/2,18))continue;prev[nk]=k;queue.push(nk);}}
       if(prev[gk]===-2)return null;const cells=[];for(let k=gk;k!==-1;k=prev[k])cells.push(k);cells.reverse();
       return cells.filter((_,i)=>i%2===0||i===cells.length-1).map(k=>g.center(k%cols,Math.floor(k/cols)));
     },
-    // A free standing point 60 units before a river/cliff cell in an axis direction, for walking-into-water tests.
-    edgeProbe(wall){
+    // A free standing point 60 units before a sea cell in an axis direction, for walking-into-water tests.
+    edgeProbe(){
       const g=mapLayout.grid,dirs=[['d',1,0],['a',-1,0],['s',0,1],['w',0,-1]];
-      for(let j=4;j<g.rows-4;j+=3)for(let i=4;i<g.cols-4;i+=3){const k=g.index(i,j);if(g.wall[k]!==wall||g.road[k])continue;
+      for(let j=4;j<g.rows-4;j+=3)for(let i=4;i<g.cols-4;i+=3){const k=g.index(i,j);if(g.land[k])continue;
         for(const [key,dx,dy] of dirs){const x=(i+.5)*g.cell-dx*60,y=(j+.5)*g.cell-dy*60;let free=true;for(let t=0;t<=24&&free;t+=6)if(touchesObstacle(x+dx*t,y+dy*t,16))free=false;
           if(free&&!touchesObstacle(x,y,16)&&!touchesObstacle(x-dx*40,y-dy*40,16))return {x,y,key,dx,dy,wallX:(i+.5)*g.cell,wallY:(j+.5)*g.cell};}}
       return null;

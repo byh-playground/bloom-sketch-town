@@ -1,7 +1,7 @@
   // World population and drawing for the run's WorldMapLayout (see world-map.js).
-  // Nothing in this file decides where terrain is: coast, rivers, cliffs, roads, props, sites and mob nests all come from mapLayout.
+  // Nothing in this file decides where terrain is: coast, roads, props, sites and mob nests all come from mapLayout.
   let mapLayout=null;
-  // The starting camp: three houses inland of the spawn (towards the map centre), placed only where their whole drawing stands on dry, wall-free ground.
+  // The starting camp: three houses inland of the spawn (towards the map centre), placed only where their whole drawing stands on dry ground.
   // `along`/`side` are offsets in the spawn-to-centre frame; a house that does not fit there is tried at the nearby offsets in CAMP_SHIFTS.
   const CAMP_HOUSES=Object.freeze([{along:230,side:-170,w:173,h:127,type:'house'},{along:300,side:150,w:167,h:119,type:'library'},{along:120,side:240,w:162,h:112,type:'shop'}]);
   const CAMP_SHIFTS=Object.freeze([[0,0],[40,0],[-40,0],[0,40],[0,-40],[80,0],[-80,0],[0,80],[0,-80],[60,60],[-60,60],[60,-60],[-60,-60]]);
@@ -12,7 +12,7 @@
     const sx=h.w/172,sy=h.h/135;
     return HOUSE_BOXES.map(([x0,y0,x1,y1])=>({x:h.x+((x0+x1)/2-90)*sx,y:h.y+((y0+y1)/2-105)*sy,hw:(x1-x0)/2*sx,hh:(y1-y0)/2*sy,kind:'house'}));
   }
-  // True when a box overlaps sea, a river or cliff cell, or a solid obstacle already placed.
+  // True when a box overlaps a sea cell, or a solid obstacle already placed.
   function boxBlocked(b){
     for(let y=b.y-b.hh;y<=b.y+b.hh+11;y+=12)for(let x=b.x-b.hw;x<=b.x+b.hw+11;x+=12)if(mapLayout.terrainBlocks(Math.min(x,b.x+b.hw),Math.min(y,b.y+b.hh),0))return true;
     return world.obstacles.some(o=>o.hw===undefined?circleHitsBox(o,b):Math.abs(o.x-b.x)<o.hw+b.hw&&Math.abs(o.y-b.y)<o.hh+b.hh);
@@ -50,11 +50,10 @@
   const mixHex=(a,b,t)=>{const x=hexRgb(a);return rgbHex(x.map((v,i)=>v+(b[i]-v)*t));};
   const GROUND_PAPER=Object.freeze(['#bcd3df','#f1e6c8','#e0e9ca','#cadccc','#f1f4f3','#ded2c4','#b6b3cc']);
   const GROUND_TABLE=GROUND_PAPER.map(c=>Array.from({length:WORLD_MAP.zoneCount},(_,z)=>mixHex(c,GROUND_INK,.045*z)));
-  const WALL_COLOR=Object.freeze({[WALL_RIVER]:'#9cc1d3',[WALL_CLIFF]:'#9a8a76'}),ROAD_COLOR='#dcc9a2',ROAD_EDGE='#bfa97f';
+  const ROAD_COLOR='#dcc9a2',ROAD_EDGE='#bfa97f';
   function groundColor(g,k){
     if(!g.land[k])return GROUND_TABLE[0][0];
     if(g.road[k])return ROAD_COLOR;
-    if(g.wall[k])return WALL_COLOR[g.wall[k]];
     return GROUND_TABLE[g.biome[k]][g.zone[k]];
   }
   // One filled box per run of same-coloured cells in each visible row (about two hundred boxes per frame).
@@ -69,12 +68,10 @@
         if(color!==runColor){if(runColor!==GROUND_TABLE[0][0]){const w=(i-runStart)*cell+1;P.box(runStart*cell+w/2-.5,j*cell+cell/2,w,cell+1,runColor);}runStart=i;runColor=color;}
       }
     }
-    // Pencil marks: ripples on rivers, hatching on cliffs, edge lines along roads.
+    // Pencil marks: edge lines along roads.
     for(let j=j0;j<=j1;j++)for(let i=i0;i<=i1;i++){
       const k=g.index(i,j),x=i*cell,y=j*cell;
       if(g.road[k]){if(!g.road[k-1]||!g.road[k+1]||!g.road[k-g.cols]||!g.road[k+g.cols])P.dot(x+cell/2,y+cell/2,2.2,ROAD_EDGE,.35);}
-      else if(g.wall[k]===WALL_RIVER&&((i+j)&1)===0)P.line(x+4,y+cell/2,x+cell-4,y+cell/2+2,1.3,'#6f9fb8',.5);
-      else if(g.wall[k]===WALL_CLIFF&&((i+j)&1)===0)P.line(x+3,y+cell-4,x+cell-3,y+4,1.5,'#6e604f',.55);
     }
     // Coast: a short surf line on every land cell that touches the sea.
     for(let j=j0;j<=j1;j++)for(let i=i0;i<=i1;i++){const k=g.index(i,j);if(g.land[k]&&(i>0&&!g.land[k-1]||i<g.cols-1&&!g.land[k+1]||j>0&&!g.land[k-g.cols]||j<g.rows-1&&!g.land[k+g.cols]))P.dot(i*cell+cell/2,j*cell+cell/2,cell*.5,'#ffffff',.22);}
