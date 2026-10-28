@@ -7,7 +7,7 @@
   //   Magic HAS a list of HitEffect objects (summons.js) and an optional steam reaction (steamedBy).
   // The damage source passed to damageEnemy is the spell kind, so boss rules (bosses.js) keep working.
   const MAGIC_RANGE=720;           // a shooter farther than this from the target point does not take part
-  const MAGIC_COOLDOWN_MS=3000;    // one shared cooldown per caster, for all three spells
+  const MAGIC_COOLDOWN_MS=500;     // one shared cooldown per caster, for all three spells
   const MAGIC_INK=30;              // flat price per cast, in ink
   const MAGIC_CASTER_DAMAGE=14;    // the caster's own shot
   const MAGIC_SUMMON_FACTOR=2;     // a summon's shot = its basic attack damage x this x its power
