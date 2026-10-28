@@ -192,7 +192,6 @@
     if(f.kind==='ring'){P.ring(f.x,f.y,f.r*(.4+.6*q),f.color,fade*.8,3,34);P.dot(f.x,f.y,7,f.color,.13*fade);}
     else if(f.kind==='lob'){const lift=Math.max(0,f.z),shadow=Math.max(2.5,6-lift*.04);
       P.dot(f.x,f.y+2,shadow,'#4a3f36',.16);P.dot(f.x,f.y-lift,6.2,f.color,.95);P.dot(f.x-1.2,f.y-lift-1.4,2.6,'#fff8e4',.9);}
-    else if(f.kind==='bolt'){const tail=26;P.line(f.x-f.dx*tail,f.y-f.dy*tail,f.x,f.y,5,f.color,.85);P.line(f.x-f.dx*tail*.5,f.y-f.dy*tail*.5,f.x,f.y,2.4,'#fff8d9',.95);P.dot(f.x,f.y,5.5,'#fff1a1',.9);}
     else if(f.kind==='arc'){const n=6;for(let i=1;i<=n;i++){const a=(i-1)/n,b=i/n;const x=f.x+(f.ex-f.x)*a,y=f.y+(f.ey-f.y)*a+(i%2?12:-10),ex=f.x+(f.ex-f.x)*b,ey=f.y+(f.ey-f.y)*b+(i%2?-10:12);P.line(x,y,ex,ey,3,f.color,fade);}}
     else if(f.kind==='impact'){
       const scale=.24+.83*(1-Math.pow(1-q,2));
