@@ -35,9 +35,10 @@
     for(const d of mapLayout.decals)world.decals.push({...d});
     $('mapSeed').textContent=String(mapSeed);
   }
+  const SHOWCASE_MAP_SEED=20261026; // the introduction film always plays on the same island
   // The run's seed: ?seed=<0..4294967295> reproduces a map, otherwise a fresh random one.
   function initialMapSeed(){
-    const raw=new URLSearchParams(location.search).get('seed');
+    const params=new URLSearchParams(location.search),raw=params.get('seed')??(params.get('showcaseDemo')==='1'?String(SHOWCASE_MAP_SEED):null);
     if(raw!==null&&/^\d{1,10}$/.test(raw)&&+raw<=0xFFFFFFFF)return +raw;
     return crypto.getRandomValues(new Uint32Array(1))[0];
   }

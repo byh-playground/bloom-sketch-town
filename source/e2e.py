@@ -1392,11 +1392,38 @@ async def run_real_p2p(browser, suite: E2E):
             await host_context.close()
 
 
+async def run_showcase(browser, suite: E2E):
+    """The intro film's director: runs in a ?showcaseDemo=1 page only, and drives the real stroke path."""
+    with local_server() as url:
+        context,page,issues=await create_page(browser,width=1280,height=720)
+        try:
+            plain=await context.new_page()
+            await plain.goto(url)
+            await plain.wait_for_function('window.__sketchRpgDebug?.rendererStats().vertices>0')
+            suite.check('the film director does not exist in a normal page',await plain.evaluate("typeof window.BloomSketchShowcase==='undefined'"))
+            await plain.close()
+            await page.goto(f'{url}?showcaseDemo=1')
+            await page.wait_for_function('window.BloomSketchShowcase?.ready()===true',timeout=15000)
+            ok=await page.evaluate("['stage','foes:3:0.36:-0.06','draw:circle:-0.14:-0.08:150','mend'].map(c=>BloomSketchShowcase.run(c))")
+            suite.check('stage, foes, a drawn circle and mend all run',ok==[True]*4,ok)
+            await page.wait_for_function("__sketchRpgDebug.summons().some(q=>q.kind==='circle')",timeout=6000)
+            await page.evaluate("BloomSketchShowcase.run('draw:triangle:-0.02:0.16:150')")
+            await page.wait_for_function("__sketchRpgDebug.summons().length>=2",timeout=6000)
+            await page.evaluate("BloomSketchShowcase.run('magic:flame')")
+            await page.wait_for_function("__sketchRpgDebug.lastMagicCast?.()?.spell==='flame'",timeout=6000)
+            suite.check('a flame spell drawn by the director fires with the caster and the summons',await page.evaluate("__sketchRpgDebug.lastMagicCast().shooters")>=2)
+            bad=await page.evaluate("BloomSketchShowcase.run('nope')")
+            suite.check('an unknown step reports false so the host can retry',bad is False,bad)
+            suite.check('no JS errors in the film page',not issues,issues[:3])
+        finally:
+            await context.close()
+
+
 async def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--headed", action="store_true", help="use with xvfb-run when testing headed SwiftShader")
     parser.add_argument("--live-p2p", action="store_true", help="require actual public Nostr + WebRTC connection, never mock")
-    parser.add_argument("--flow", choices=['all','progression','online','ux','map','boss','summon'], default='all', help="select a fixed user workflow within this single entrypoint")
+    parser.add_argument("--flow", choices=['all','progression','online','ux','map','boss','summon','showcase'], default='all', help="select a fixed user workflow within this single entrypoint")
     args = parser.parse_args()
     ARTIFACTS.mkdir(exist_ok=True)
     suite = E2E(headed=args.headed, live_p2p=args.live_p2p)
@@ -1423,6 +1450,8 @@ async def main():
                         await run_bosses(browser, suite)
                     if args.flow in ('all','ux'):
                         await run_ink_hud(browser,suite)
+                    if args.flow in ('all','showcase'):
+                        await run_showcase(browser, suite)
                     if args.flow in ('all','progression'):
                         await run_run_state(browser, suite)
                     if args.live_p2p or args.flow=='online':

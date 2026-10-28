@@ -243,7 +243,9 @@
     txtCtx.globalAlpha=1;drawMapLabels();
   }
   let lastCameraAt=0;
-  function cameraPose(){const z=vw<590?.80:vw<900?.88:1.03;camera.zoom=z;const hw=vw/(2*z),hh=vh/(2*z),targetX=clamp(player.x,Math.min(hw,CFG.world.width/2),Math.max(hw,CFG.world.width-hw)),targetY=clamp(player.y,Math.min(hh,CFG.world.height/2),Math.max(hh,CFG.world.height-hh));
+  // The introduction film is framed closer, so faces and spells read at a glance.
+  const FILM_ZOOM=new URLSearchParams(location.search).get('showcaseDemo')==='1'?1.4:1;
+  function cameraPose(){const z=(vw<590?.80:vw<900?.88:1.03)*FILM_ZOOM;camera.zoom=z;const hw=vw/(2*z),hh=vh/(2*z),targetX=clamp(player.x,Math.min(hw,CFG.world.width/2),Math.max(hw,CFG.world.width-hw)),targetY=clamp(player.y,Math.min(hh,CFG.world.height/2),Math.max(hh,CFG.world.height-hh));
     const elapsed=lastCameraAt?clamp(paintFrameNow-lastCameraAt,0,64):16.667;
     lastCameraAt=paintFrameNow;
     // Exponential camera easing is frame-rate independent; the target is the same sampled hero model as body and shadow.
