@@ -20,6 +20,7 @@ const SOURCES = [
   'source/game_part4.js',
   'source/game_part5.js',
   'source/game_part6.js',
+  'source/showcase-demo.js',
 ];
 async function loadOriginalScript(path) {
   const url = new URL(path, document.baseURI).href;
