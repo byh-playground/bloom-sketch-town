@@ -307,8 +307,8 @@ The branch authors static character and environment resources in `source/assets/
 - 검증: `--flow summon` 39, `map` 20, `boss` 11, `ux` 8, `progression` 8 PASS. 마법 e2e는 실제 획 입력으로 발사 수(4발)·높이·착탄·쿨다운·증기·번개 직선·사거리 밖을 확인합니다. 정상 흐름 밖(`--flow online`의 `canonicalSnapshot` 누락)은 기존 문제로 남아 있습니다.
 
 ### 소개 영상 고도화 (게임 규칙 변경 없음)
-- 소개 영상(`#/showcase`)을 46초, 5장면으로 다시 만들었습니다: ① 한 획이 소환수가 됩니다 ② 성격을 고르면 표정과 능력이 달라져요 ③ 소환수 전원이 일제 사격(불꽃·물방울·번개 마법, 증기 반응) ④ 합체로 한 단계 위로(원+네모=성벽 거인) ⑤ 보스마다 면역과 약점이 달라요.
-- 영상은 실제 게임을 같은 출처 iframe(`?showcaseDemo=1`)에서 돌립니다. 새 파일 `source/showcase-demo.js`의 `ShowcaseDirector`가 화면 비율 좌표로 적 배치·성격 선택·합체 선택을 지시하고, 도형과 마법은 실제 획 입력 경로(`collectCombatDrawing`)로 그립니다. 영상 모드에서만 고정 지도 시드(20261026)와 카메라 ×1.4(모바일에서도 소환수가 크게 보이도록)를 씁니다.
+- 소개 영상(`#/showcase`)을 40초, 4장면으로 다시 만들었습니다: ① 한 획이 소환수가 됩니다(표정·성격이 다른 소환수가 생성됨) ② 먼 적도 마법 한 번에(화면 끝에서 오는 적에게 불꽃·물방울·번개, 증기 반응) ③ 합체로 한 단계 위로(원+네모=성벽 거인) ④ 보스마다 면역과 약점이 달라요.
+- 영상은 실제 게임을 같은 출처 iframe(`?showcaseDemo=1`)에서 돌립니다. 새 파일 `source/showcase-demo.js`의 `ShowcaseDirector`가 화면 비율 좌표로 적 배치·성격 선택·합체 선택을 지시하고, 도형과 마법은 실제 획 입력 경로(`collectCombatDrawing`)로 그립니다. 영상 모드에서만 고정 지도 시드(20261026)와 카메라 ×1.1(너무 답답하지 않으면서 모바일에서도 소환수가 보이도록)를 씁니다.
 - 일반 페이지에는 감독기가 없습니다(e2e로 확인). 시뮬레이션 규칙은 바뀌지 않아 simulationVersion은 0.27.0 그대로입니다.
 - 바로 보기: [소개 영상 열기](https://byh-playground.github.io/bloom-sketch-town/#/showcase)
 - 검증: `--flow showcase` 5 PASS, 데스크톱 1280×720·모바일 390×844에서 전 단계 성공·JS 오류 0(호스트 타임라인을 흉내 낸 하네스). 미검증: 자막·버튼이 있는 gamekit 호스트 UI(CDN이 샌드박스에서 막힘), 실제 기기 재생.
