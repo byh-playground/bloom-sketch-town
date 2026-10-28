@@ -3,7 +3,8 @@
 // 결정론 규칙(맵 생성 전반 공통): 사칙연산·Math.sqrt·Math.floor·32비트 정수 연산만 사용(sin/cos/hypot/random 금지).
 // 재사용: SeededRandom (seeded-random.js).
 //
-// 생성 단계: ① 장 → ② 바이옴 셀(보로노이) → ③ 경계 지형(강·절벽) → ④ 거점 배치 → ⑤ 길(MST+루프, Dijkstra) → ⑥ 소품 → ⑦ 검증
+// 생성 단계: ① 장 → ② 바이옴 셀(보로노이) → ③ 거점 배치 → ④ 길(MST+루프, Dijkstra) → ⑤ 소품 → ⑥ 검증
+// 오픈형 지도: 길찾기가 없으므로 지형이 걷는 길을 막는 곳은 바다(바깥 해안)와 솔리드 소품(작은 볼록 장애물)뿐입니다. 강·절벽 같은 긴 벽은 없습니다.
 const WORLD_MAP=Object.freeze({
   size:4800,cell:24,
   zoneCount:5,
@@ -11,7 +12,6 @@ const WORLD_MAP=Object.freeze({
   // 난이도 D(0=해안선, 1=중앙)가 이 값을 넘으면 다음 구역. 안쪽 구역일수록 좁음.
   zoneEdges:Object.freeze([0.16,0.36,0.58,0.78]),
   biomeCount:56,
-  borderHalfWidth:17,      // 셀 경계 띠 폭(px)의 절반
   attempts:8,
   biomes:Object.freeze([
     {id:0,key:'sea',name:'바다',color:'#b9d6e8'},
@@ -45,7 +45,6 @@ const WORLD_MAP=Object.freeze({
 });
 // 솔리드 소품 p의 충돌 원 {x,y,r}. 그리는 곳(region-map.js)과 배치(생성기)가 같은 값을 씁니다.
 function solidFoot(p){const f=WORLD_MAP.solidFoot[p.kind],k=p.r/50;return{x:p.x,y:p.y-f.dy*k,r:f.rad*k};}
-const WALL_NONE=0,WALL_RIVER=1,WALL_CLIFF=2;
 
 // 정수 해시 기반 값 잡음. 시드·솔트마다 독립된 장.
 class ValueNoise{
@@ -72,17 +71,16 @@ class WorldGrid{
     this.zone=new Uint8Array(n);   // 0..4 난이도 구역
     this.biome=new Uint8Array(n);  // WORLD_MAP.biomes id
     this.cellId=new Uint8Array(n); // 보로노이 셀 번호
-    this.wall=new Uint8Array(n);   // WALL_*
-    this.road=new Uint8Array(n);   // 1=길(다리 포함)
+    this.road=new Uint8Array(n);   // 1=길
     this.difficulty=new Float32Array(n);
   }
   index(i,j){return j*this.cols+i;}
   inside(i,j){return i>=0&&j>=0&&i<this.cols&&j<this.rows;}
   center(i,j){return{x:(i+.5)*this.cell,y:(j+.5)*this.cell};}
   cellOf(x,y){return{i:Math.min(this.cols-1,Math.max(0,Math.floor(x/this.cell))),j:Math.min(this.rows-1,Math.max(0,Math.floor(y/this.cell)))};}
-  walkable(i,j){if(!this.inside(i,j))return false;const k=this.index(i,j);return this.land[k]===1&&(this.wall[k]===WALL_NONE||this.road[k]===1);}
-  // 반지름 r칸 안에 벽·바다가 없는가
-  clear(i,j,r){for(let dj=-r;dj<=r;dj++)for(let di=-r;di<=r;di++){if(!this.inside(i+di,j+dj))return false;const k=this.index(i+di,j+dj);if(this.land[k]!==1||this.wall[k]!==WALL_NONE)return false;}return true;}
+  walkable(i,j){return this.inside(i,j)&&this.land[this.index(i,j)]===1;}
+  // 반지름 r칸 안에 바다가 없는가
+  clear(i,j,r){for(let dj=-r;dj<=r;dj++)for(let di=-r;di<=r;di++)if(!this.walkable(i+di,j+dj))return false;return true;}
 }
 
 class MinHeap{
@@ -99,15 +97,15 @@ class WorldMapGenerator{
     this.grid=new WorldGrid(WORLD_MAP.size,WORLD_MAP.cell);
     const s=(seed+Math.imul(attempt,0x9E3779B1))>>>0;
     this.noise={warpX:new ValueNoise(s^0x1111),warpY:new ValueNoise(s^0x2222),coast:new ValueNoise(s^0x3333),diff:new ValueNoise(s^0x4444),
-      ford:new ValueNoise(s^0x5555),road:new ValueNoise(s^0x6666)};
+      road:new ValueNoise(s^0x6666)};
     this.points=[];this.sites=[];this.props=[];this.decals=[];this.roadEdges=[];this.nests=[];
   }
 
   build(){
-    this.buildFields();this.buildBiomeCells();this.buildWalls();
+    this.buildFields();this.buildBiomeCells();
     if(!this.placeSites())return null;
     if(!this.buildRoads())return null;
-    this.clearArenas();this.buildProps();this.buildDecals();this.buildMobs();
+    this.buildProps();this.buildDecals();this.buildMobs();
     const report=this.validate();
     if(!report.ok)return null;
     return new WorldMapLayout(this,report);
@@ -143,30 +141,15 @@ class WorldMapGenerator{
       const c=g.cellOf(pts[p].x,pts[p].y),z=g.land[g.index(c.i,c.j)]?g.zone[g.index(c.i,c.j)]:0;
       const list=WORLD_MAP.zoneBiomes[z];pts[p].zone=z;pts[p].biome=p===0?6:list[Math.floor(rng.next()*list.length)];
     }
-    // 격자마다 가장 가까운 점(F1)·두 번째(F2) 거리 차이를 저장
-    this.border=new Float32Array(g.cols*g.rows);this.cellPair=new Uint16Array(g.cols*g.rows);
+    // 격자마다 가장 가까운 점의 셀 번호와 바이옴
     for(let j=0;j<g.rows;j++)for(let i=0;i<g.cols;i++){
-      const {x,y}=g.center(i,j),k=g.index(i,j);let d1=1e18,d2=1e18,a=0,b=0;
-      for(let p=0;p<pts.length;p++){const dx=x-pts[p].x,dy=y-pts[p].y,d=dx*dx+dy*dy;if(d<d1){d2=d1;b=a;d1=d;a=p;}else if(d<d2){d2=d;b=p;}}
-      g.cellId[k]=a;g.biome[k]=g.land[k]?pts[a].biome:0;this.border[k]=Math.sqrt(d2)-Math.sqrt(d1);this.cellPair[k]=Math.min(a,b)*64+Math.max(a,b);
+      const {x,y}=g.center(i,j),k=g.index(i,j);let d1=1e18,a=0;
+      for(let p=0;p<pts.length;p++){const dx=x-pts[p].x,dy=y-pts[p].y,d=dx*dx+dy*dy;if(d<d1){d1=d;a=p;}}
+      g.cellId[k]=a;g.biome[k]=g.land[k]?pts[a].biome:0;
     }
   }
 
-  pairHash(code){let h=Math.imul(code+1,0x9E3779B1)^(this.seed>>>0);h=Math.imul(h^(h>>>15),0x85EBCA6B);h=Math.imul(h^(h>>>13),0xC2B2AE35);return((h^(h>>>16))>>>0)/4294967296;}
-
-  // ③ 셀 경계에 강·절벽(약 45%), 여울(잡음 높은 곳)에서는 끊김
-  buildWalls(){
-    const g=this.grid,half=g.size/2;
-    for(let j=0;j<g.rows;j++)for(let i=0;i<g.cols;i++){
-      const k=g.index(i,j);if(!g.land[k]||this.border[k]>=WORLD_MAP.borderHalfWidth*2||g.zone[k]===0)continue;
-      const {x,y}=g.center(i,j),dx=x-half,dy=y-half;if(dx*dx+dy*dy<420*420)continue;  // 중앙 공터
-      const h=this.pairHash(this.cellPair[k]);if(h>=0.45)continue;
-      if(this.noise.ford.fbm(x/170,y/170)>0.68)continue;
-      g.wall[k]=h<0.27?WALL_RIVER:WALL_CLIFF;
-    }
-  }
-
-  // ④ 거점: 스폰(해안) · 구역별 보스 · 야영지 · 포털
+  // ③ 거점: 스폰(해안) · 구역별 보스 · 야영지 · 포털
   placeSites(){
     const g=this.grid,rng=this.rng,half=g.size/2,S=WORLD_MAP.site;
     const candidates=zone=>{const out=[];for(let j=3;j<g.rows-3;j++)for(let i=3;i<g.cols-3;i++){const k=g.index(i,j);if(g.zone[k]===zone&&g.land[k]&&g.clear(i,j,3))out.push({i,j});}return out;};
@@ -198,7 +181,7 @@ class WorldMapGenerator{
     return true;
   }
 
-  // ⑤ 길: 거점 MST + 짧은 루프, 격자 위 Dijkstra(강은 다리, 절벽은 우회 선호)
+  // ④ 길: 거점 MST + 짧은 루프, 격자 위 Dijkstra
   buildRoads(){
     const g=this.grid,nodes=this.sites,n=nodes.length;
     const d2=(a,b)=>{const dx=nodes[a].x-nodes[b].x,dy=nodes[a].y-nodes[b].y;return dx*dx+dy*dy;};
@@ -214,7 +197,7 @@ class WorldMapGenerator{
   cost(k){
     const g=this.grid;if(!g.land[k])return-1;
     let m=10+Math.floor(this.noise.road.at((k%g.cols)*g.cell/220,Math.floor(k/g.cols)*g.cell/220)*8);
-    if(g.road[k])m=4;else if(g.wall[k]===WALL_RIVER)m=60;else if(g.wall[k]===WALL_CLIFF)m=130;
+    if(g.road[k])m=4;
     return m;
   }
   route(a,b){
@@ -234,26 +217,19 @@ class WorldMapGenerator{
     if(prev[tk]<0&&sk!==tk)return null;
     const out=[];for(let k=tk;k!==-1;k=prev[k])out.push(k);return out;
   }
-  // 길 폭: 3x3, 벽 위의 길은 다리로 벽을 지움
+  // 길 폭: 3x3
   stampRoad(k){
     const g=this.grid,ci=k%g.cols,cj=Math.floor(k/g.cols);
     for(let dj=-1;dj<=1;dj++)for(let di=-1;di<=1;di++){if(!g.inside(ci+di,cj+dj))continue;const q=g.index(ci+di,cj+dj);if(!g.land[q])continue;g.road[q]=1;}
   }
 
-  // 보스 둥지·야영지·스폰 주변 벽 제거(전투가 가능한 공터)
-  clearArenas(){
-    const g=this.grid;
-    for(const s of this.sites){const rr=(s.kind==='boss'?s.r+110:s.r+60);
-      for(let j=0;j<g.rows;j++)for(let i=0;i<g.cols;i++){const c=g.center(i,j),dx=c.x-s.x,dy=c.y-s.y;if(dx*dx+dy*dy<rr*rr)g.wall[g.index(i,j)]=WALL_NONE;}}
-  }
-
-  // ⑥ 소품: 바이옴별 다트 던지기
+  // ⑤ 소품: 바이옴별 다트 던지기
   buildProps(){
     const g=this.grid,rng=this.rng,cfg=WORLD_MAP.prop,placed={};
     const tooCloseToSite=(x,y)=>this.sites.some(s=>{const dx=x-s.x,dy=y-s.y,rr=s.r+(s.kind==='boss'?120:50);return dx*dx+dy*dy<rr*rr;});
     for(let t=0;t<9000;t++){
       const x=Math.floor(rng.range(30,g.size-30)),y=Math.floor(rng.range(30,g.size-30)),c=g.cellOf(x,y),k=g.index(c.i,c.j);
-      if(!g.land[k]||g.wall[k]!==WALL_NONE||g.road[k]||tooCloseToSite(x,y))continue;
+      if(!g.land[k]||g.road[k]||tooCloseToSite(x,y))continue;
       const biome=WORLD_MAP.biomes[g.biome[k]],spec=cfg[biome.key];if(!spec)continue;
       const list=placed[biome.key]||(placed[biome.key]=[]);if(list.length>=spec.max)continue;
       if(list.some(p=>{const dx=x-p.x,dy=y-p.y;return dx*dx+dy*dy<spec.gap*spec.gap;}))continue;
@@ -262,17 +238,17 @@ class WorldMapGenerator{
   }
 
 
-  // ⑥-1 바닥 장식(충돌 없음): 숲·해안은 꽃, 그 외는 풀
+  // ⑤-1 바닥 장식(충돌 없음): 숲·해안은 꽃, 그 외는 풀
   buildDecals(){
     const g=this.grid,rng=this.rng,kinds={1:'flower',2:'flower'};
     for(let t=0;t<700&&this.decals.length<260;t++){
       const x=Math.floor(rng.range(30,g.size-30)),y=Math.floor(rng.range(30,g.size-30)),c=g.cellOf(x,y),k=g.index(c.i,c.j);
-      if(!g.land[k]||g.wall[k]!==WALL_NONE||g.road[k]||g.biome[k]===6)continue;
+      if(!g.land[k]||g.road[k]||g.biome[k]===6)continue;
       this.decals.push({x,y,kind:kinds[g.biome[k]]||'grass',seed:Math.floor(rng.next()*1000)/1000});
     }
   }
 
-  // ⑥-2 몹 둥지: 야영지·포털 수호(정예), 보스 부하, 구역 밀도에 따른 야생 둥지
+  // ⑤-2 몹 둥지: 야영지·포털 수호(정예), 보스 부하, 구역 밀도에 따른 야생 둥지
   buildMobs(){
     const g=this.grid,rng=this.rng,M=WORLD_MAP.mobs,cellArea=g.cell*g.cell;
     const members=(zone,count)=>{const w=M.roster[zone],total=w[0]+w[1]+w[2],out=[];for(let n=0;n<count;n++){let r=rng.next()*total,k=0;while(k<2&&r>=w[k]){r-=w[k];k++;}out.push(M.kinds[k]);}return out;};
@@ -284,16 +260,16 @@ class WorldMapGenerator{
         const base=rng.int(M.group[site.zone][0],M.group[site.zone][1])+M.elite.groupBonus;
         this.nests.push({kind:site.kind==='camp'?'campGuard':'portalGuard',x:site.x,y:site.y,zone:site.zone,members:members(site.zone,base),leash:M.leash,respawn:true,hpScale:M.hpScale[site.zone]*M.elite.hpScale});}
     }
-    // 야생 둥지: 구역별 목표 수 = 걸을 수 있는 면적 × 밀도
+    // 야생 둥지: 구역별 목표 수 = 땅 면적 × 밀도
     const area=[0,0,0,0,0];
-    for(let k=0;k<g.land.length;k++)if(g.land[k]&&(g.wall[k]===WALL_NONE||g.road[k]))area[g.zone[k]]+=cellArea;
+    for(let k=0;k<g.land.length;k++)if(g.land[k])area[g.zone[k]]+=cellArea;
     const target=area.map((a,z)=>Math.round(a/1e6*M.nestPerMillionPx2[z]));
     const have=[0,0,0,0,0];
     const nearRoad=(c,r)=>{for(let dj=-r;dj<=r;dj++)for(let di=-r;di<=r;di++)if(g.inside(c.i+di,c.j+dj)&&g.road[g.index(c.i+di,c.j+dj)])return true;return false;};
     const roadCells=Math.ceil(M.roadClearance/g.cell);
     for(let t=0;t<30000;t++){
       const x=Math.floor(rng.range(40,g.size-40)),y=Math.floor(rng.range(40,g.size-40)),c=g.cellOf(x,y),k=g.index(c.i,c.j);
-      if(!g.land[k]||g.wall[k]!==WALL_NONE||!g.clear(c.i,c.j,1))continue;
+      if(!g.land[k]||!g.clear(c.i,c.j,1))continue;
       const z=g.zone[k];if(have[z]>=target[z])continue;
       let dx=x-spawn.x,dy=y-spawn.y;if(dx*dx+dy*dy<M.safeRadius*M.safeRadius)continue;
       if(this.sites.some(s=>{dx=x-s.x;dy=y-s.y;const rr=s.r+(s.kind==='boss'?260:110);return dx*dx+dy*dy<rr*rr;}))continue;
@@ -304,13 +280,13 @@ class WorldMapGenerator{
     }
   }
 
-  // ⑦ 검증: 모든 거점이 스폰에서 걸어서 닿는가, 닿지 못하는 땅 비율
+  // ⑥ 검증: 모든 거점이 스폰에서 걸어서 닿는가, 닿지 못하는 땅 비율
   validate(){
     const g=this.grid,cols=g.cols,seen=new Uint8Array(cols*g.rows),sp=this.sites[0],s=g.cellOf(sp.x,sp.y),stack=[g.index(s.i,s.j)];
     seen[stack[0]]=1;let reached=0;
     while(stack.length){const k=stack.pop();reached++;const ci=k%cols,cj=Math.floor(k/cols);
       for(let dj=-1;dj<=1;dj++)for(let di=-1;di<=1;di++){if(!di&&!dj)continue;const ni=ci+di,nj=cj+dj;if(!g.walkable(ni,nj))continue;const nk=g.index(ni,nj);if(seen[nk])continue;seen[nk]=1;stack.push(nk);}}
-    let landCells=0,walkCells=0;for(let k=0;k<seen.length;k++){if(g.land[k]){landCells++;if(g.wall[k]===WALL_NONE||g.road[k])walkCells++;}}
+    let landCells=0,walkCells=0;for(let k=0;k<seen.length;k++){if(g.land[k]){landCells++;walkCells++;}}
     const reachable=this.sites.every(site=>{const c=g.cellOf(site.x,site.y);return seen[g.index(c.i,c.j)]===1;});
     const bosses=this.sites.filter(q=>q.kind==='boss').sort((a,b)=>a.zone-b.zone);
     const monotone=bosses.every((b,i)=>i===0||b.zone>bosses[i-1].zone);
@@ -327,15 +303,15 @@ class WorldMapLayout{
     // 소비자(충돌·그리기·미니맵·보스 소환)가 읽는 보스 자리: 번호 = bossId = 구역 순서
     this.bossSites=this.bosses.map((b,i)=>({x:b.x,y:b.y,radius:b.r,zone:b.zone,bossId:i}));
   }
-  blockedAt(x,y){const g=this.grid,c=g.cellOf(x,y),k=g.index(c.i,c.j);return g.land[k]!==1||(g.wall[k]!==WALL_NONE&&g.road[k]!==1);}
-  // 반지름 r 원이 바다·강·절벽 칸에 닿는가: 원이 걸치는 칸마다 칸(사각형)과 원의 거리를 잽니다. 길 위의 강은 다리라 통과.
+  blockedAt(x,y){const g=this.grid,c=g.cellOf(x,y);return g.land[g.index(c.i,c.j)]!==1;}
+  // 반지름 r 원이 바다 칸에 닿는가: 원이 걸치는 칸마다 칸(사각형)과 원의 거리를 잽니다.
   terrainBlocks(x,y,r){
     if(x<0||y<0||x>=this.size||y>=this.size)return true;
     const g=this.grid,cell=g.cell,i0=Math.floor((x-r)/cell),i1=Math.floor((x+r)/cell),j0=Math.floor((y-r)/cell),j1=Math.floor((y+r)/cell),rr=r*r;
     for(let j=j0;j<=j1;j++)for(let i=i0;i<=i1;i++){
       if(!g.inside(i,j))return true;
       const k=g.index(i,j);
-      if(g.land[k]===1&&(g.wall[k]===WALL_NONE||g.road[k]===1))continue;
+      if(g.land[k]===1)continue;
       const nx=x<i*cell?i*cell:x>(i+1)*cell?(i+1)*cell:x,ny=y<j*cell?j*cell:y>(j+1)*cell?(j+1)*cell:y,dx=x-nx,dy=y-ny;
       if(dx*dx+dy*dy<=rr)return true;
     }
@@ -344,7 +320,7 @@ class WorldMapLayout{
   // 같은 시드 → 같은 값(결정론 검사용 FNV-1a)
   hash(){
     let h=0x811C9DC5;const mix=v=>{h=Math.imul(h^(v&0xFF),0x01000193);h=Math.imul(h^((v>>>8)&0xFF),0x01000193);h=Math.imul(h^((v>>>16)&0xFF),0x01000193);h=Math.imul(h^((v>>>24)&0xFF),0x01000193);};
-    const g=this.grid;for(const arr of [g.land,g.zone,g.biome,g.wall,g.road])for(let i=0;i<arr.length;i++)mix(arr[i]);
+    const g=this.grid;for(const arr of [g.land,g.zone,g.biome,g.road])for(let i=0;i<arr.length;i++)mix(arr[i]);
     for(const s of this.sites){mix(s.x);mix(s.y);mix(s.zone);}
     for(const p of this.props){mix(p.x);mix(p.y);mix(p.r);}
     for(const n of this.nests){mix(n.x);mix(n.y);mix(n.members.length);}

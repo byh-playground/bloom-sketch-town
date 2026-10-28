@@ -588,7 +588,7 @@ async def run_map(browser, suite: E2E):
               const walls=houses.filter(h=>d.terrainBlocked(h.x,h.y-h.h*.3,6)).length;
               return {seamTested,seamMiss,invisible,sampled,houses:houses.length,under,walls,bad};}""")
             suite.check('every obstacle blocks on every side, including across grid-cell seams',col['seamTested']>200 and col['seamMiss']==0,col)
-            suite.check('near the camp, nothing blocks unless a drawn trunk, rock, crystal, house box, river, cliff or sea does',col['sampled']>10000 and col['invisible']==0,col)
+            suite.check('near the camp, nothing blocks unless a drawn trunk, rock, crystal, house box or sea does',col['sampled']>10000 and col['invisible']==0,col)
             suite.check('each camp house stands on open ground and its walls block',col['houses']>=3 and col['under']==0 and col['walls']==col['houses'],col)
             zones=[q['zone'] for q in a['bossSites']]
             kinds=[q['kind'] for q in a['sites']]
@@ -598,13 +598,21 @@ async def run_map(browser, suite: E2E):
             free=await page.evaluate("""m => ({spawn:!__sketchRpgDebug.terrainBlocked(m.spawn.x,m.spawn.y,16),
                 bosses:m.bossSites.every(s=>!__sketchRpgDebug.terrainBlocked(s.x,s.y,56)),
                 nests:m.nests.every(n=>!__sketchRpgDebug.terrainBlocked(n.x,n.y,20))})""",a)
-            suite.check('the spawn, every boss spot and every mob nest stand on free ground (no wall, sea or prop)',all(free.values()),free)
+            suite.check('the spawn, every boss spot and every mob nest stand on free ground (no sea or prop)',all(free.values()),free)
+            # Open map: there is no pathfinding, so the only terrain that stops walking is the outer sea (no inland lake, no river, no cliff).
+            openmap=await page.evaluate("""() => {const g=mapLayout.grid,n=g.cols*g.rows,seen=new Uint8Array(n),stack=[];
+              for(let i=0;i<g.cols;i++)for(const j of [0,g.rows-1])if(!g.land[g.index(i,j)]){seen[g.index(i,j)]=1;stack.push([i,j]);}
+              for(let j=0;j<g.rows;j++)for(const i of [0,g.cols-1])if(!g.land[g.index(i,j)]&&!seen[g.index(i,j)]){seen[g.index(i,j)]=1;stack.push([i,j]);}
+              while(stack.length){const [i,j]=stack.pop();for(const [di,dj] of [[1,0],[-1,0],[0,1],[0,-1]]){const x=i+di,y=j+dj;if(!g.inside(x,y))continue;const k=g.index(x,y);if(!g.land[k]&&!seen[k]){seen[k]=1;stack.push([x,y]);}}}
+              let lake=0;for(let k=0;k<n;k++)if(!g.land[k]&&!seen[k])lake++;
+              return {lakeCells:lake,wallField:typeof g.wall};}""")
+            suite.check('the map is open: every sea cell touches the outer sea (no inland lake) and no river or cliff field exists',openmap['lakeCells']==0 and openmap['wallField']=='undefined',openmap)
             wild=[(n['hpScale'],n['zone']) for n in a['nests'] if n['kind']=='wild']
             avg=[sum(h for h,z in wild if z==zz)/max(1,sum(1 for h,z in wild if z==zz)) for zz in range(4)]
             centre=[n for n in a['nests'] if n['zone']==4]
             suite.check('wild nests get tougher towards the centre (hp scale rises over zones 0-3) and the centre zone has guard and boss nests',all(avg[i]<avg[i+1] for i in range(3)) and len(centre)>=2 and all(n['hpScale']>=3 for n in centre),{'avg':avg,'centre':len(centre)})
             sweep=await page.evaluate("""() => {const out={fail:0,attempts:{},maxMs:0,hashes:new Set()};
-              for(let i=0;i<40;i++){const seed=(i*2654435761)>>>0;try{const r=__sketchRpgDebug.mapHashFor(seed);
+              for(let i=0;i<40;i++){const seed=(i*2246822519+12345)>>>0;try{const r=__sketchRpgDebug.mapHashFor(seed);
                 if(i<8&&__sketchRpgDebug.mapHashFor(seed).hash!==r.hash)out.fail++;out.attempts[r.attempt]=(out.attempts[r.attempt]||0)+1;out.maxMs=Math.max(out.maxMs,r.ms);out.hashes.add(r.hash);}catch(e){out.fail++;}}
               out.unique=out.hashes.size;delete out.hashes;return out;}""")
             suite.check('40 seeds all generate a reachable map (first 8 repeat identically), each within 3s',sweep['fail']==0 and sweep['unique']==40 and sweep['maxMs']<3000,sweep)
@@ -627,9 +635,9 @@ async def run_map(browser, suite: E2E):
             final=await page.evaluate('__sketchRpgDebug.snapshot().player')
             gap=((final['x']-site['x'])**2+(final['y']-site['y'])**2)**.5
             suite.check('real keyboard input walks from the coast camp to boss 1, whose arrival wakes the boss',reached==len(route) and gap<site['radius']+260,{'reached':reached,'of':len(route),'gap':gap})
-            # A river and a cliff each stop a real walker.
-            for name,wall in (('river',1),('cliff',2)):
-                probe=await page.evaluate('w=>__sketchRpgDebug.edgeProbe(w)',wall)
+            # The sea stops a real walker; the open map has no other long wall.
+            for name in ('sea',):
+                probe=await page.evaluate('()=>__sketchRpgDebug.edgeProbe()')
                 if probe is None:
                     suite.check(f'{name} blocks a real walker',False,'no free approach found');continue
                 await page.evaluate('s=>{__sketchRpgDebug.setBossesDefeated(0);__sketchRpgDebug.moveTo(s.x,s.y);}',probe)
