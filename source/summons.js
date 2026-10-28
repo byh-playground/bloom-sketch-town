@@ -1,4 +1,5 @@
   // A drawn shape becomes a summon that fights on its own. Single source for what each shape summons.
+  // Flame, water and lightning are not summons: they are spells (magic.js).
   //
   // Structure:
   //   SummonSpec (is-a base)  -> MobileSpec (walks to enemies) | AnchoredSpec (stays where it was drawn)
@@ -100,9 +101,6 @@
     circle:   new TauntMobileSpec({name:'방패 구체',role:'방어',hp:130,r:17,ink:62,speed:90,strike:new MeleeStrike({damage:5,cooldownMs:800,range:14}),effects:[new SplashEffect(60,.5)]}),
     triangle: new MobileSpec({name:'창병',role:'근접',hp:62,r:14,ink:68,speed:135,strike:new MeleeStrike({damage:19,cooldownMs:720,range:16})}),
     square:   new TauntMobileSpec({name:'벽돌 골렘',role:'방어',hp:170,r:19,ink:78,speed:70,strike:new MeleeStrike({damage:11,cooldownMs:950,range:14}),effects:[new StunEffect(700)]}),
-    flame:    new MobileSpec({name:'불씨 정령',role:'원거리',hp:46,r:13,ink:68,speed:100,strike:new RangedBolt({damage:8,cooldownMs:900,range:280}),effects:[new BurnEffect()]}),
-    water:    new MobileSpec({name:'물방울 정령',role:'원거리',hp:52,r:13,ink:62,speed:105,strike:new RangedBolt({damage:6,cooldownMs:800,range:280}),effects:[new WetEffect()]}),
-    lightning:new MobileSpec({name:'번개새',role:'원거리',hp:40,r:12,ink:72,speed:150,strike:new RangedBolt({damage:9,cooldownMs:850,range:320}),effects:[new ChainEffect(230,320,.31)]}),
     star:     new AnchoredSpec({name:'별 포탑',role:'고정·범위',hp:80,r:16,ink:88,strike:new AreaPulse({damage:14,cooldownMs:1000,range:170}),effects:[new StunEffect(350)]}),
     shuriken: new MobileSpec({name:'표창 닌자',role:'근접',hp:50,r:12,ink:68,speed:175,strike:new MeleeStrike({damage:9,cooldownMs:330,range:14}),effects:[new StunEffect(130)]}),
     starcircle:new AnchoredSpec({name:'마법진',role:'고정·범위·회복',hp:100,r:20,ink:95,strike:new AreaPulse({damage:11,cooldownMs:600,range:200}),effects:[new HealOwnerEffect(1)]})
@@ -113,33 +111,24 @@
   //   fusion:  two summons whose kinds form a recipe become the recipe's result (hp = sum of both; unlisted pairs cannot merge).
   const MERGE_TIER_MAX=3,TIER_STATS=Object.freeze([1,1.8,3]),TIER_SCALE=Object.freeze([1,1.18,1.4]);
   const FUSION_SPECS=Object.freeze({
-    steam:     new MobileSpec({name:'증기 정령',role:'원거리·범위',hp:100,r:15,ink:0,speed:105,strike:new RangedBolt({damage:12,cooldownMs:800,range:300}),effects:[new SplashEffect(70,.6),new StunEffect(450)]}),
-    storm:     new MobileSpec({name:'폭풍 구름',role:'원거리·연쇄',hp:90,r:15,ink:0,speed:130,strike:new RangedBolt({damage:14,cooldownMs:750,range:340}),effects:[new WetEffect(),new ChainEffect(260,360,.45)]}),
     fortress:  new TauntMobileSpec({name:'성벽 거인',role:'방어',hp:300,r:24,ink:0,speed:70,strike:new MeleeStrike({damage:14,cooldownMs:900,range:16}),effects:[new SplashEffect(70,.5),new StunEffect(800)]}),
     bladestorm:new MobileSpec({name:'칼날 폭풍',role:'근접',hp:110,r:14,ink:0,speed:190,strike:new MeleeStrike({damage:14,cooldownMs:300,range:16}),effects:[new StunEffect(120)]}),
     altar:     new AnchoredSpec({name:'성좌 제단',role:'고정·범위·회복',hp:200,r:22,ink:0,strike:new AreaPulse({damage:18,cooldownMs:700,range:230}),effects:[new StunEffect(350),new HealOwnerEffect(2)]})
   });
-  const FUSION_COLORS=Object.freeze({steam:'#8fb8c9',storm:'#7a86c9',fortress:'#8a8f93',bladestorm:'#c9a85a',altar:'#c98fb8'});
+  const FUSION_COLORS=Object.freeze({fortress:'#8a8f93',bladestorm:'#c9a85a',altar:'#c98fb8'});
   // Each fusion has its own drawn body (a closed outline of at most 16 points, in the same units as a drawn shape), so a fused
   // creature never looks like one of its materials.
   const FUSION_SHAPES=(()=>{
     const P=(x,y)=>({x:+x.toFixed(1),y:+y.toFixed(1)}),polar=(r,a)=>P(r*Math.cos(a),r*Math.sin(a));
-    // Cloud top: three puffs (left, middle, right), each a circular arc; y grows downward on screen.
-    const arc=(cx,cy,r,a0,a1,n)=>Array.from({length:n},(_,i)=>{const a=(a0+(a1-a0)*i/(n-1))*Math.PI/180;return P(cx+r*Math.cos(a),cy-r*Math.sin(a));});
-    const cloudTop=[...arc(-20,2,15,205,60,4),...arc(0,-8,19,145,35,4),...arc(20,2,15,120,-25,4)];
-    // steam: a puffy cloud with a round belly
-    const steam=[...cloudTop,P(24,18),P(0,24),P(-24,18)];
-    // storm: the same cloud with a lightning bolt hanging from its underside
-    const storm=[...cloudTop,P(30,10),P(14,10),P(22,36),P(-4,14)];
     // fortress: a wall with four battlements
     const fortress=[P(-34,34),P(-34,-30),P(-20,-30),P(-20,-18),P(-8,-18),P(-8,-30),P(8,-30),P(8,-18),P(20,-18),P(20,-30),P(34,-30),P(34,34),P(-34,34)];
     // bladestorm: six swept blades turning around a small core
     const bladestorm=Array.from({length:12},(_,i)=>{const k=Math.floor(i/2);return i%2===0?polar(42,k*Math.PI/3+.4):polar(15,k*Math.PI/3+Math.PI/6-.35);});
     // altar: an eight-pointed constellation star
     const altar=Array.from({length:16},(_,i)=>polar(i%2===0?42:23,-Math.PI/2+i*Math.PI/8));
-    return Object.freeze({steam,storm,fortress,bladestorm,altar});
+    return Object.freeze({fortress,bladestorm,altar});
   })();
-  const FUSION_RECIPES=Object.freeze({'flame+water':'steam','lightning+water':'storm','circle+square':'fortress','shuriken+triangle':'bladestorm','star+starcircle':'altar'});
+  const FUSION_RECIPES=Object.freeze({'circle+square':'fortress','shuriken+triangle':'bladestorm','star+starcircle':'altar'});
   const recipeKey=(a,b)=>[a,b].sort().join('+');
   function summonSpecOf(kind){return SUMMON_SPECS[kind]||FUSION_SPECS[kind]||SUMMON_SPECS.normal;}
   function isSummonKind(kind){return !!(SUMMON_SPECS[kind]||FUSION_SPECS[kind]);}

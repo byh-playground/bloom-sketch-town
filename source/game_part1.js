@@ -1,7 +1,7 @@
   const $=id=>document.getElementById(id);
   const clamp=(v,a,b)=>Math.min(b,Math.max(a,v)),mix=(a,b,t)=>a+(b-a)*t,hypot=Math.hypot;
   const art={normal:'#293846',line:'#344e58',circle:'#799c91',triangle:'#d08c63',square:'#8f8b80',flame:'#ce704e',water:'#519cbd',lightning:'#558fbc',star:'#d8a34a',shuriken:'#9887b0',starcircle:'#cd995c'};
-  const CFG=Object.freeze({version:'0.26.0',baseHz:60,renderHz:60,inputHz:60,tickMs:1000/30,maxCatchup:8,world:{width:WORLD_MAP.size,height:WORLD_MAP.size},player:{hp:120,radius:16,walkSpeed:140,roll:{capacity:2,rechargeMs:650,rangeDiameters:3,durationMinMs:110,durationMaxMs:270,travelSpeed:765,projectileInvulMs:145}},castLimit:4,maxParticles:360});
+  const CFG=Object.freeze({version:'0.27.0',baseHz:60,renderHz:60,inputHz:60,tickMs:1000/30,maxCatchup:8,world:{width:WORLD_MAP.size,height:WORLD_MAP.size},player:{hp:120,radius:16,walkSpeed:140,roll:{capacity:2,rechargeMs:650,rangeDiameters:3,durationMinMs:110,durationMaxMs:270,travelSpeed:765,projectileInvulMs:145}},castLimit:4,maxParticles:360});
   $('gameVersion').textContent=`v${CFG.version} · RPG`;
   const DRAWING_STATS=Object.freeze({width:280,height:150,penWidth:3.8,recognitionSize:150});
   const field=$('field'),renderer=new Renderer2D(field,{batchVertices:32768}),draw=$('draw'),drawCtx=draw.getContext('2d'),trainingPad=$('trainingPad'),trainingCtx=trainingPad.getContext('2d');
@@ -246,13 +246,13 @@
     const kind=matching?topClass:(topClass==='line'?'line':'normal');
     const approval={selected,topClass,accepted:matching,similarity:ref[topClass]||0,
       threshold:effectiveReferenceThreshold(topClass,selected),assisted:selected===topClass};
-    const spec=summonSpecOf(kind),baseDamage=spec.damage(geo.areaPower);
+    const spec=summonSpecOf(kind),magic=MAGICS[kind],baseDamage=magic?0:spec.damage(geo.areaPower);
     const midX=(geo.box.minX+geo.box.maxX)/2,midY=(geo.box.minY+geo.box.maxY)/2;
     const size=clamp(23+19*Math.sqrt(geo.areaPower),23,55),factor=size/Math.max(1,geo.width,geo.height);
     const shape=geo.points.map(p=>({x:(p.x-midX)*factor,y:(p.y-midY)*factor}));
     const topRefKind=Object.entries(ref).sort((a,b)=>b[1]-a[1])[0][0];
     const color=art[kind]||art.normal;
-    return {geo,cnn:result,kind,name:spec.name,color,shape,pen:geo.pointiness,impact:geo.impact,mass:geo.mass,
+    return {geo,cnn:result,kind,name:magic?magic.name:spec.name,color,shape,pen:geo.pointiness,impact:geo.impact,mass:geo.mass,
       areaPx2:geo.area,areaPower:geo.areaPower,baseDamage,element:0,
       reference:{scores:ref,topRefKind,approval,selected,topClass},refSimilarity:approval.similarity};
   }

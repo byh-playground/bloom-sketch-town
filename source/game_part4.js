@@ -72,7 +72,7 @@
   function paintLiveGhost(){
     if(liveBody.result?.top&&drawInput.points.length>1){
       const box=strokesBox([drawInput.points]),kind=liveBody.result.top;
-      paintGhost([glyphReferences.paths[kind]],box,liveBody.result.accepted?.5:.22,liveBody.result.accepted?`${shapeNames[kind]} · ${summonSpecOf(kind).name}`:'');
+      paintGhost([glyphReferences.paths[kind]],box,liveBody.result.accepted?.5:.22,liveBody.result.accepted?`${shapeNames[kind]} · ${MAGICS[kind]?.name??summonSpecOf(kind).name}`:'');
     }
   }
   // Merge selection: a tap on one of your summons toggles it; a recognized star while two or three are selected merges them.
@@ -136,6 +136,7 @@
     try{
       const shot=normalizeCommand({type:'cast',shot:{...makeShotData(points),x:at.x,y:at.y,temper:selectedTemper}}).shot,cost=spellInkCost(player,shot);
       if(shot.kind==='star'&&selectedUnits.size>=2){requestMerge();return;}
+      if(isMagicKind(shot.kind)){lastShot=structuredClone(shot);world.commands.push({type:'cast',shot});wakeInputPreview();$('lastSpell').textContent=`${shot.name} · 일제 사격`;return;}
       if(shot.kind==='line'){lastShot=structuredClone(shot);world.commands.push({type:'cast',shot});wakeInputPreview();$('lastSpell').textContent='선 · 투사체';return;}
       summonBody(shot);
     }catch(error){console.error(error);showResult('소환 분석 실패 · 다시 그려 보세요',950);}}

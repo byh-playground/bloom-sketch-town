@@ -10,6 +10,7 @@ const SOURCES = [
   'source/seeded-random.js',
   'source/world-map.js',
   'source/game_part1.js',
+  'source/magic.js',
   'source/bosses.js',
   'source/progression.js',
   'source/region-map.js',

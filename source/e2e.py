@@ -676,26 +676,30 @@ async def run_bosses(browser, suite: E2E):
               const id=d.spawnBoss(3,true);out.sealedHit=d.bossHit(id,'triangle',100);out.sealedFlags=d.bossState().sealed;
               d.setBossesDefeated(3);const id2=d.spawnBoss(3);out.openHit=d.bossHit(id2,'triangle',100);out.openFlags=d.bossState().sealed;return out;}""")
             suite.check('a sealed boss takes 10% of each hit (100 → 10) and the same hit deals 100 once earlier bosses have fallen',sealed['sealedHit']==10 and sealed['openHit']==100 and sealed['sealedFlags']==[False,True,True,True,True] and sealed['openFlags']==[False,False,False,False,True],sealed)
-            # Real drawing: the fog turtle ignores a drawn water drop and is hurt by a drawn flame.
+            # Real drawing: the fog turtle ignores a drawn water spell and is hurt by a drawn flame spell.
             await page.evaluate('__sketchRpgDebug.unlockAll();__sketchRpgDebug.moveTo(__A.x,__A.y)')
             boss_id=await page.evaluate('__sketchRpgDebug.spawnBoss(1)')
             await page.wait_for_timeout(200)
             water=await draw_circle(page,170,'water')
-            await page.wait_for_function("__sketchRpgDebug.summons().some(q=>q.kind==='water')",timeout=9000)
-            await page.wait_for_timeout(4000)
+            await page.wait_for_function("__sketchRpgDebug.magicFields().length>0",timeout=6000)
+            await page.wait_for_timeout(1800)
             after_water=await page.evaluate('id=>__sketchRpgDebug.bossHp(id)',boss_id)
-            suite.check('a drawn water summon cannot hurt the water-immune boss',water is not None and water['kind']=='water' and after_water['hp']==720,{'shot':water and water['kind'],'hp':after_water})
+            suite.check('a drawn water spell cannot hurt the water-immune boss',water is not None and water['kind']=='water' and after_water['hp']==720 and await page.evaluate("__sketchRpgDebug.summons().length")==0,{'shot':water and water['kind'],'hp':after_water})
+            await page.evaluate('__sketchRpgDebug.readyMagic();__sketchRpgDebug.setInk(100)')
             flame=await draw_circle(page,170,'flame')
-            await page.wait_for_function("__sketchRpgDebug.summons().some(q=>q.kind==='flame')",timeout=9000)
-            await page.wait_for_timeout(4000)
+            await page.wait_for_function("__sketchRpgDebug.magicFields().length>0",timeout=6000)
+            await page.wait_for_timeout(3000)
             after_flame=await page.evaluate('id=>__sketchRpgDebug.bossHp(id)',boss_id)
-            suite.check('a drawn flame summon hurts the flame-weak boss',flame is not None and flame['kind']=='flame' and after_flame['hp']<720-30,{'shot':flame and flame['kind'],'hp':after_flame})
+            suite.check('a drawn flame spell hurts the flame-weak boss',flame is not None and flame['kind']=='flame' and after_flame['hp']<720-30,{'shot':flame and flame['kind'],'hp':after_flame})
             # Free order, enforced by the seal: any site wakes its boss; the HUD says it is sealed; fall order unseals the next.
             await page.evaluate("""() => {const d=__sketchRpgDebug,s=JSON.parse(new TextDecoder().decode(d.canonicalSnapshot()));
               s.world.enemies=[];s.world.summons=[];s.world.hazards=[];s.world.pickups=[];s.world.bossesDefeated=0;s.world.bossState=[0,0,0,0,0];s.world.nests=s.world.nests.map(q=>({...q,on:false,done:true}));d.canonicalRestore(new TextEncoder().encode(JSON.stringify(s)));d.invulnerable();}""")
             sites=state['sites']
             await page.evaluate('s=>__sketchRpgDebug.moveTo(s.x,s.y)',sites[2])
             await page.wait_for_function('__sketchRpgDebug.bossState().active?.bossId==2',timeout=4000)
+            # The quest line is repainted a little after the boss wakes, so wait for it instead of reading it on the waking tick.
+            try:await page.wait_for_function("document.getElementById('questText').textContent.includes('봉인')",timeout=4000)
+            except Exception:pass
             hud=await page.evaluate("({quest:document.getElementById('questText').textContent,sealed:__sketchRpgDebug.bossState().sealed[2]})")
             suite.check('standing at boss site 3 wakes boss 3 sealed (no order lock, but a −90% seal with an on-screen hint)',hud['sealed'] and '봉인' in hud['quest'],hud)
             await page.screenshot(path=str(ARTIFACTS/'boss-sealed-desktop.png'))
@@ -732,9 +736,9 @@ async def run_summons(browser, suite: E2E):
             await page.wait_for_function('window.__sketchRpgDebug?.rendererStats().vertices>0')
             A=await page.evaluate('__sketchRpgDebug.arena()')
             specs=await page.evaluate('__sketchRpgDebug.summonSpecs()')
-            kinds=['normal','line','circle','triangle','square','flame','water','lightning','star','shuriken','starcircle']
+            kinds=['normal','line','circle','triangle','square','star','shuriken','starcircle']
             names=[specs[k]['name'] for k in kinds if k in specs]
-            suite.check('every shape kind has its own summon spec',sorted(specs)==sorted(kinds) and len(set(names))==11,sorted(specs))
+            suite.check('eight shapes summon, each with its own spec; flame, water and lightning are spells, not summons',sorted(specs)==sorted(kinds) and len(set(names))==8,sorted(specs))
             anchored=sorted(k for k,v in specs.items() if v['anchored']);taunting=sorted(k for k,v in specs.items() if v['taunt'])
             suite.check('only star and star circle stay in place; only circle and square taunt',anchored==['star','starcircle'] and taunting==['circle','square'],{'anchored':anchored,'taunt':taunting})
             # Every kind summons through the same command path as the net protocol.
@@ -742,7 +746,7 @@ async def run_summons(browser, suite: E2E):
             # Unlocks: a run starts with circle, triangle and square; a locked shape falls back to the scribble; a boss reward opens one.
             start=await page.evaluate("__sketchRpgDebug.unlockState()")
             suite.check('a run starts with circle, triangle and square open and no reward pending',start['unlocked']==['circle','triangle','square'] and start['reward'] is None,start)
-            await page.evaluate("__sketchRpgDebug.castKind('flame',0,120)")
+            await page.evaluate("__sketchRpgDebug.castKind('star',0,120)")
             await page.wait_for_function("__sketchRpgDebug.summons().length>0",timeout=6000)
             locked_kinds=await page.evaluate("__sketchRpgDebug.summons().map(q=>q.kind)")
             suite.check('a locked shape is summoned as the plain scribble instead',locked_kinds==['normal'],locked_kinds)
@@ -832,7 +836,7 @@ async def run_summons(browser, suite: E2E):
             suite.check('a drawn line fires at once: no summon, the foe in its path is hurt, ink is spent',
                         line_shot is not None and line_shot['kind']=='line' and line_state['n']==0 and foe_hp<hp0 and line_state['ink']<100,
                         {'shot':line_shot and line_shot['kind'],'hp0':hp0,'state':line_state})
-            # Merging: tier-up (3 of a kind), fusion by recipe (5 pairs), full ink required and spent, other pairs refused, tap-select + star gesture.
+            # Merging: tier-up (3 of a kind), fusion by recipe (3 pairs), full ink required and spent, other pairs refused, tap-select + star gesture.
             await page.evaluate("__sketchRpgDebug.unlockAll()")
             async def fresh():
                 await page.evaluate("()=>{const d=__sketchRpgDebug;d.combatFixture('chaser',__A.fx,__A.fy);d.moveTo(__A.x,__A.y);d.setInk(100);}")
@@ -853,20 +857,20 @@ async def run_summons(browser, suite: E2E):
                         after['u']['kind']=='circle' and after['u']['tier']==2 and abs(after['u']['maxHp']-round(avg_hp*1.8))<=1 and after['u']['hp']==after['u']['maxHp'] and after['u']['r']>before[0]['r'] and after['ink']<60,
                         {'before':before,'after':after})
             await fresh()
-            pair=[await make('water',110,0),await make('flame',110,3)]
+            pair=[await make('circle',110,0),await make('square',110,3)]
             await page.evaluate("__sketchRpgDebug.setInk(50)")
             await page.evaluate("ids=>__sketchRpgDebug.mergeCommand(ids)",[u['id'] for u in pair])
             await page.wait_for_timeout(500)
             held=await page.evaluate("__sketchRpgDebug.mergeUnits().map(u=>u.kind)")
-            suite.check('merging needs a full ink bar: with half ink nothing merges',sorted(held)==['flame','water'],held)
+            suite.check('merging needs a full ink bar: with half ink nothing merges',sorted(held)==['circle','square'],held)
             await page.evaluate("__sketchRpgDebug.setInk(100)")
             await page.evaluate("ids=>__sketchRpgDebug.mergeCommand(ids)",[u['id'] for u in pair])
             await page.wait_for_function("__sketchRpgDebug.mergeUnits().length===1",timeout=4000)
             steam=await page.evaluate("__sketchRpgDebug.mergeUnits()[0]")
-            suite.check('water + flame fuse into a steam spirit whose hp is the sum of both, at full hp',steam['kind']=='steam' and steam['tier']==1 and steam['maxHp']==sum(u['maxHp'] for u in pair) and steam['hp']==steam['maxHp'],{'steam':steam,'pair':pair})
+            suite.check('circle + square fuse into a fortress whose hp is the sum of both, at full hp',steam['kind']=='fortress' and steam['tier']==1 and steam['maxHp']==sum(u['maxHp'] for u in pair) and steam['hp']==steam['maxHp'],{'fortress':steam,'pair':pair})
             recipes=await page.evaluate("__sketchRpgDebug.recipes()")
-            suite.check('exactly five recipes exist',recipes=={'flame+water':'steam','lightning+water':'storm','circle+square':'fortress','shuriken+triangle':'bladestorm','star+starcircle':'altar'},recipes)
-            for a,b in [('lightning','water'),('circle','square'),('shuriken','triangle'),('star','starcircle')]:
+            suite.check('exactly three recipes exist',recipes=={'circle+square':'fortress','shuriken+triangle':'bladestorm','star+starcircle':'altar'},recipes)
+            for a,b in [('shuriken','triangle'),('star','starcircle')]:
                 await fresh()
                 units=[await make(a,110,0),await make(b,110,3)]
                 await page.evaluate("__sketchRpgDebug.setInk(100)")
@@ -906,6 +910,64 @@ async def run_summons(browser, suite: E2E):
             await page.wait_for_function("__sketchRpgDebug.summons().find(q=>q.kind==='circle')?.hp<__sketchRpgDebug.summons().find(q=>q.kind==='circle')?.maxHp",timeout=12000)
             php=await page.evaluate("__sketchRpgDebug.snapshot().player.hp")
             suite.check('an enemy near a summon hurts the summon, not the player 240 px away',php==120,php)
+            # Spells: flame and water lob (x, y and a height z), lightning is straight and instant. The drawn point is the target and the
+            # caster plus every summon in range fire together; one flat ink price and one shared cooldown.
+            ms=await page.evaluate("__sketchRpgDebug.magicState()")
+            suite.check('flame and water are lobbed spells, lightning is a straight one; 30 ink, 3 s cooldown, 720 range',
+                        ms['spells']['flame']['lob'] and ms['spells']['water']['lob'] and ms['spells']['lightning']['bolt'] and not ms['spells']['lightning']['lob'] and ms['ink']==30 and ms['cooldownMs']==3000 and ms['range']==720,ms)
+            await page.evaluate("()=>{const d=__sketchRpgDebug;d.combatFixture('chaser',__A.fx,__A.fy);d.moveTo(__A.x,__A.y);d.setInk(100);}")
+            for i,k in enumerate(('circle','triangle','square')):
+                await page.evaluate("([k,a])=>{const d=__sketchRpgDebug;d.setInk(100);d.castKind(k,a,90);}",[k,i*2])
+                await page.wait_for_function("n=>__sketchRpgDebug.summons().length>=n",arg=i+1,timeout=6000)
+            # The target dummy: one stunned 400 hp hunter at the drawn point, so the summons have not already killed it.
+            await page.evaluate("()=>{world.enemies.length=0;const e=spawnEnemy('chaser',__A.x+300,__A.y);e.stunMs=1e9;e.hp=e.maxHp=3000;}")
+            await page.evaluate("__sketchRpgDebug.setInk(100)")
+            ink0=await page.evaluate("__sketchRpgDebug.runState().actor.ink")
+            await page.evaluate("__sketchRpgDebug.clearLastMagic()")
+            flame_shot=await draw_circle(page,150,'flame',at=[A['x']+300,A['y']])
+            await page.wait_for_function("__sketchRpgDebug.lastMagicCast()!==null",timeout=6000)
+            cast=await page.evaluate("__sketchRpgDebug.lastMagicCast()")
+            ink_cast=await page.evaluate("__sketchRpgDebug.runState().actor.ink")
+            peak=0
+            for _ in range(40):
+                zs=[q['z'] for q in await page.evaluate("__sketchRpgDebug.magicFields()")]
+                if not zs:break
+                peak=max(peak,*zs);await page.wait_for_timeout(15)
+            suite.check('a real flame stroke costs 30 ink and fires the caster and all three summons at once, as lobs that rise above the ground',
+                        flame_shot is not None and flame_shot['kind']=='flame' and cast=={'spell':'flame','shooters':4} and peak>30 and 65<=ink_cast<=72,{'shot':flame_shot and flame_shot['kind'],'cast':cast,'peakZ':peak,'ink':ink_cast})
+            await page.evaluate("__sketchRpgDebug.setInk(100);__sketchRpgDebug.castKind('flame',0,300)")
+            await page.wait_for_timeout(300)
+            blocked=await page.evaluate("({lobs:__sketchRpgDebug.magicFields().length,ink:__sketchRpgDebug.runState().actor.ink})")
+            suite.check('during the shared cooldown a second spell neither fires nor spends ink',blocked['lobs']<=4 and blocked['ink']>=99 and await page.evaluate("__sketchRpgDebug.lastMagicCast().shooters")==4,blocked)
+            await page.wait_for_timeout(1500)
+            after=await page.evaluate("({lobs:__sketchRpgDebug.magicFields().length,summons:__sketchRpgDebug.summons().length,ink:__sketchRpgDebug.runState().actor.ink,foe:__sketchRpgDebug.foePositions()[0]})")
+            suite.check('the lobs land and burn the target, and the spell summons nothing',
+                        after['lobs']==0 and after['summons']==3 and after['foe']['hp']<3000-40 and after['foe']['burnMs']>0,{'after':after})
+            # Steam: water wets; the first fire shot on a wet enemy burns the wetness off (bigger hit, short stun) instead of igniting it, the rest ignite it.
+            await page.evaluate("__sketchRpgDebug.readyMagic();__sketchRpgDebug.setInk(100);world.enemies[0].burnMs=0;world.enemies[0].hp=world.enemies[0].maxHp")
+            await draw_circle(page,150,'water',at=[A['x']+300,A['y']])
+            await page.wait_for_function("__sketchRpgDebug.magicFields().length>0",timeout=6000)
+            await page.wait_for_function("__sketchRpgDebug.magicFields().length===0",timeout=4000)
+            wet=await page.evaluate("__sketchRpgDebug.foePositions()[0]")
+            await page.evaluate("__sketchRpgDebug.readyMagic();__sketchRpgDebug.setInk(100)")
+            await draw_circle(page,150,'flame',at=[A['x']+300,A['y']])
+            await page.wait_for_function("__sketchRpgDebug.magicFields().length>0",timeout=6000)
+            await page.wait_for_function("__sketchRpgDebug.magicFields().length===0",timeout=4000)
+            steamed=await page.evaluate("__sketchRpgDebug.foePositions()[0]")
+            suite.check('water leaves the enemy wet; the first flame shot on a wet enemy turns to steam and burns the wetness off',wet['wetMs']>0 and steamed['wetMs']==0 and steamed['hp']<wet['hp'],{'wet':wet,'steamed':steamed})
+            # Lightning is straight and instant: it hits on the cast tick and never makes a lob.
+            await page.evaluate("__sketchRpgDebug.readyMagic();__sketchRpgDebug.setInk(100);__sketchRpgDebug.clearLastMagic();const e=world.enemies[0];e.wetMs=0;e.burnMs=0;e.hp=e.maxHp=3000")
+            bolt=await draw_circle(page,150,'lightning',at=[A['x']+300,A['y']])
+            await page.wait_for_function("__sketchRpgDebug.lastMagicCast()!==null",timeout=6000)
+            strike=await page.evaluate("({cast:__sketchRpgDebug.lastMagicCast(),lobs:__sketchRpgDebug.magicFields().length,hp:__sketchRpgDebug.foePositions()[0].hp})")
+            suite.check('a lightning stroke strikes at once along the line, with no lobbed shot',bolt is not None and bolt['kind']=='lightning' and strike['cast']['spell']=='lightning' and strike['lobs']==0 and strike['hp']<3000,{'shot':bolt and bolt['kind'],'strike':strike})
+            await page.wait_for_timeout(300)
+            # Out of range: a target more than 720 from the caster and every summon does nothing and costs nothing.
+            await page.evaluate("__sketchRpgDebug.readyMagic();__sketchRpgDebug.setInk(100)")
+            await page.evaluate("__sketchRpgDebug.castKind('flame',Math.PI,900)")
+            await page.wait_for_timeout(500)
+            far=await page.evaluate("({lobs:__sketchRpgDebug.magicFields().length,ink:__sketchRpgDebug.runState().actor.ink})")
+            suite.check('a spell aimed beyond every shooter\'s 720 range does not fire and spends no ink',far['lobs']==0 and far['ink']>=99,far)
             # Personalities: five, each with both an advantage and a disadvantage.
             table=await page.evaluate("__sketchRpgDebug.personalities()")
             suite.check('five personalities, every one has both an advantage and a disadvantage',len(table)==5 and [p['id'] for p in table]==[0,1,2,3,4] and all(any(v>1 for v in p['multipliers'].values()) and any(v<1 for v in p['multipliers'].values()) for p in table),table)
@@ -1162,7 +1224,7 @@ async def run_real_p2p(browser, suite: E2E):
                 boundary=min(s['confirmedTick'] for s in states)
                 hashes=await asyncio.gather(*(p.evaluate("t=>window.__sketchRpgDebug.stateHash(t)",boundary) for p in (host,guest)))
                 suite.check("late duplicated RTC input reconciles to equal confirmed hash",hashes[0] is not None and hashes[0]==hashes[1],{'tick':boundary,'hashes':hashes,'rollbacks':[s['stats'].get('rollbacks',0) for s in states]})
-                suite.check("both peers use pinned protocol 3 bundle",all(s['gamekitSHA']=='418e17c455db56d6ed073d82d115191d9dd8bf04' and s['namespace']=='sketch-town-coop-0.26.0' and s['simulationVersion'].startswith('sketch-town-0.26.0-') and s['inputScheduling']=='network' and s['inputHz']==60 for s in states))
+                suite.check("both peers use pinned protocol 3 bundle",all(s['gamekitSHA']=='418e17c455db56d6ed073d82d115191d9dd8bf04' and s['namespace']=='sketch-town-coop-0.27.0' and s['simulationVersion'].startswith('sketch-town-0.27.0-') and s['inputScheduling']=='network' and s['inputHz']==60 for s in states))
                 for sender,actor in ((host,'a'),(guest,'b')):
                     for page in (host,guest):
                         await page.evaluate("""actor => {
