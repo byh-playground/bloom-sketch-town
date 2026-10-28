@@ -1,8 +1,8 @@
   const actions=new ActionState(),gesture={drawId:null,points:[],length:0,startMs:0,trainingId:null,trainingPoints:[],lastCombatStroke:null};
-  let player={x:475,y:735,vx:0,vy:0,moveX:0,moveY:0,faceX:1,faceY:0,r:CFG.player.radius,hp:CFG.player.hp,maxHp:CFG.player.hp,ink:100,inkDelayMs:0,cards:emptyCards(),power:1,dash:{leftMs:0,durationMs:0,elapsedMs:0,distance:0,charges:2,rechargeMs:0,dirX:1,dirY:0,originX:475,originY:735,rollMarkMs:0},nextCastAtMs:0,invulMs:0,healMsgMs:0,hits:0};
+  let player={x:475,y:735,vx:0,vy:0,moveX:0,moveY:0,faceX:1,faceY:0,r:CFG.player.radius,hp:CFG.player.hp,maxHp:CFG.player.hp,ink:100,inkDelayMs:0,cards:emptyCards(),power:1,dash:{leftMs:0,durationMs:0,elapsedMs:0,distance:0,charges:2,rechargeMs:0,dirX:1,dirY:0,originX:475,originY:735,rollMarkMs:0},nextCastAtMs:0,nextMagicAtMs:0,invulMs:0,healMsgMs:0,hits:0};
   applyCards(player);
   const hostPlayer=player;
-  const guestPlayer={...hostPlayer,cards:emptyCards(),x:536,y:756,hp:hostPlayer.hp,maxHp:hostPlayer.maxHp,dash:{...hostPlayer.dash,originX:536,originY:756},nextCastAtMs:0,hits:0};
+  const guestPlayer={...hostPlayer,cards:emptyCards(),x:536,y:756,hp:hostPlayer.hp,maxHp:hostPlayer.maxHp,dash:{...hostPlayer.dash,originX:536,originY:756},nextCastAtMs:0,nextMagicAtMs:0,hits:0};
   applyCards(guestPlayer);
   const mp={role:'solo',connected:false,ready:false,connecting:false,shared:false,room:null,session:null,code:'',localId:null,ownerId:null,interpolation:null,poseRevision:0,poseSequence:0,poseReset:true,stats:{rollbacks:0,recoveries:0,commands:0,advanced:0}};
   function actors(){return mp.shared?[hostPlayer,guestPlayer]:[hostPlayer];}
@@ -287,10 +287,10 @@ if(e.hp<=0){e.dead=true;world.kills++;if(e.kind!=='boss')world.regionKills[e.reg
     world.casts.push({id:world.nextId++,owner:actorId(player),shot,ageMs:0,durationMs:duration,x:player.x,y:player.y,cost,paid:0});
     showResult(`${shot.name} 그리는 중 · ${summonSpecOf(shot.kind).role} · 체력 ${summonSpecOf(shot.kind).maxHp(shot.areaPower)}`,1450);sfx('draw');
   }
-  // Unlocks are run state: the line projectile and the plain scribble are always available; the three start shapes are
-  // open from the beginning; every boss defeat offers a choice among the shapes still locked (per run, shared by both players).
-  const UNLOCKABLE_KINDS=Object.freeze(['flame','water','lightning','star','shuriken','starcircle']);
-  const isKindOpen=kind=>kind==='line'||kind==='normal'||world.unlocked.includes(kind);
+  // Unlocks are run state: the line projectile, the plain scribble and the three spells are always available; the three start
+  // shapes are open from the beginning; every boss defeat offers a choice among the summon shapes still locked (per run, shared by both players).
+  const UNLOCKABLE_KINDS=Object.freeze(['star','shuriken','starcircle']);
+  const isKindOpen=kind=>kind==='line'||kind==='normal'||isMagicKind(kind)||world.unlocked.includes(kind);
   function offerUnlockReward(){
     const locked=UNLOCKABLE_KINDS.filter(k=>!world.unlocked.includes(k));
     if(!locked.length){world.reward=null;return;}
@@ -320,7 +320,7 @@ if(e.hp<=0){e.dead=true;world.kills++;if(e.kind!=='boss')world.regionKills[e.reg
         f.hits.push(e.id);withActor(actorOf(f.owner),()=>damageEnemy(e,f.damage,e.x,e.y-20,f.color,'line'));
         if(--f.pierceLeft<=0){f.ageMs=f.lifeMs;break;}}}
   }
-  function submitSpell(shot){if(!isKindOpen(shot.kind))shot={...shot,kind:'normal',name:summonSpecOf('normal').name,color:art.normal};if(shot.kind==='line')return player.hp>0&&!(player.koMs>0)&&fireLine(shot);if(player.hp<=0||player.koMs>0||world.castQueue.filter(c=>c.owner===actorId(player)).length>=3)return false;world.castQueue.push({shot,owner:actorId(player),cost:spellInkCost(player,shot)});return true;}
+  function submitSpell(shot){if(!isKindOpen(shot.kind))shot={...shot,kind:'normal',name:summonSpecOf('normal').name,color:art.normal};if(isMagicKind(shot.kind))return castMagic(player,shot);if(shot.kind==='line')return player.hp>0&&!(player.koMs>0)&&fireLine(shot);if(player.hp<=0||player.koMs>0||world.castQueue.filter(c=>c.owner===actorId(player)).length>=3)return false;world.castQueue.push({shot,owner:actorId(player),cost:spellInkCost(player,shot)});return true;}
   function tickCasts(dt){
     for(let i=world.casts.length-1;i>=0;i--){const c=world.casts[i];const actor=actorOf(c.owner);c.x=actor.x;c.y=actor.y;
       const pay=Math.min(actor.ink,c.cost-c.paid,c.cost*dt/c.durationMs);
@@ -376,7 +376,7 @@ if(e.hp<=0){e.dead=true;world.kills++;if(e.kind!=='boss')world.regionKills[e.reg
     // Time dilation is local-only; online rollback must not depend on device pointer state.
     const hostileDt=!mp.connected&&drawInput.pointer!==null?dt*.25:dt;
     world.slowRatio=hostileDt/dt;
-    tickNests(dt);updateBossSummon();updateEnemies(hostileDt);tickCasts(dt);tickBolts(dt);tickSummons(dt);separateUnits();tickHazards(hostileDt);tickEffects(dt);
+    tickNests(dt);updateBossSummon();updateEnemies(hostileDt);tickCasts(dt);tickBolts(dt);tickMagic(dt);tickSummons(dt);separateUnits();tickHazards(hostileDt);tickEffects(dt);
     // Dead enemies have already delivered their XP, drops and ink fragments. Their records must NOT
     // survive forever in the canonical rollback history or AI scans. Stable IDs never get reused.
     for(let i=world.enemies.length-1;i>=0;i--)if(world.enemies[i].dead)world.enemies.splice(i,1);

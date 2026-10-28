@@ -86,7 +86,7 @@
   class SummonView extends SceneView {static renderSchema={hp:R.STEP,maxHp:R.STEP,hitMs:R.COUNTDOWN_MS,cdMs:R.COUNTDOWN_MS,faceX:R.STEP,temper:R.STEP,shape:R.STEP,targetId:R.STEP};}
   class HazardView extends SceneView {static renderSchema={vx:R.STEP,vy:R.STEP};}
   class CastView extends SceneView {static renderSchema={durationMs:R.STEP,owner:R.STEP,shot:R.STEP};}
-  class FieldView extends SceneView {static renderSchema={ex:R.STEP,ey:R.STEP};}
+  class FieldView extends SceneView {static renderSchema={ex:R.STEP,ey:R.STEP,z:R.LINEAR};}
   class ParticleView extends SceneView {static renderSchema={angle:R.ANGLE,initialMs:R.STEP,segment:R.STEP};}
   class FloaterView extends SceneView {static renderSchema={text:R.STEP};}
   class RollView extends SceneView {static renderSchema={maxLifeMs:R.STEP,dirX:R.STEP,dirY:R.STEP};}
@@ -351,7 +351,7 @@
     pointAt(aim,reach){return pointAt(aim,reach);},
     cast(type,aim=0,reach=120){const shot={...makeShotData(samplePoints(type)),...pointAt(aim,reach)};world.commands.push({type:'cast',shot});},
     // Command for an exact summon kind (the stroke itself is only a reference outline).
-    castKind(kind,aim=0,reach=120,areaPower=.5,temper=0){const base=makeShotData(samplePoints(kind==='normal'?'line':kind)),spec=summonSpecOf(kind),shot={...base,kind,name:spec.name,color:art[kind]||art.normal,...pointAt(aim,reach),temper,areaPower,baseDamage:spec.damage(areaPower)};world.commands.push({type:'cast',shot});return shot.kind;},
+    castKind(kind,aim=0,reach=120,areaPower=.5,temper=0){const base=makeShotData(samplePoints(kind==='normal'?'line':kind)),spec=summonSpecOf(kind),shot={...base,kind,name:MAGICS[kind]?.name??spec.name,color:art[kind]||art.normal,...pointAt(aim,reach),temper,areaPower,baseDamage:spec.damage(areaPower)};world.commands.push({type:'cast',shot});return shot.kind;},
     castStroke(raw,aim=0,reach=120){const shot={...makeShotData(raw),...pointAt(aim,reach)};world.commands.push({type:'cast',shot});return {kind:shot.kind,baseDamage:shot.baseDamage};},
     spellSpec(raw){const shot=makeShotData(raw);return {kind:shot.kind,castMs:castDurationMs(shot),recoveryMs:spellRecoveryMs(),areaPower:shot.areaPower,baseDamage:shot.baseDamage};},
     invulnerable(){player.invulMs=1e9;},
@@ -406,6 +406,10 @@
     mapState(){const m=mapLayout;return {seed:m.seed,attempt:m.attempt,hash:m.hash(),worldSeed:world.mapSeed,size:m.size,spawn:{x:m.spawn.x,y:m.spawn.y},bossSites:m.bossSites.map(q=>({...q})),sites:m.sites.map(q=>({kind:q.kind,x:q.x,y:q.y,zone:q.zone})),nests:m.nests.map(n=>({kind:n.kind,x:n.x,y:n.y,zone:n.zone,members:n.members.slice(),hpScale:n.hpScale,leash:n.leash})),report:{...m.report},counts:{props:m.props.length,decals:m.decals.length,obstacles:world.obstacles.length,trees:world.trees.length,houses:world.houses.length}};},
     mapHashFor(seed){const t=performance.now(),l=generateWorldMap(seed);return {hash:l.hash(),attempt:l.attempt,ms:performance.now()-t};},
     terrainBlocked(x,y,r){return touchesObstacle(x,y,r);},
+    magicFields(){return world.fields.filter(f=>f.kind==='lob').map(f=>({x:f.x,y:f.y,z:f.z,spell:f.spell,landed:f.landed}));},
+    lastMagicCast(){return lastMagicCast&&{...lastMagicCast};},clearLastMagic(){lastMagicCast=null;},
+    readyMagic(){hostPlayer.nextMagicAtMs=0;guestPlayer.nextMagicAtMs=0;},
+    magicState(){return {range:MAGIC_RANGE,cooldownMs:MAGIC_COOLDOWN_MS,ink:MAGIC_INK,spells:Object.fromEntries(Object.entries(MAGICS).map(([k,m])=>[k,{name:m.name,lob:m instanceof LobMagic,bolt:m instanceof BoltMagic}]))};},
     terrainOnlyBlocked(x,y,r){return !circleBounds(x,y,r)||mapLayout.terrainBlocks(x,y,r);},
     obstacleList(){return world.obstacles.map(o=>({...o}));},
     houseList(){return world.houses.map(h=>({...h}));},
