@@ -7,6 +7,11 @@
   if(new URLSearchParams(location.search).get('showcaseDemo')==='1'){
     const STROKE_MS=700;                 // how long the finger takes to draw one outline, so the viewer sees the ink go down
     const FOE_KIND='chaser';
+    const PORTRAIT_APPROACH_V=-.34;     // portrait: packs stand this fraction of the screen height above the hero
+    const SAFE_X=.06,SAFE_TOP=.2,SAFE_BOTTOM=.25; // the screen area free of the HUD, where a far pack must be drawn on
+    // A far pack stands this far from the hero. Idle summons stay within ~100 of the hero, so none of them sees it (SUMMON_SIGHT = 480);
+    // the volley (MAGIC_RANGE = 720) still reaches it. A portrait screen shows less, so the pack stands closer there.
+    const farDistance=()=>innerHeight>innerWidth?SUMMON_SIGHT+150:SUMMON_SIGHT+220;
     const GOLDEN=2.399963229728653;
     class ShowcaseDirector{
       #drawing=false;
@@ -41,16 +46,34 @@
         for(const s of world.summons)s.hp=s.maxHp;
         return true;
       }
-      // A pack of hunters at the screen fraction (u,v); `hpScale` makes them sturdier.
-      step_foes(count,u,v,hpScale=1){
-        const center=this.#worldAt(u,v);
-        for(let i=0;i<count;i++){const spread=i?26*Math.sqrt(i):0,a=i*GOLDEN,p=this.#free(center.x+Math.cos(a)*spread,center.y+Math.sin(a)*spread,24);spawnEnemy(FOE_KIND,p.x,p.y,-1,-1,hpScale);}
+      // Where enemies come from: on a portrait screen the dock covers the bottom and the long axis is vertical, so the pack stands above
+      // the hero (v fixed, the old v becomes the sideways offset); on a landscape screen (u,v) are used as given.
+      #approachAt(u,v){return innerHeight>innerWidth?this.#worldAt(v,PORTRAIT_APPROACH_V):this.#worldAt(u,v);}
+      // The point farDistance() from the hero in the direction of (u,v). Near the map edge the camera stops following the hero, so a point
+      // may fall off screen; the mirrored directions are tried in turn, and the first one that lands inside the safe screen area wins.
+      #farCenter(u,v){
+        const spot={x:0,y:0};
+        const toward=(du,dv)=>{
+          const target=this.#approachAt(du,dv),dx=target.x-player.x,dy=target.y-player.y,len=hypot(dx,dy)||1;
+          return {x:player.x+dx/len*farDistance(),y:player.y+dy/len*farDistance()};
+        };
+        const candidates=[[u,v],[-u,v],[u,-v],[-u,-v]].map(([du,dv])=>toward(du,dv));
+        const inside=p=>{renderer.worldToScreenInto(p.x,p.y,spot);return spot.x>SAFE_X*innerWidth&&spot.x<(1-SAFE_X)*innerWidth&&spot.y>SAFE_TOP*innerHeight&&spot.y<(1-SAFE_BOTTOM)*innerHeight;};
+        return candidates.find(inside)??candidates[0];
+      }
+      // Remove every living enemy, so the next pack is the only one the viewer sees.
+      step_clear(){world.enemies.length=0;return true;}
+      // A pack of hunters at the screen fraction (u,v); `hpScale` makes them sturdier. With `holdMs` > 0 the pack is "far": it stands
+      // farDistance() from the hero (beyond every idle summon's sight), in the direction of (u,v), and stands still for holdMs, so the volley is what reaches it.
+      step_foes(count,u,v,hpScale=1,holdMs=0){
+        const center=holdMs>0?this.#farCenter(u,v):this.#approachAt(u,v);
+        for(let i=0;i<count;i++){const spread=i?26*Math.sqrt(i):0,a=i*GOLDEN,p=this.#free(center.x+Math.cos(a)*spread,center.y+Math.sin(a)*spread,24);const foe=spawnEnemy(FOE_KIND,p.x,p.y,-1,-1,hpScale);foe.stunMs=holdMs;}
         return true;
       }
       // Boss n appears at (u,v) with the earlier bosses already fallen, so its own rule (immunity, weak point) is what the viewer sees.
       step_boss(n,u,v){
         world.bossesDefeated=n;world.bossState=world.bossState.map((_,i)=>i<n?2:0);world.bossState[n]=1;
-        const center=this.#worldAt(u,v),p=this.#free(center.x,center.y,70);spawnEnemy('boss',p.x,p.y,n);
+        const center=this.#approachAt(u,v),p=this.#free(center.x,center.y,70);spawnEnemy('boss',p.x,p.y,n);
         return true;
       }
       // Make sure the given kinds stand next to the hero (a chapter may need a unit an earlier fight lost).

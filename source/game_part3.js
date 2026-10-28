@@ -244,8 +244,10 @@
   }
   let lastCameraAt=0;
   // The introduction film is framed closer, so faces and spells read at a glance.
-  const FILM_ZOOM=new URLSearchParams(location.search).get('showcaseDemo')==='1'?1.1:1;
-  function cameraPose(){const z=(vw<590?.80:vw<900?.88:1.03)*FILM_ZOOM;camera.zoom=z;const hw=vw/(2*z),hh=vh/(2*z),targetX=clamp(player.x,Math.min(hw,CFG.world.width/2),Math.max(hw,CFG.world.width-hw)),targetY=clamp(player.y,Math.min(hh,CFG.world.height/2),Math.max(hh,CFG.world.height-hh));
+  const FILM_MODE=new URLSearchParams(location.search).get('showcaseDemo')==='1';
+  // The intro film shows a pack beyond the summons' sight (480) from the hero, so it frames wider: 560+ units must fit on screen.
+  const filmZoom=()=>FILM_MODE?(vw<590?.6:.82):1;
+  function cameraPose(){const z=(vw<590?.80:vw<900?.88:1.03)*filmZoom();camera.zoom=z;const hw=vw/(2*z),hh=vh/(2*z),targetX=clamp(player.x,Math.min(hw,CFG.world.width/2),Math.max(hw,CFG.world.width-hw)),targetY=clamp(player.y,Math.min(hh,CFG.world.height/2),Math.max(hh,CFG.world.height-hh));
     const elapsed=lastCameraAt?clamp(paintFrameNow-lastCameraAt,0,64):16.667;
     lastCameraAt=paintFrameNow;
     // Exponential camera easing is frame-rate independent; the target is the same sampled hero model as body and shadow.
