@@ -921,8 +921,8 @@ async def run_summons(browser, suite: E2E):
             # Spells: flame and water lob (x, y and a height z), lightning is straight and instant. The drawn point is the target and the
             # caster plus every summon in range fire together; one flat ink price and one shared cooldown.
             ms=await page.evaluate("__sketchRpgDebug.magicState()")
-            suite.check('flame and water are lobbed spells, lightning is a straight one; 30 ink, 3 s cooldown, 720 range',
-                        ms['spells']['flame']['lob'] and ms['spells']['water']['lob'] and ms['spells']['lightning']['bolt'] and not ms['spells']['lightning']['lob'] and ms['ink']==30 and ms['cooldownMs']==3000 and ms['range']==720,ms)
+            suite.check('flame and water are lobbed spells, lightning is a straight one; 30 ink, 0.5 s cooldown, 720 range',
+                        ms['spells']['flame']['lob'] and ms['spells']['water']['lob'] and ms['spells']['lightning']['bolt'] and not ms['spells']['lightning']['lob'] and ms['ink']==30 and ms['cooldownMs']==500 and ms['range']==720,ms)
             await page.evaluate("()=>{const d=__sketchRpgDebug;d.combatFixture('chaser',__A.fx,__A.fy);d.moveTo(__A.x,__A.y);d.setInk(100);}")
             for i,k in enumerate(('circle','triangle','square')):
                 await page.evaluate("([k,a])=>{const d=__sketchRpgDebug;d.setInk(100);d.castKind(k,a,90);}",[k,i*2])
@@ -936,6 +936,10 @@ async def run_summons(browser, suite: E2E):
             await page.wait_for_function("__sketchRpgDebug.lastMagicCast()!==null",timeout=6000)
             cast=await page.evaluate("__sketchRpgDebug.lastMagicCast()")
             ink_cast=await page.evaluate("__sketchRpgDebug.runState().actor.ink")
+            # The shared cooldown (0.5 s): a second flame right after the first neither fires nor spends ink.
+            await page.evaluate("__sketchRpgDebug.castKind('flame',0,300)")
+            await page.wait_for_timeout(100)
+            blocked=await page.evaluate("({lobs:__sketchRpgDebug.magicFields().length,ink:__sketchRpgDebug.runState().actor.ink})")
             peak=0
             for _ in range(40):
                 zs=[q['z'] for q in await page.evaluate("__sketchRpgDebug.magicFields()")]
@@ -943,10 +947,7 @@ async def run_summons(browser, suite: E2E):
                 peak=max(peak,*zs);await page.wait_for_timeout(15)
             suite.check('a real flame stroke costs 30 ink and fires the caster and all three summons at once, as lobs that rise above the ground',
                         flame_shot is not None and flame_shot['kind']=='flame' and cast=={'spell':'flame','shooters':4} and peak>30 and 65<=ink_cast<=72,{'shot':flame_shot and flame_shot['kind'],'cast':cast,'peakZ':peak,'ink':ink_cast})
-            await page.evaluate("__sketchRpgDebug.setInk(100);__sketchRpgDebug.castKind('flame',0,300)")
-            await page.wait_for_timeout(300)
-            blocked=await page.evaluate("({lobs:__sketchRpgDebug.magicFields().length,ink:__sketchRpgDebug.runState().actor.ink})")
-            suite.check('during the shared cooldown a second spell neither fires nor spends ink',blocked['lobs']<=4 and blocked['ink']>=99 and await page.evaluate("__sketchRpgDebug.lastMagicCast().shooters")==4,blocked)
+            suite.check('during the shared cooldown a second spell neither fires nor spends ink',blocked['lobs']<=4 and blocked['ink']>=ink_cast-1 and await page.evaluate("__sketchRpgDebug.lastMagicCast().shooters")==4,blocked)
             await page.wait_for_timeout(1500)
             after=await page.evaluate("({lobs:__sketchRpgDebug.magicFields().length,summons:__sketchRpgDebug.summons().length,ink:__sketchRpgDebug.runState().actor.ink,foe:__sketchRpgDebug.foePositions()[0]})")
             suite.check('the lobs land and burn the target, and the spell summons nothing',
