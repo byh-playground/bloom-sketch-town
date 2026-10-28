@@ -773,12 +773,12 @@ async def run_summons(browser, suite: E2E):
             await page.evaluate("__sketchRpgDebug.combatFixture('chaser',__A.fx,__A.fy);__sketchRpgDebug.moveTo(__A.x,__A.y);__sketchRpgDebug.setInk(100)")
             await page.evaluate("__sketchRpgDebug.unlockAll()")
             produced=[]
-            for kind in [k for k in kinds if k!='line']:
+            for kind in kinds:
                 await page.evaluate("k=>{const d=__sketchRpgDebug;d.setInk(100);d.castKind(k,0,120);}",kind)
                 await page.wait_for_function("k=>__sketchRpgDebug.summons().some(q=>q.kind===k)",arg=kind,timeout=4000)
                 produced.append(kind)
                 await page.evaluate("__sketchRpgDebug.combatFixture('chaser',__A.fx,__A.fy)")
-            suite.check('the 10 non-line shapes summon their creature (the line is a projectile)',produced==[k for k in kinds if k!='line'],produced)
+            suite.check('all eight shapes summon their creature, the line included',produced==kinds,produced)
             # Cap: an eleventh summon replaces the owner's oldest.
             await page.evaluate("__sketchRpgDebug.combatFixture('chaser',__A.fx,__A.fy);__sketchRpgDebug.moveTo(__A.x,__A.y)")
             first_ids=[]
@@ -833,17 +833,15 @@ async def run_summons(browser, suite: E2E):
             await page.wait_for_function("__sketchRpgDebug.summons().some(q=>q.kind==='triangle')&&__sketchRpgDebug.runState().actor.ink<100",timeout=6000)
             ink=await page.evaluate("__sketchRpgDebug.runState().actor.ink")
             suite.check('one triangle spends 58-78 ink of 100: a second one is not affordable at once',15<ink<48,ink)
-            # The line is the only projectile: no face step, fired along the drawn direction, hurts what it crosses.
+            # The straight-line projectile is gone: a drawn line summons the ink line like any other shape.
             await page.evaluate("()=>{const d=__sketchRpgDebug;d.combatFixture('chaser',__A.x+220,__A.y);d.moveTo(__A.x,__A.y);d.setInk(100);d.setPlayerHp(120);}")
             await page.wait_for_timeout(120)
-            hp0=await page.evaluate("__sketchRpgDebug.foePositions()[0].hp")
             line_shot=await draw_circle(page,170,'line',at=[A['x']+110,A['y']])
-            await page.wait_for_timeout(700)
-            line_state=await page.evaluate("({foes:__sketchRpgDebug.foePositions(),ink:__sketchRpgDebug.runState().actor.ink,n:__sketchRpgDebug.summons().length})")
-            foe_hp=line_state['foes'][0]['hp'] if line_state['foes'] else 0
-            suite.check('a drawn line fires at once: no summon, the foe in its path is hurt, ink is spent',
-                        line_shot is not None and line_shot['kind']=='line' and line_state['n']==0 and foe_hp<hp0 and line_state['ink']<100,
-                        {'shot':line_shot and line_shot['kind'],'hp0':hp0,'state':line_state})
+            await page.wait_for_function("__sketchRpgDebug.summons().some(q=>q.kind==='line')",timeout=6000)
+            line_state=await page.evaluate("({n:__sketchRpgDebug.summons().length,projectiles:world.fields.filter(f=>f.kind==='bolt').length})")
+            suite.check('a drawn line summons the ink line, and no straight projectile field exists',
+                        line_shot is not None and line_shot['kind']=='line' and line_state['n']>=1 and line_state['projectiles']==0,
+                        {'shot':line_shot and line_shot['kind'],'state':line_state})
             # Merging: tier-up (3 of a kind), fusion by recipe (3 pairs), full ink required and spent, other pairs refused, tap-select + star gesture.
             await page.evaluate("__sketchRpgDebug.unlockAll()")
             async def fresh():

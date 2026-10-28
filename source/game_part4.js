@@ -137,7 +137,6 @@
       const shot=normalizeCommand({type:'cast',shot:{...makeShotData(points),x:at.x,y:at.y,temper:selectedTemper}}).shot,cost=spellInkCost(player,shot);
       if(shot.kind==='star'&&selectedUnits.size>=2){requestMerge();return;}
       if(isMagicKind(shot.kind)){lastShot=structuredClone(shot);world.commands.push({type:'cast',shot});wakeInputPreview();$('lastSpell').textContent=`${shot.name} · 일제 사격`;return;}
-      if(shot.kind==='line'){lastShot=structuredClone(shot);world.commands.push({type:'cast',shot});wakeInputPreview();$('lastSpell').textContent='선 · 투사체';return;}
       summonBody(shot);
     }catch(error){console.error(error);showResult('소환 분석 실패 · 다시 그려 보세요',950);}}
   function collectCombatDrawing(e){

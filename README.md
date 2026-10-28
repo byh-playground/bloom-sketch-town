@@ -306,6 +306,12 @@ The branch authors static character and environment resources in `source/assets/
 - 새 파일 `source/magic.js`(Magic → LobMagic | BoltMagic), 행위자 필드 `nextMagicAtMs` 추가, 체크포인트 fields 상한 350 → 600. 방 namespace·simulationVersion 0.27.0.
 - 검증: `--flow summon` 39, `map` 20, `boss` 11, `ux` 8, `progression` 8 PASS. 마법 e2e는 실제 획 입력으로 발사 수(4발)·높이·착탄·쿨다운·증기·번개 직선·사거리 밖을 확인합니다. 정상 흐름 밖(`--flow online`의 `canonicalSnapshot` 누락)은 기존 문제로 남아 있습니다.
 
+### 0.30.0 — 직선 투사체 제거
+- 선 한 획이 쏘던 직선 투사체(`LINE_BOLT`, 필드 `kind:'bolt'`, `fireLine`, `tickBolts`, 그리기)를 없앴습니다. 쓰이지 않았고, 마법(불꽃·물방울·번개)과 소환수로 역할이 나뉘었기 때문입니다.
+- 선 한 획은 이제 다른 도형처럼 소환수 `잉크 선`(원거리, 잉크 35)을 소환합니다. 이 소환수 규격은 원래 있었고, 선 획만 투사체로 가로채던 경로를 걷어냈습니다.
+- 방 namespace·simulationVersion 0.30.0. 이전 "선 = 투사체" 절은 과거 기록입니다.
+- 검증: `--flow summon` 39 PASS(선 획이 소환수를 만들고 직선 투사체 필드가 0개인지 확인, 8종 모두 소환). 나머지 흐름은 아래 실행 결과 참고.
+
 ### 0.29.0 — 마법 쿨다운 0.5초
 - 마법(불꽃·물방울·번개) 공유 쿨다운을 3초에서 0.5초로 줄였습니다(`MAGIC_COOLDOWN_MS`). 답답하고 굼뜬 손맛을 줄이기 위한 첫 조정입니다.
 - 이제 연속 시전의 한계는 쿨다운이 아니라 잉크입니다. 한 번에 30, 최대 100이면 연속 3번, 그 뒤에는 잉크 회복(기본 30/초, 시전 뒤 0.4초 지연)을 따라 약 1초에 한 번입니다.
