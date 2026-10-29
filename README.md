@@ -187,7 +187,7 @@ GameKit PR47의 지연된 중첩 상태 전환과 PR48의 preview 복귀 수정�
 
 ### SVG renderer migration candidate
 
-The branch authors static character and environment resources in `source/assets/*.svg`, compiled with the pinned GameKit Vector Assets compiler (now 0.26.5, `curveSegments: 4`); live user strokes and transient combat effects remain runtime geometry. The renderer uses the official GameKit 0.15.1 rendering module (dist commit `50f835a801a8fae3c982e051290a26555ac031df`), while retaining the existing Vector Assets runtime/compiler, compiled geometry, and multiplayer modules. The non-radial pipeline passes its isolated comparison gate and final bundle E2E, but the SwiftShader comparison against legacy WebGL1 L still misses the performance gate: desktop p95 is 19.86% slower, and the mobile-sized viewport is 16.60% slower at median and 14.21% at p95. Stage 4's static-combine experiment was not adopted; Stage 5's DPR comparison was inconclusive. The explicitly approved merge does not imply a performance improvement or close that gate. See the [implementation notes](docs/svg-renderer.md) and [fixed-scene benchmark](docs/svg-renderer-benchmark-v0.16.0.md).
+The branch authors static character and environment resources in `source/assets/*.svg`, compiled with the pinned GameKit Vector Assets compiler (now 0.26.6, `curveSegments: 4`); live user strokes and transient combat effects remain runtime geometry. The renderer uses the official GameKit 0.15.1 rendering module (dist commit `50f835a801a8fae3c982e051290a26555ac031df`), while retaining the existing Vector Assets runtime/compiler, compiled geometry, and multiplayer modules. The non-radial pipeline passes its isolated comparison gate and final bundle E2E, but the SwiftShader comparison against legacy WebGL1 L still misses the performance gate: desktop p95 is 19.86% slower, and the mobile-sized viewport is 16.60% slower at median and 14.21% at p95. Stage 4's static-combine experiment was not adopted; Stage 5's DPR comparison was inconclusive. The explicitly approved merge does not imply a performance improvement or close that gate. See the [implementation notes](docs/svg-renderer.md) and [fixed-scene benchmark](docs/svg-renderer-benchmark-v0.16.0.md).
 [SVG renderer migration implementation notes](docs/svg-renderer.md)
 [Fixed-scene renderer benchmark and current SwiftShader regression](docs/svg-renderer-benchmark-v0.16.0.md)
 
@@ -333,9 +333,9 @@ The branch authors static character and environment resources in `source/assets/
 - 검증: `--flow showcase` 5 PASS, 데스크톱 1280×720·모바일 390×844에서 전 단계 성공·JS 오류 0(호스트 타임라인을 흉내 낸 하네스). 미검증: 자막·버튼이 있는 gamekit 호스트 UI(CDN이 샌드박스에서 막힘), 실제 기기 재생.
 
 
-### 렌더링 GameKit v0.26.5 이관 (게임 규칙 변경 없음)
+### 렌더링 GameKit v0.26.6 이관 (게임 규칙 변경 없음)
 
-- 렌더링을 GameKit v0.26.5 한 벌(`source/gamekit/0.26.5`, `rendering.js`·`vector-assets.js`·컴파일러, source `d287ca4e`, dist `6ef60d92`)로 통일했습니다. 이전에는 렌더러 0.19.5와 벡터 에셋 런타임·컴파일러 0.6.5를 따로 고정했습니다.
+- 렌더링을 GameKit v0.26.6 한 벌(`source/gamekit/0.26.6`, `rendering.js`·`vector-assets.js`·컴파일러, source `88630ef4`, dist `b83464e4`)로 통일했습니다. 이전에는 렌더러 0.19.5와 벡터 에셋 런타임·컴파일러 0.6.5를 따로 고정했습니다.
 - `WebGLDevice`와 `VectorContext` 하나가 `MeshRenderer`를 소유하고, 에셋은 `createVectorActor(context, compiled, options)`, 그리기는 `context.drawVectorActor(actor, { matrix, alpha })`입니다. 게임이 `MeshRenderer`를 만들어 대입하거나 `vector.flush()`·`projection`을 직접 다루던 코드는 없앴습니다. v0.26.3부터 `drawVectorActor`가 context 변환·`globalAlpha`를 따르므로 카메라 행렬을 액터마다 곱하던 코드도 없앴습니다(`context.drawVectorActor(actor, { matrix: local, alpha })`). 호환 래퍼는 남기지 않았습니다.
 - 새 컴파일러는 기본 표정에서 숨겨진 파트에 SVG `display="none"`을 요구합니다. 5개 SVG(`enemy-*`, `player`)에 속성만 추가했고 컴파일된 정점·인덱스는 17개 에셋 모두 이전과 같습니다. 스트로크 호 분할 2는 컴파일러 옵션 `strokeArcDivisions`로 넘기며, 예전 `SVGLoader.pointsToStroke` 덮어쓰기는 없앴습니다.
 - 이 게임의 SVG에는 털실·스케치(`backend: "shader"`) 표면이 없어 해당 경로는 쓰이지 않습니다.

@@ -1,4 +1,4 @@
 * text=auto eol=lf
 *.png binary
 *.pt binary
-source/gamekit/0.26.5/** text eol=lf
+source/gamekit/0.26.6/** text eol=lf
