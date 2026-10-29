@@ -1,17 +1,17 @@
 {
   "repository": "byh-playground/bloom-gamekit",
-  "version": "0.26.2",
-  "sourceCommit": "81c1d1bc38518ef8a2b7dc84a8475374d1e716ed",
-  "distCommit": "da87816c348724f08434371be8b899f1d21bc18c",
+  "version": "0.26.5",
+  "sourceCommit": "d287ca4e2268486b00a8155585b0bf6855f71f0d",
+  "distCommit": "6ef60d922541329af05e070b464caf66c970a041",
   "manifest": "manifest.json",
-  "manifestSha256": "9709f4da1a798e9595ab2ec54ca8f8acf98131cb89cad04c96de704dadd84916",
+  "manifestSha256": "d114896850e6f99d279bd80b549b0eb2c366b8ebd9afaa1f28d2c2dde9028130",
   "runtimeModules": {
     "rendering": "rendering.js",
     "vectorAssets": "vector-assets.js"
   },
   "sha256": {
-    "rendering.js": "594c0783ebbbba2bdec9654887671807fcd96971dc19eb1afc07c9e507233779",
-    "vector-assets.js": "0c8b859af42f66b7891ed054726e6c9debfe709deaf1b924e5fd0c7f423bfbbb",
+    "rendering.js": "5d6620b7ff04434c42883d51629cc1307eda7ae7135f06e1b6d60ee8ea5b63e4",
+    "vector-assets.js": "de7093c51d5ffd80d6bd716a0023a9b78586a1a9b10d607eb730109ba1af694c",
     "upstream-source/modules/rendering/paint-regions.js": "df57d8b71feba7dc74c9a2b4e314e3916da18402715cb506ec2c6c1df67afa2f",
     "upstream-source/modules/rendering/yarn-geometry.js": "1e219915866adb37b87b6099c4cc8e2b25df28653a18418903b9691d54b7ef24",
     "upstream-source/modules/rendering/yarn-material-record.js": "18ff6f7b0e09dd2c30927df4a6b93ab1e6a78d53391d3517080f68edf4c07d9f",

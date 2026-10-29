@@ -11,9 +11,6 @@ function unitPolygon(segments) {
   if (!points) { points = Object.freeze(Array.from({length:segments},(_,i)=>Object.freeze([Math.cos(i*Math.PI*2/segments),Math.sin(i*Math.PI*2/segments)]))); UNIT_POLYGONS.set(segments,points); }
   return points;
 }
-function multiply6(a, b) {
-  return [a[0]*b[0]+a[2]*b[1],a[1]*b[0]+a[3]*b[1],a[0]*b[2]+a[2]*b[3],a[1]*b[2]+a[3]*b[3],a[0]*b[4]+a[2]*b[5]+a[4],a[1]*b[4]+a[3]*b[5]+a[5]];
-}
 class Renderer2D {
   constructor(canvas, { antialias = true, preserveDrawingBuffer = false, initialVertices = 4096, maxVertices = 262144 } = {}) {
     if (!canvas?.getContext || !canvas?.addEventListener) throw new TypeError('canvas is required');
@@ -111,7 +108,7 @@ class Renderer2D {
   drawVector(actor, localMatrix = [1,0,0,1,0,0], alpha = 1) {
     this._frame();
     if (!actor?.draw || localMatrix.length !== 6 || !Number.isFinite(alpha) || alpha < 0 || alpha > 1) throw new TypeError('GameKit vector actor, affine transform and alpha are required');
-    this.context.drawVectorActor(actor, { matrix: multiply6(this.cameraMatrix, localMatrix), alpha });
+    this.context.drawVectorActor(actor, { matrix: localMatrix, alpha });
   }
   endFrame() {
     this._frame();

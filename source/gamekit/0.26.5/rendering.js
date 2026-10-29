@@ -5168,7 +5168,7 @@ var MeshRenderer = class {
       viewProjection: VIEW_PROJECTION,
       worldMatrix: WORLD_MATRIX
     } = options;
-    this._drawMeshInstances(mesh, {
+    this.drawMeshInstances(mesh, {
       matrices,
       count,
       projection: PROJECTION,
@@ -5366,11 +5366,12 @@ var MeshRenderer = class {
     this.alphaQueueState = null;
   }
   /**
-   * Internal ordered instance append used when one retained pose has several transforms. A mesh with materials that
+   * Ordered instance append used when one retained pose has several transforms (silhouettes). `matrices` holds
+   * six floats per instance and the first `prefixCount` instances use `prefixColor`. A mesh with materials that
    * writes depth is drawn in runs so a yarn or sketch edge, whose pixels are only partly covered, never writes depth;
    * the runs keep the triangle order, so painter order is unchanged.
    */
-  _drawMeshInstances(mesh, options = {}) {
+  drawMeshInstances(mesh, options = {}) {
     if (mesh?.materials && options.depthWrite === true && (options.depthWriteAlphaThreshold ?? null) === null && (options.indexRange ?? null) === null && this.meshes.has(mesh)) {
       const RUNS = this._materialRuns(mesh, options.indexVariant ?? null);
       if (RUNS.length > 1) {
@@ -6477,6 +6478,17 @@ function invert(matrix) {
   ];
 }
 var RAMP_KEY = (gradient) => (gradient instanceof LinearGradient ? "L" : "R") + gradient.stops.map((stop) => `${stop.offset}:${stop.color.join(",")}`).join(";");
+var COMPOSE_AFFINE = (outer, inner) => {
+  const [A, B, C, D, E, F] = inner;
+  return [
+    outer[0] * A + outer[2] * B,
+    outer[1] * A + outer[3] * B,
+    outer[0] * C + outer[2] * D,
+    outer[1] * C + outer[3] * D,
+    outer[0] * E + outer[2] * F + outer[4],
+    outer[1] * E + outer[3] * F + outer[5]
+  ];
+};
 var RadialGradient = class {
   constructor(matrix, x0, y0, r0, x1, y1, r1) {
     for (const [N, V] of Object.entries({
@@ -7767,15 +7779,7 @@ var VectorContext = class {
       if (transform.length !== 6 || Array.from(transform).some((n) => !Number.isFinite(n))) {
         throw new TypeError("Six finite transform values required");
       }
-      const M = matrix, [A, B, C, D, E, F] = transform;
-      matrix = [
-        M[0] * A + M[2] * B,
-        M[1] * A + M[3] * B,
-        M[0] * C + M[2] * D,
-        M[1] * C + M[3] * D,
-        M[0] * E + M[2] * F + M[4],
-        M[1] * E + M[3] * F + M[5]
-      ];
+      matrix = COMPOSE_AFFINE(matrix, transform);
     }
     this.meshRenderer.drawMesh(mesh, {
       matrix,
@@ -7804,6 +7808,40 @@ var VectorContext = class {
     if (!this.meshRenderer) {
       throw new TypeError("createMesh required");
     }
+    return this._silhouette(
+      { transform, color, width, radius, outlineScale },
+      (instances) => this.meshRenderer.drawMeshInstances(mesh, {
+        ...instances,
+        morph,
+        parts,
+        color: this.forceColor ?? WHITE2,
+        forceColor: this.forceColor !== null,
+        alpha: this._globalAlpha,
+        whiteFlash: this._filter === "brightness(0) invert(1)",
+        clips: this.vector.clips,
+        stencilRef: this.vector.stencilDepth || null
+      })
+    );
+  }
+  /**
+   * Draw a vector actor's silhouette and body in one ordered instance batch, like drawMeshSilhouette. `matrix` is
+   * the actor's local matrix; the other options are drawVectorActor's (no world mode).
+   */
+  drawVectorActorSilhouette(actor, { matrix = null, color = "black", width, radius = 128, outlineScale = null, ...options } = {}) {
+    this._frame();
+    if (typeof actor?.draw !== "function") {
+      throw new TypeError("A vector actor is required");
+    }
+    if (options.viewProjection !== void 0 || options.worldMatrix !== void 0) {
+      throw new TypeError("Actor silhouettes are 2D only");
+    }
+    return this._silhouette(
+      { transform: matrix, color, width, radius, outlineScale },
+      (instances) => actor.draw({ ...this._actorParams(options), projection: instances.projection, instances })
+    );
+  }
+  /** Silhouette instance transforms for the current context transform; `submit` appends them as one draw. */
+  _silhouette({ transform, color, width, radius, outlineScale }, submit) {
     finite(width, "silhouette width");
     finite(radius, "silhouette radius");
     if (width < 0 || radius < 0) {
@@ -7857,25 +7895,30 @@ var VectorContext = class {
           MATRICES[AT + 4] = A * te + C * tf + E_OFFSET;
           MATRICES[AT + 5] = B * te + D * tf + F_OFFSET;
         }
-        this.meshRenderer._drawMeshInstances(mesh, {
+        submit({
           matrices: MATRICES,
           count: COUNT,
           projection: this.vector.projection,
-          morph,
-          parts,
-          color: this.forceColor ?? WHITE2,
-          forceColor: this.forceColor !== null,
           prefixColor: outline,
           prefixCount: OUTLINE_INSTANCES,
-          forceColorPrefixCount: OUTLINE_INSTANCES,
-          alpha: this._globalAlpha,
-          whiteFlash: this._filter === "brightness(0) invert(1)",
-          clips: this.vector.clips,
-          stencilRef: this.vector.stencilDepth || null
+          forceColorPrefixCount: OUTLINE_INSTANCES
         });
       },
       BOUNDS
     );
+  }
+  /** Actor draw parameters from the context state: paint state applies and the caller's alpha multiplies. */
+  _actorParams(options) {
+    const FORCED = options.forceColor ?? this.forceColor !== null;
+    return {
+      clips: this.vector.clips,
+      stencilRef: this.vector.stencilDepth || null,
+      ...options,
+      alpha: (options.alpha ?? 1) * this._globalAlpha,
+      forceColor: FORCED,
+      color: options.color ?? (this.forceColor && FORCED ? this.forceColor : [1, 1, 1, 1]),
+      whiteFlash: options.whiteFlash ?? this._filter === "brightness(0) invert(1)"
+    };
   }
   /** Submit a vector actor after earlier paint, without flushing a compatible mesh run. */
   drawVectorActor(actor, options = {}) {
@@ -7884,13 +7927,23 @@ var VectorContext = class {
       throw new TypeError("A vector actor is required");
     }
     this.vector.flush();
-    const WORLD_MODE = options.viewProjection !== void 0 || options.worldMatrix !== void 0;
-    actor.draw({
-      ...!WORLD_MODE ? { projection: this.vector.projection } : {},
-      clips: this.vector.clips,
-      stencilRef: this.vector.stencilDepth || null,
-      ...options
-    });
+    const WORLD_MODE = options.viewProjection !== void 0 || options.worldMatrix !== void 0, PARAMS = this._actorParams(options);
+    if (!WORLD_MODE) {
+      PARAMS.projection = this.vector.projection;
+      if (options.matrix) {
+        if (options.matrix.length !== 6 || Array.from(options.matrix).some((n) => !Number.isFinite(n))) {
+          throw new TypeError("Six finite matrix values required");
+        }
+        PARAMS.matrix = COMPOSE_AFFINE(this.vector.matrix, options.matrix);
+      } else {
+        PARAMS.matrix = this.vector.matrix.slice();
+      }
+    }
+    actor.draw(PARAMS);
+  }
+  /** Evaluates every prepared actor pose now, before the actors are submitted. */
+  preparePoses() {
+    this.meshRenderer?.preparePoses();
   }
   flush(reason = "explicit") {
     this._frame();

@@ -4180,7 +4180,7 @@ function retainVectorAsset(meshRenderer, compiledAsset) {
       POSE_METRICS.cpuFallbacks++;
       return CACHE_PREPARED(meshRenderer.prepareCpuPose(POSE_INSTANCE, PARTS, MORPH, REASON));
     };
-    const DRAW = ({
+    const DRAW_ONE = ({
       projection,
       viewProjection,
       worldMatrix,
@@ -4196,20 +4196,31 @@ function retainVectorAsset(meshRenderer, compiledAsset) {
       depthTest = false,
       depthWrite = false,
       depthFunc = "lequal",
+      depthWriteAlphaThreshold = null,
       strokeViewport = null,
-      excludeParts = null
+      excludeParts = null,
+      instances = null
     } = {}) => {
       ASSERT_ACTOR();
+      const SUBMIT = (options) => instances ? meshRenderer.drawMeshInstances(mesh, {
+        ...options,
+        matrices: instances.matrices,
+        count: instances.count,
+        prefixColor: instances.prefixColor,
+        prefixCount: instances.prefixCount,
+        forceColorPrefixCount: instances.forceColorPrefixCount
+      }) : meshRenderer.drawMesh(mesh, options);
       VALIDATE_EXCLUSIONS(excludeParts);
       if (!mesh && paintRegions !== null) {
         throw new TypeError("This asset has no named mesh fills");
       }
-      if (POSE_INSTANCE) {
+      const ALPHA_DEPTH = depthWriteAlphaThreshold !== null;
+      if (POSE_INSTANCE && !ALPHA_DEPTH) {
         const POSE = PREPARE_POSE({ excludeParts });
         if (POSE) {
           const INDEX_VARIANT2 = !visibilityOverridden && compiledAsset.geometry.expressionIndices?.[expression] ? expression : null;
           const WORLD_MODE2 = viewProjection !== void 0 || worldMatrix !== void 0;
-          meshRenderer.drawMesh(mesh, {
+          SUBMIT({
             ...WORLD_MODE2 ? { viewProjection, worldMatrix } : { projection },
             matrix,
             pose: POSE,
@@ -4231,8 +4242,8 @@ function retainVectorAsset(meshRenderer, compiledAsset) {
           return;
         }
       }
-      if (!POSE_INSTANCE) {
-        meshRenderer.recordPoseFallback?.("uniformPose");
+      if (!POSE_INSTANCE || ALPHA_DEPTH) {
+        meshRenderer.recordPoseFallback?.(ALPHA_DEPTH ? "alphaDepthClassification" : "uniformPose");
       }
       const RESOLVED = WORLD_MATRICES();
       const POSES = RESOLVED.parts.map((pose, index) => ({
@@ -4242,7 +4253,7 @@ function retainVectorAsset(meshRenderer, compiledAsset) {
       }));
       const INDEX_VARIANT = !visibilityOverridden && compiledAsset.geometry.expressionIndices?.[expression] ? expression : null;
       const WORLD_MODE = viewProjection !== void 0 || worldMatrix !== void 0;
-      meshRenderer.drawMesh(mesh, {
+      SUBMIT({
         ...WORLD_MODE ? {
           viewProjection,
           worldMatrix
@@ -4263,9 +4274,46 @@ function retainVectorAsset(meshRenderer, compiledAsset) {
         depthTest,
         depthWrite,
         depthFunc,
+        depthWriteAlphaThreshold,
         indexVariant: INDEX_VARIANT,
         strokeViewport,
         timeMs: displayTimeMs
+      });
+    };
+    const DRAW = (options = {}) => {
+      const { outlineExpression: OUTLINE_EXPRESSION = null, instances: INSTANCES = null } = options;
+      if (OUTLINE_EXPRESSION === null) {
+        return DRAW_ONE(options);
+      }
+      if (!INSTANCES || INSTANCES.prefixCount < 1 || INSTANCES.prefixCount >= INSTANCES.count) {
+        throw new TypeError("outlineExpression requires silhouette instances");
+      }
+      if (visibilityOverridden) {
+        throw new TypeError("outlineExpression cannot be combined with setPartVisible overrides");
+      }
+      const BODY_EXPRESSION = expression, OUTLINES = INSTANCES.prefixCount;
+      SET_EXPRESSION(OUTLINE_EXPRESSION);
+      try {
+        DRAW_ONE({
+          ...options,
+          instances: {
+            ...INSTANCES,
+            matrices: INSTANCES.matrices.subarray(0, OUTLINES * 6),
+            count: OUTLINES
+          }
+        });
+      } finally {
+        SET_EXPRESSION(BODY_EXPRESSION);
+      }
+      DRAW_ONE({
+        ...options,
+        instances: {
+          matrices: INSTANCES.matrices.subarray(OUTLINES * 6, INSTANCES.count * 6),
+          count: INSTANCES.count - OUTLINES,
+          prefixColor: null,
+          prefixCount: 0,
+          forceColorPrefixCount: 0
+        }
       });
     };
     const GET_PART_POSE = (id) => {
@@ -4300,6 +4348,9 @@ function retainVectorAsset(meshRenderer, compiledAsset) {
       return true;
     };
     const ACTOR = Object.freeze({
+      get expression() {
+        return expression;
+      },
       seek: SEEK,
       play: PLAY,
       transitionTo: TRANSITION_TO,
@@ -4380,6 +4431,12 @@ function retainVectorAsset(meshRenderer, compiledAsset) {
     }
   });
 }
+function rejectUnknownOptions(unknownOptions) {
+  const NAMES = Object.keys(unknownOptions);
+  if (NAMES.length) {
+    throw new TypeError(`Unknown option${NAMES.length > 1 ? "s" : ""}: ${NAMES.join(", ")}`);
+  }
+}
 var SHARED_ASSETS = /* @__PURE__ */ new WeakMap();
 function acquireVectorAsset(context, compiledAsset) {
   if (!context?.acquireMeshRenderer || !context?.onDispose) {
@@ -4423,6 +4480,10 @@ function acquireVectorAsset(context, compiledAsset) {
       return true;
     }
   };
+}
+function holdVectorAsset(context, compiledAsset) {
+  const { release: RELEASE } = acquireVectorAsset(context, compiledAsset);
+  return Object.freeze({ release: RELEASE });
 }
 function createVectorActor(context, compiledAsset, options = {}) {
   const { asset: ASSET, release: RELEASE } = acquireVectorAsset(context, compiledAsset);
@@ -4567,7 +4628,8 @@ function createVectorRasterAtlas(context, compiledAsset, options = {}) {
     throw error;
   }
 }
-function bakeRasterAtlas(context, asset, release, compiledAsset, { pixelsPerUnit = 1, padding = 2 } = {}) {
+function bakeRasterAtlas(context, asset, release, compiledAsset, { pixelsPerUnit = 1, padding = 2, ...unknownOptions } = {}) {
+  rejectUnknownOptions(unknownOptions);
   const DEVICE = context.device;
   const MESHES = context.meshRenderer;
   if (!context.drawQuads || !context.drawVectorActor || !DEVICE?.createTextureLayerTarget || !DEVICE?.bindRenderTarget || !DEVICE?.unbindRenderTarget) {
@@ -4919,8 +4981,10 @@ function bakeSpriteAtlas(context, asset, release, compiledAsset, {
   pixelsPerUnit = 1,
   padding = 2,
   paintRegions = null,
-  supersample = 1
+  supersample = 1,
+  ...unknownOptions
 } = {}) {
+  rejectUnknownOptions(unknownOptions);
   validateCompiledAsset(compiledAsset);
   const DEVICE = context.device, MESHES = context.meshRenderer, GEOMETRY = compiledAsset.geometry;
   if (!context.drawQuads || !DEVICE?.createRenderTarget || !DEVICE?.blitRenderTarget || !DEVICE?.createTextureLayerTarget || !DEVICE?.bindRenderTarget || !DEVICE?.unbindRenderTarget) {
@@ -5298,5 +5362,6 @@ export {
   applySvgPaintRegions,
   createVectorActor,
   createVectorRasterAtlas,
-  createVectorSpriteAtlas
+  createVectorSpriteAtlas,
+  holdVectorAsset
 };
