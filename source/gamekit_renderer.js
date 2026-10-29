@@ -1,6 +1,6 @@
-// Compatibility facade over GameKit 0.6.1 VectorContext. The gameplay calls
-// remain ordered at the old Renderer2D boundary; SVG meshes and transient paths
-// share one WebGL device and are flushed only when their painter changes.
+// Facade over one GameKit VectorContext. The gameplay calls keep the old
+// Renderer2D boundary; SVG actors and transient paths share one WebGL device and
+// the context orders their submissions.
 const CLEAR = Object.freeze([0, 0, 0, 0]);
 const UNIT_SQUARE = Object.freeze([Object.freeze([-1,-1]),Object.freeze([1,-1]),Object.freeze([1,1]),Object.freeze([-1,1])]);
 const UNIT_POLYGONS = new Map();
@@ -21,7 +21,6 @@ class Renderer2D {
     this.canvas = canvas;
     this.device = new WebGLDevice(canvas, { alpha: true, antialias, depth: false, stencil: false, preserveDrawingBuffer });
     this.context = new VectorContext(this.device, { initialVertices, maxVertices });
-    this.context.meshRenderer = new MeshRenderer(this.device);
     this.gl = this.device.gl;
     this.width = canvas.clientWidth || canvas.width || 1;
     this.height = canvas.clientHeight || canvas.height || 1;
@@ -109,11 +108,10 @@ class Renderer2D {
     this.context.fillTriangleFan([[x0+nx,y0+ny],[x1+nx,y1+ny],[x1-nx,y1-ny],[x0-nx,y0-ny]],tint);
   }
   flush() { this._frame(); this.context.flush(); }
-  drawVector(player, localMatrix = [1,0,0,1,0,0], alpha = 1) {
+  drawVector(actor, localMatrix = [1,0,0,1,0,0], alpha = 1) {
     this._frame();
-    if (!player?.draw || localMatrix.length !== 6 || !Number.isFinite(alpha) || alpha < 0 || alpha > 1) throw new TypeError('GameKit vector player, affine transform and alpha are required');
-    this.context.vector.flush();
-    player.draw({ projection: this.context.vector.projection, matrix: multiply6(this.cameraMatrix, localMatrix), alpha });
+    if (!actor?.draw || localMatrix.length !== 6 || !Number.isFinite(alpha) || alpha < 0 || alpha > 1) throw new TypeError('GameKit vector actor, affine transform and alpha are required');
+    this.context.drawVectorActor(actor, { matrix: multiply6(this.cameraMatrix, localMatrix), alpha });
   }
   endFrame() {
     this._frame();

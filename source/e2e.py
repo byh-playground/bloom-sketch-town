@@ -223,7 +223,7 @@ async def run_desktop(browser, suite: E2E, html: str):
             f"window.__sketchRpgDebug.rendererStats().frame > {frame_before_pagehide}", timeout=3000
         )
         has_context_loss = await page.evaluate("""() => {
-          const gl=document.querySelector('#field').getContext('webgl');
+          const field=document.querySelector('#field'),gl=field.getContext('webgl2')||field.getContext('webgl');
           const ext=gl?.getExtension('WEBGL_lose_context');
           if(!ext)return false;
           window.__restoreSketchWebGL=()=>ext.restoreContext();
