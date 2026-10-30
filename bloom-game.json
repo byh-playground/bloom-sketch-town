@@ -1,0 +1,15 @@
+{
+  "$schema": "https://byh-playground.github.io/bloom-world/playground/bloom-game.schema.json",
+  "schemaVersion": 1,
+  "title": "스케치 타운",
+  "en": "SKETCH TOWN",
+  "genre": "action",
+  "tags": ["액션 RPG", "스케치 마법", "멀티플레이"],
+  "desc": "선과 도형을 그려 마법을 사용하고 지역을 탐험하는 액션 RPG입니다.",
+  "points": [
+    "도형을 그려 사용하는 마법",
+    "숲·채석장 지역 탐험",
+    "이동·전투·스케치 입력"
+  ],
+  "showcase": "https://byh-playground.github.io/bloom-sketch-town/#/showcase"
+}
